@@ -5,7 +5,8 @@ import GaShell from "../../components/ga/GaShell.vue";
 import PoPicker from "../../components/ga/PoPicker.vue";
 import PaymentSettingsDialog from "../../components/ga/PaymentSettingsDialog.vue";
 import { openGaPage, useDebounced, useGaGuard, useLatest, useRefreshOnActivate } from "../../lib/ga";
-import { PR_SOURCE_NAMES, PR_STATUS_CLASS, PR_STATUS_LABELS, dateText, downloadCsv, errorText, isUtilityRequest, money, type PaymentRequest, type UtilityAbilities } from "../../lib/ga-payments";
+import { PAYEE_TYPE_LABELS, PR_KIND_LABELS, PR_SOURCE_NAMES, PR_STATUS_CLASS, PR_STATUS_LABELS, dateText, downloadCsv, errorText, isUtilityRequest, money, payeeName, type PaymentRequest, type UtilityAbilities } from "../../lib/ga-payments";
+import { UTILITY_BILL_MANAGE_LABEL } from "../../../../lib/workspace/general-affairs/utility-bill-rules";
 import type { WorkTab } from "../../stores";
 
 // 第 4.5 批 請款單清單：伺服端分頁、篩選（狀態、廠商、月份、搜尋）、「待付款」頁籤（已送出）、匯出依廠商與月份的對帳 CSV。
@@ -29,6 +30,10 @@ const includeVoid = ref(false);
 const status = ref("");
 // G46 來源：全部、採購、水電話費（列表篩選）；匯出的來源預設採購（兩種欄位不同，分開匯出）。
 const source = ref("");
+// ga-improve-b1：類型（一般請款／預付款）、付款對象（廠商／同仁代墊）、預付逾期未到貨（G1，從總務待辦點進來也會帶）。
+const payKind = ref("");
+const payeeType = ref("");
+const prepayOverdue = ref(["1", "true"].includes(String((props.tab.payload as { prepay_overdue?: unknown } | undefined)?.prepay_overdue ?? "")));
 const exportSource = ref<"PURCHASE" | "UTILITY">("PURCHASE");
 const vendorId = ref("");
 const month = ref("");
@@ -43,7 +48,7 @@ const latest = useLatest();
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const canManage = computed(() => !!abilities.value?.canManage);
 const effStatus = computed(() => (view.value === "SUBMITTED" ? "SUBMITTED" : status.value));
-const hasFilter = computed(() => !!(staleDraft.value || source.value || status.value || vendorId.value || month.value || debounced.value.trim() || view.value !== "ALL"));
+const hasFilter = computed(() => !!(staleDraft.value || prepayOverdue.value || payKind.value || payeeType.value || source.value || status.value || vendorId.value || month.value || debounced.value.trim() || view.value !== "ALL"));
 
 async function load() {
   if (!allowed.value) return;
@@ -55,6 +60,9 @@ async function load() {
     if (effStatus.value) q.set("status", effStatus.value);
     if (staleDraft.value) q.set("stale_draft", "true");
     if (source.value) q.set("source", source.value);
+    if (payKind.value) q.set("payKind", payKind.value);
+    if (payeeType.value) q.set("payeeType", payeeType.value);
+    if (prepayOverdue.value) q.set("prepayOverdue", "1");
     if (vendorId.value) q.set("vendorId", vendorId.value);
     if (month.value) q.set("month", month.value);
     if (debounced.value.trim()) q.set("q", debounced.value.trim());
@@ -72,22 +80,23 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([view, status, source, vendorId, month, debounced, staleDraft], () => { page.value = 1; void load(); });
+watch([view, status, source, payKind, payeeType, prepayOverdue, vendorId, month, debounced, staleDraft], () => { page.value = 1; void load(); });
 watch(source, (v) => { if (v === "UTILITY" || v === "PURCHASE") exportSource.value = v; });
 watch(page, load);
 onMounted(() => { void load(); });
 useRefreshOnActivate(props.tab, () => { void load(); });
-function clearFilters() { staleDraft.value = false; view.value = "ALL"; status.value = ""; source.value = ""; vendorId.value = ""; month.value = ""; search.value = ""; }
+function clearFilters() { prepayOverdue.value = false; payKind.value = ""; payeeType.value = ""; staleDraft.value = false; view.value = "ALL"; status.value = ""; source.value = ""; vendorId.value = ""; month.value = ""; search.value = ""; }
 const open = (id: string) => openGaPage("ga-payment-request-edit", id);
-// 採購請款單的新增流程不變；水電話費請款單另有自己的入口（需要請款管理＋水電網費管理）。
+// 採購請款單的新增流程不變；水電話費請款單另有自己的入口（需要請款管理＋水電話網費管理）。
 const openNew = () => openGaPage("ga-payment-request-edit", undefined, { source: "PURCHASE" });
 const openNewUtility = () => { if (abilities.value?.canCreateUtility) openGaPage("ga-payment-request-edit", undefined, { source: "UTILITY" }); };
-const utilityNeed = computed(() => (abilities.value?.canCreateUtility ? "" : `建立水電話費請款單需要「${(abilities.value?.missingForCreate || ["請款管理", "水電網費管理"]).join("」與「")}」權限`));
+const utilityNeed = computed(() => (abilities.value?.canCreateUtility ? "" : `建立水電話費請款單需要「${(abilities.value?.missingForCreate || ["請款管理", UTILITY_BILL_MANAGE_LABEL]).join("」與「")}」權限`));
 async function exportCsv() {
   exportMsg.value = "";
   if (!month.value) { exportMsg.value = "請先選擇要匯出的月份（以請款單建立日的月份為準）。"; return; }
   const q = new URLSearchParams({ month: month.value });
   if (exportSource.value === "UTILITY") q.set("source", "UTILITY");
+  q.set("extended", "1"); // 對帳 CSV 追加類型、付款對象、抬頭、信用卡末四碼、平台欄位（原欄位與順序不動）
   if (vendorId.value) q.set("vendorId", vendorId.value);
   if (effStatus.value) q.set("status", effStatus.value);
   else {
@@ -120,6 +129,8 @@ async function exportCsv() {
     <div class="filter-bar">
       <label v-if="view === 'ALL'">狀態<select v-model="status" data-testid="pr-filter-status"><option value="">全部狀態</option><option v-for="(l, k) in PR_STATUS_LABELS" :key="k" :value="k">{{ l }}</option></select></label>
       <label>來源<select v-model="source" data-testid="pr-filter-source"><option value="">全部來源</option><option v-for="(l, k) in PR_SOURCE_NAMES" :key="k" :value="k">{{ l }}</option></select></label>
+      <label>類型<select v-model="payKind" data-testid="pr-filter-kind"><option value="">全部類型</option><option v-for="(l, k) in PR_KIND_LABELS" :key="k" :value="k">{{ l }}</option></select></label>
+      <label>付款對象<select v-model="payeeType" data-testid="pr-filter-payee"><option value="">全部</option><option v-for="(l, k) in PAYEE_TYPE_LABELS" :key="k" :value="k">{{ l }}</option></select></label>
       <label>月份（請款單建立月）<input v-model="month" type="month" data-testid="pr-filter-month" /></label>
       <PoPicker v-if="abilities?.vendorVisible" v-model="vendorId" kind="vendor" label="廠商" testid="pr-filter-vendor" clearable />
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="請款單號、廠商名稱" data-testid="pr-search" /></label>
@@ -134,6 +145,8 @@ async function exportCsv() {
       <label><input v-model="includeDraft" type="checkbox" data-testid="pr-export-draft" :disabled="!!effStatus" />加入草稿</label>
       <label><input v-model="includeVoid" type="checkbox" data-testid="pr-export-void" :disabled="!!effStatus" />加入已作廢</label>
     </div>
+    <p v-if="prepayOverdue" class="notice" role="status" data-testid="pr-prepay-overdue-chip">只顯示「逾期未到貨的預付款」（採購單已下訂、超過預計到貨日、預付餘額還沒核銷），請向廠商催貨或登記退款。<button type="button" data-testid="pr-prepay-overdue-clear" @click="prepayOverdue = false">看全部</button></p>
+    <p v-else class="muted prepay-toggle"><label><input v-model="prepayOverdue" type="checkbox" data-testid="pr-prepay-overdue-toggle" />只看逾期未到貨的預付款</label></p>
     <p v-if="staleDraft" class="notice" role="status" data-testid="pr-stale-chip">只顯示「逾 14 天未送出」的請款草稿。<button type="button" data-testid="pr-stale-clear" @click="staleDraft = false">清除篩選</button></p>
     <p v-if="exportMsg" class="notice" role="status" data-testid="pr-export-msg">{{ exportMsg }}</p>
     <p v-if="error" class="notice error" role="alert" data-testid="pr-error">{{ error }}<button type="button" @click="load">重新載入</button></p>
@@ -147,11 +160,15 @@ async function exportCsv() {
         <div class="card-head">
           <strong data-testid="pr-no">{{ r.pr_no }}</strong>
           <span class="src" :class="{ util: isUtilityRequest(r) }" data-testid="pr-source">{{ isUtilityRequest(r) ? PR_SOURCE_NAMES.UTILITY : PR_SOURCE_NAMES.PURCHASE }}</span>
+          <span v-if="r.pay_kind === 'PREPAY'" class="src prepay" data-testid="pr-kind">預付款</span>
+          <span v-if="r.payee_type === 'EMPLOYEE'" class="src emp" data-testid="pr-payee-kind">同仁代墊</span>
           <span class="st" :class="PR_STATUS_CLASS[r.status]" data-testid="pr-status">{{ PR_STATUS_LABELS[r.status] }}</span>
         </div>
         <p class="card-line">{{ r.vendor_name_snapshot || "（廠商）" }}　建立 {{ dateText(r.created_at) }}</p>
+        <p v-if="r.payee_type === 'EMPLOYEE'" class="card-line" data-testid="pr-payee">付款對象：同仁 {{ payeeName(r) }}</p>
+        <p v-if="r.pay_kind === 'PREPAY'" class="card-line" :class="{ overdue: r.prepay_overdue }" data-testid="pr-prepay-info">採購單 {{ r.prepay_po_no || (r.po_nos || [])[0] || "—" }}　預付餘額 {{ money(r.prepay_balance || 0) }}<template v-if="r.prepay_overdue">（逾期未到貨 {{ r.prepay_overdue_days }} 天）</template></p>
         <p v-if="isUtilityRequest(r)" class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted" data-testid="pr-bill-info">　帳單月份 {{ String(r.bill_month || "").slice(0, 7) }}，{{ r.bill_count ?? 0 }} 張帳單</span></p>
-        <p v-else class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted">　{{ r.line_count }} 筆進貨<template v-if="r.po_nos?.length">，採購單 {{ r.po_nos.join("、") }}</template></span></p>
+        <p v-else class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted">　<template v-if="r.pay_kind === 'PREPAY'">預付款，採購單 {{ (r.po_nos || []).join("、") }}</template><template v-else>{{ r.line_count }} 筆進貨<template v-if="r.po_nos?.length">，採購單 {{ r.po_nos.join("、") }}</template></template></span></p>
         <p v-if="r.expected_pay_date" class="card-line muted">預計付款日 {{ dateText(r.expected_pay_date) }}</p>
         <p v-if="r.status === 'PAID'" class="card-line muted">{{ dateText(r.paid_date) }} 付款<template v-if="r.paid_ref">（{{ r.paid_ref }}）</template></p>
         <button type="button" data-testid="open-pr" @click="open(r.id)">查看</button>
@@ -185,6 +202,12 @@ async function exportCsv() {
 .st.void { color: var(--muted); }
 .src { display: inline-block; border-radius: 6px; padding: 0 8px; font-size: 12px; font-weight: 600; background: var(--soft); border: 1px solid var(--line); white-space: nowrap; }
 .src.util { color: #0b5cab; border-color: #9cc3ea; background: #eaf3fc; }
+.src.prepay { color: #8a5a00; border-color: #e0c27a; background: #fff6df; }
+.src.emp { color: #7a3d00; border-color: #e0b48a; background: #fdf0e3; }
+.card-line.overdue { color: #b3261e; font-weight: 600; }
+.prepay-toggle { margin: 0 0 8px; }
+.prepay-toggle label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; min-height: 32px; }
+.prepay-toggle input { width: auto; min-height: 0; }
 .export-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 10px; font-size: 13px; }
 .export-opts label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
 @media (max-width: 700px) {

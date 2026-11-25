@@ -20,12 +20,14 @@ import {
   Sun,
   Moon,
   ExternalLink,
+  WalletCards,
 } from "lucide-vue-next";
 import { api, ApiError } from "./api";
 import { fallbackFor, legacyUrl, legacyUrlForKind } from "./legacy-link";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
 import { parsePrefill } from "../../lib/workspace/general-affairs/inventory-transfer-rules";
 import Modal from "./components/Modal.vue";
+import MyReimbursementsDialog from "./components/ga/MyReimbursementsDialog.vue";
 import HomeView from "./components/HomeView.vue";
 import LoginForm from "./components/LoginForm.vue";
 import PendingActivation from "./components/PendingActivation.vue";
@@ -56,6 +58,8 @@ const closeTabs = computed(() =>
 const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
+// ga-improve-b1 G4：任何登入者都能開「我的代墊款」（匯款帳戶與同仁代墊的請款單），不要求總務權限。
+const showReimbursements = ref(false);
 // M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
 const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers", "ga-report-create", "ga-part-fulfillments"];
 const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string }; date?: string; prefill?: Record<string, string>; assetToken?: string; fulfillmentId?: string } | null>(null);
@@ -401,6 +405,14 @@ onBeforeUnmount(() => {
         @click="toggleTheme"
       >
         <Sun v-if="dark" :size="18" /><Moon v-else :size="18" /></button
+      ><button
+        class="icon-button"
+        aria-label="我的代墊款"
+        title="我的代墊款"
+        data-testid="open-my-reimbursements"
+        @click="showReimbursements = true"
+      >
+        <WalletCards :size="18" /></button
       ><span class="user-name">{{ session.data.user.name }}</span
       ><button
         class="icon-button"
@@ -538,6 +550,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </section>
+    <MyReimbursementsDialog v-if="showReimbursements" @close="showReimbursements = false" />
     <Modal
       v-if="closing"
       :title="logoutPending ? '離開工作台前確認' : '關閉工作頁前確認'"

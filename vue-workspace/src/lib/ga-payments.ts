@@ -1,10 +1,11 @@
 // 第 4.5 批 請款單：頁面用的型別與小工具（規則在 lib/workspace/general-affairs/payment-request-rules.ts，伺服端與頁面共用）。
 import {
   PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, paidDateProblem, paidDateRange, payErrorMessage, voidReasonRequired, PAID_BACKDATE_DAYS,
+  PAYEE_PAY_METHODS, PAYEE_TYPE_LABELS, PR_KIND_LABELS,
   type PrAction, type PrStatus,
 } from "../../../lib/workspace/general-affairs/payment-request-rules";
 
-export { PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, paidDateProblem, paidDateRange, payErrorMessage, voidReasonRequired, PAID_BACKDATE_DAYS };
+export { PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, paidDateProblem, paidDateRange, payErrorMessage, voidReasonRequired, PAID_BACKDATE_DAYS, PAYEE_PAY_METHODS, PAYEE_TYPE_LABELS, PR_KIND_LABELS };
 import { errorCodeOf as _code, errorText as _text } from "./ga-invoices";
 /** 請款單頁的錯誤文字：沿用伺服端白話訊息，再補上新規則的下一步提示。 */
 export const payErrorText = (e: unknown, fallback?: string) => payErrorMessage(_code(e), _text(e, fallback));
@@ -54,16 +55,28 @@ export type PaymentRequest = {
   // G46 水電話費請款（採購單沒有這些欄位或是預設值）
   source?: "PURCHASE" | "UTILITY"; bill_month?: string | null; auto_mark_paid?: boolean; bill_count?: number; bills_masked?: boolean; bill_lines?: UtilityBillLine[];
   auto_marked_count?: number; auto_reverted_count?: number;
+  // ga-improve-b1：預付款（G1）、付款方式（G4）、同仁代墊（G4）、買受人抬頭（G11）；舊資料都是預設值（一般請款、廠商、沒有抬頭）。
+  pay_kind?: "NORMAL" | "PREPAY"; prepay_po_id?: string | null; prepay_po_no?: string | null; prepay_balance?: number; prepay_overdue?: boolean; prepay_overdue_days?: number | null;
+  prepay_offset_total?: number; prepay_refund_total?: number; prepay_ledger?: PrepayLedgerRow[];
+  card_last4?: string | null; pay_card_last4?: string | null; pay_platform?: string | null; platform?: string | null;
+  payee_type?: "VENDOR" | "EMPLOYEE"; payee_profile_id?: string | null; payee_name?: string | null; payee_name_snapshot?: string | null;
+  payee_account_snapshot?: PayeeAccount | Record<string, never>; payee_account_masked?: boolean; payee_account_last4?: string | null;
+  buyer_company_id?: string | null; buyer_title_snapshot?: string | null; buyer_tax_id_snapshot?: string | null;
 };
+export type PayeeAccount = { bank_name?: string | null; bank_branch?: string | null; bank_account?: string | null; bank_account_name?: string | null };
+export type PrepayLedgerRow = { id: string; kind: "OFFSET" | "REFUND"; amount: number; receipt_no: string | null; reason: string | null; created_at: string; reversed_at: string | null; reversed_reason: string | null };
 export type Candidate = {
   receipt_id: string; receipt_no: string; received_date: string; delivery_note_no: string | null; voucher_status: string; po_id: string; po_no: string; vendor_id: string; vendor_name: string;
   tax_rate: number; receipt_untaxed: number; receipt_tax: number; receipt_total: number; receipt_claimed: number; po_received_total: number; po_claimed_total: number; po_remaining: number;
-  po_remaining_max: number; tolerance: number;
+  po_remaining_max: number; tolerance: number; receipt_prepay_offset?: number; prepay_covered?: boolean;
   invoices: Array<{ id: string; invoice_no: string | null; invoice_type: string; amount_total: number; allocated_total: number; missing_image: boolean }>;
 };
 export const PR_STATUS_CLASS: Record<string, string> = { DRAFT: "draft", SUBMITTED: "submitted", PAID: "paid", VOID: "void" };
 export const EVENT_LABELS: Record<string, string> = {
-  create: "建立草稿", update: "修改草稿", submit: "送出請款", return: "退回草稿", mark_paid: "標記已付款", void: "作廢", note: "備註", refresh_bank: "重抓廠商帳號",
+  create: "建立草稿", update: "修改草稿", submit: "送出請款", return: "退回草稿", mark_paid: "標記已付款", void: "作廢", note: "備註", refresh_bank: "重抓廠商帳號", prepay_refund: "登記預付款退款或轉抵",
 };
+export const payeeBankText = (b: PayeeAccount | Record<string, never> | undefined | null) => bankText(b as PaymentRequest["bank_snapshot"]);
+/** 付款對象名稱：同仁代墊顯示同仁姓名（含員編快照），其餘顯示廠商名稱。 */
+export const payeeName = (r: Pick<PaymentRequest, "payee_type" | "payee_name" | "payee_name_snapshot" | "vendor_name_snapshot">) => (r.payee_type === "EMPLOYEE" ? r.payee_name_snapshot || r.payee_name || "（同仁）" : r.vendor_name_snapshot || "（廠商）");
 export const bankText = (b: PaymentRequest["bank_snapshot"] | undefined) =>
   [b?.bank_name, b?.bank_branch, b?.bank_account, b?.bank_account_name].filter(Boolean).join(" / ");

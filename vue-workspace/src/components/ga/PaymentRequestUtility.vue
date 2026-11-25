@@ -2,15 +2,19 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
 import GaShell from "./GaShell.vue";
+import PayeeBuyerFields from "./PayeeBuyerFields.vue";
+import PaidFields from "./PaidFields.vue";
+import PayoutAccountDialog from "./PayoutAccountDialog.vue";
 import Modal from "../Modal.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
 import {
   EVENT_LABELS, EXCLUDED_LABELS, PAID_BACKDATE_DAYS, PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_CLASS, PR_STATUS_LABELS, availableActions, bankText, billLabel, dateText, errorCodeOf, errorText,
-  isEditable, money, newKey, noPayeeNotice, paidDateProblem, paidDateRange, timeText, utilityErrorMessage, voidPaidWarning, voidReasonRequired,
+  isEditable, money, newKey, noPayeeNotice, paidDateProblem, paidDateRange, timeText, utilityErrorMessage, voidPaidWarning, voidReasonRequired, payeeBankText, payeeName,
   type PaymentRequest, type PrAction, type UtilityAbilities, type UtilityCandidateBill, type UtilityCandidates, type UtilityBillLine,
 } from "../../lib/ga-payments";
 import { EXPENSE_TYPE_LABELS } from "../../lib/ga-utility-bills";
 import { taipeiToday } from "../../lib/ga-invoices";
+import type { BuyerCompany } from "../../../../lib/workspace/general-affairs/buyer-company-rules";
 import { useWorkspace, type WorkTab } from "../../stores";
 
 // G46 水電話費請款單：建立、編輯與檢視（來源＝水電話費）。付款對象只有「公用事業」繳費單位；一張請款單＝同一繳費單位＋同一帳單月份。
@@ -36,6 +40,21 @@ const month = ref(taipeiToday().slice(0, 7));
 const expectedPayDate = ref("");
 const notes = ref("");
 const autoMark = ref(true);
+// ga-improve-b1：水電請款單也能選「同仁代墊」（例如門市同仁先繳）與買受人抬頭；繳費單位仍是 vendor_id。
+const payeeType = ref<"VENDOR" | "EMPLOYEE">("VENDOR");
+const payeeProfileId = ref("");
+const payeeNameText = ref("");
+const buyerCompanyId = ref("");
+const companies = ref<BuyerCompany[]>([]);
+const showRegister = ref(false);
+const isEmployee = computed(() => (pr.value ? pr.value.payee_type === "EMPLOYEE" : payeeType.value === "EMPLOYEE"));
+const payeeAccount = computed(() => (pr.value?.payee_account_snapshot || {}) as Record<string, string | null>);
+const hasPayeeAccount = computed(() => !!payeeAccount.value.bank_account);
+const buyerText = computed(() => {
+  if (pr.value?.buyer_title_snapshot) return `${pr.value.buyer_title_snapshot}${pr.value.buyer_tax_id_snapshot ? "（" + pr.value.buyer_tax_id_snapshot + "）" : ""}`;
+  const c = companies.value.find((x) => x.id === buyerCompanyId.value);
+  return c ? `${c.name}（${c.tax_id}）` : "";
+});
 const payees = ref<UtilityCandidates["payees"]>([]);
 const noPayee = ref(0);
 const cand = ref<UtilityCandidates | null>(null);
@@ -65,6 +84,10 @@ function fillFrom(r: PaymentRequest) {
   expectedPayDate.value = r.expected_pay_date ? dateText(r.expected_pay_date) : "";
   notes.value = r.notes || "";
   autoMark.value = r.auto_mark_paid !== false;
+  payeeType.value = r.payee_type === "EMPLOYEE" ? "EMPLOYEE" : "VENDOR";
+  payeeProfileId.value = r.payee_profile_id || "";
+  payeeNameText.value = r.payee_name_snapshot || r.payee_name || "";
+  buyerCompanyId.value = r.buyer_company_id || "";
   props.tab.title = r.pr_no;
 }
 async function loadRequest() {
@@ -108,6 +131,7 @@ async function loadBills(resetSelection: boolean) {
 onMounted(async () => {
   if (!allowed.value) { loading.value = false; return; }
   try {
+    companies.value = (await api<{ data: BuyerCompany[] }>("general-affairs/buyer-companies").catch(() => ({ data: [] as BuyerCompany[] }))).data;
     if (prId.value) {
       await loadRequest();
       if (editing.value) {
@@ -147,10 +171,23 @@ const eligibleIds = computed(() => bills.value.filter((b) => b.eligible).map((b)
 function selectAll(on: boolean) { selected.value = new Set(on ? eligibleIds.value : []); dirty(); }
 
 const opt = (v: string) => (v.trim() ? v.trim() : null);
+/** 付款對象與買受人抬頭：建立時只在有選的時候帶；修改時只帶有變動的欄位（沒帶＝不動）。 */
+function payeeBuyerBody(forCreate: boolean) {
+  const out: Record<string, unknown> = {};
+  const cur = pr.value;
+  const curEmp = cur?.payee_type === "EMPLOYEE";
+  if (payeeType.value === "EMPLOYEE") {
+    if (forCreate || !curEmp || cur?.payee_profile_id !== payeeProfileId.value) { out.payee_type = "EMPLOYEE"; out.payee_profile_id = payeeProfileId.value; }
+  } else if (!forCreate && curEmp) out.payee_type = "VENDOR";
+  const curBuyer = cur?.buyer_company_id || "";
+  if (forCreate ? !!buyerCompanyId.value : buyerCompanyId.value !== curBuyer) out.buyer_company_id = buyerCompanyId.value || null;
+  return out;
+}
 async function save() {
   if (saving.value || !editing.value) return;
   error.value = ""; saved.value = "";
   if (creating.value && !vendorId.value) { error.value = "請先選擇繳費單位。"; return; }
+  if (payeeType.value === "EMPLOYEE" && !payeeProfileId.value) { error.value = "請選擇代墊的同仁。"; return; }
   if (!selected.value.size) { error.value = "請至少選擇一張帳單。"; return; }
   saving.value = true;
   try {
@@ -158,7 +195,7 @@ async function save() {
     if (creating.value) {
       const res = await api<{ data: PaymentRequest }>("general-affairs/payment-requests", {
         method: "POST",
-        body: JSON.stringify({ source: "UTILITY", vendor_id: vendorId.value, bill_month: month.value, bill_ids: ids, auto_mark_paid: autoMark.value, expected_pay_date: opt(expectedPayDate.value), notes: opt(notes.value), idempotency_key: createKey.value }),
+        body: JSON.stringify({ source: "UTILITY", vendor_id: vendorId.value, bill_month: month.value, bill_ids: ids, auto_mark_paid: autoMark.value, expected_pay_date: opt(expectedPayDate.value), notes: opt(notes.value), ...payeeBuyerBody(true), idempotency_key: createKey.value }),
       });
       props.tab.dirty = false;
       openGaPage("ga-payment-request-edit", res.data.id);
@@ -166,7 +203,7 @@ async function save() {
     } else if (pr.value) {
       const res = await api<{ data: PaymentRequest }>(`general-affairs/payment-requests/${pr.value.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ bill_ids: ids, auto_mark_paid: autoMark.value, expected_pay_date: opt(expectedPayDate.value), notes: opt(notes.value), expected_updated_at: pr.value.updated_at }),
+        body: JSON.stringify({ bill_ids: ids, auto_mark_paid: autoMark.value, expected_pay_date: opt(expectedPayDate.value), notes: opt(notes.value), ...payeeBuyerBody(false), expected_updated_at: pr.value.updated_at }),
       });
       props.tab.dirty = false;
       saved.value = "已儲存。";
@@ -206,14 +243,16 @@ const actDate = ref(taipeiToday());
 const createdDay = computed(() => (pr.value?.created_at ? taipeiToday(new Date(pr.value.created_at)) : taipeiToday()));
 const paidRange = computed(() => paidDateRange(createdDay.value, taipeiToday()));
 const actRef = ref("");
+const actCard = ref("");
+const actPlatform = ref("");
 const actError = ref("");
 const actBusy = ref(false);
 const actKey = ref(newKey());
 const missingList = ref<Array<{ bill_id: string; location_name: string; expense_type: string; identifier: string | null; amount: number; billing_month: string }> | null>(null);
-watch([actDate, actMethod, actRef, actReason], () => { if (actError.value) actError.value = ""; });
+watch([actDate, actMethod, actRef, actReason, actCard, actPlatform], () => { if (actError.value) actError.value = ""; });
 const reasonNeeded = computed(() => acting.value === "return" || acting.value === "note" || (acting.value === "void" && voidReasonRequired(status.value)));
 function ask(a: PrAction) {
-  acting.value = a; actReason.value = ""; actRef.value = ""; actError.value = ""; actDate.value = taipeiToday(); actMethod.value = "TRANSFER"; actKey.value = newKey();
+  acting.value = a; actReason.value = ""; actRef.value = ""; actCard.value = ""; actPlatform.value = ""; actError.value = ""; actDate.value = taipeiToday(); actMethod.value = "TRANSFER"; actKey.value = newKey();
 }
 const autoCount = computed(() => viewLines.value.length || pr.value?.bill_count || 0);
 async function confirmAct() {
@@ -223,7 +262,11 @@ async function confirmAct() {
   const body: Record<string, unknown> = { action: a, expected_updated_at: pr.value.updated_at, idempotency_key: actKey.value };
   if (a === "return" || a === "void") body.reason = actReason.value.trim() || null;
   if (a === "note") body.note = actReason.value.trim() || null;
-  if (a === "mark_paid") { body.pay_method = actMethod.value; body.paid_date = actDate.value || null; body.paid_ref = actRef.value.trim() || null; }
+  if (a === "mark_paid") {
+    body.pay_method = actMethod.value; body.paid_date = actDate.value || null; body.paid_ref = actRef.value.trim() || null;
+    if (actMethod.value === "CREDIT_CARD" && actCard.value.trim()) body.card_last4 = actCard.value.trim();
+    if (actMethod.value === "ONLINE_PLATFORM" && actPlatform.value.trim()) body.platform = actPlatform.value.trim();
+  }
   if (a === "mark_paid") { const prob = paidDateProblem(actDate.value, createdDay.value, taipeiToday()); if (prob) { actError.value = prob; return; } }
   if (reasonNeeded.value && !actReason.value.trim()) { actError.value = a === "note" ? "請填寫備註內容。" : a === "return" ? "請填寫退回原因。" : "已送出或已付款的請款單作廢必須填寫原因。"; return; }
   actBusy.value = true;
@@ -260,6 +303,12 @@ async function quick(a: PrAction) {
     actBusy.value = false;
   }
 }
+async function accountSaved() {
+  showRegister.value = false;
+  saved.value = "已登錄同仁匯款帳戶。";
+  if (pr.value && actions.value.includes("refresh_bank")) await quick("refresh_bank");
+  else await loadRequest().catch(() => {});
+}
 const printPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id);
 function backToList() { openGaPage("ga-payment-requests"); work.remove([props.tab.id]); }
 function goBills(search?: string) { openGaPage("ga-utility-bills", undefined, { month: month.value, search: search || "" }); }
@@ -276,7 +325,7 @@ const lineState = (l: UtilityBillLine) => {
   <header class="page-heading">
     <div>
       <p class="eyebrow">總務服務中心 / 作業管理</p>
-      <h1>{{ creating ? "建立水電話費請款單" : pr ? `請款單 ${pr.pr_no}` : "請款單" }}<span v-if="pr" class="st" :class="PR_STATUS_CLASS[pr.status]" data-testid="pu-status">{{ PR_STATUS_LABELS[pr.status] }}</span><span class="src" data-testid="pu-source">水電話費</span></h1>
+      <h1>{{ creating ? "建立水電話費請款單" : pr ? `請款單 ${pr.pr_no}` : "請款單" }}<span v-if="pr" class="st" :class="PR_STATUS_CLASS[pr.status]" data-testid="pu-status">{{ PR_STATUS_LABELS[pr.status] }}</span><span class="src" data-testid="pu-source">水電話費</span><span v-if="isEmployee" class="src emp" data-testid="pu-kind-employee">同仁代墊</span></h1>
       <p v-if="creating || !pr" class="muted" data-testid="pu-subtitle">付款對象是公用事業繳費單位（台電、台水、電信公司等），一張請款單只含同一個繳費單位、同一個帳單月份。選好後系統會自動帶入該月可請款的帳單，你可以增減。</p>
       <p v-else class="muted" data-testid="pu-subtitle">{{ pr.status === "DRAFT" ? "草稿可以增減帳單、儲存或送出；送出後要改請先退回草稿。" : pr.status === "SUBMITTED" ? "已送出，等待會計付款；要修改內容請先退回草稿。" : pr.status === "PAID" ? "已付款，內容已鎖定，只能加備註或作廢。" : "已作廢，內容唯讀。" }}</p>
     </div>
@@ -312,6 +361,14 @@ const lineState = (l: UtilityBillLine) => {
       </template>
       <template v-else>
         <p>繳費單位：<strong data-testid="pu-vendor-name">{{ vendorName || "—" }}</strong>　帳單月份：<strong data-testid="pu-month-text">{{ month }}</strong></p>
+        <div v-if="isEmployee && pr" class="pe-payee" data-testid="pu-payee-box">
+          <p>付款對象：<strong data-testid="pu-payee-name">同仁代墊：{{ payeeName(pr) }}</strong>（同仁先繳，公司把錢還給同仁；繳費單位仍是上面那一家）</p>
+          <p v-if="pr.payee_account_masked" class="muted" data-testid="pu-payee-masked">同仁匯款帳戶屬帳務機密，你沒有廠商帳務檢視權限，只顯示末四碼：{{ pr.payee_account_last4 || "（尚未登錄）" }}。</p>
+          <p v-else-if="hasPayeeAccount" data-testid="pu-payee-account">同仁匯款帳戶（快照）：{{ payeeBankText(pr.payee_account_snapshot) }}</p>
+          <p v-else class="notice" role="status" data-testid="pu-payee-no-account">這位同仁還沒有登錄匯款帳戶，送出前要先登錄：請同仁到右上角「我的代墊款」登錄，或由會計代為登錄{{ pr.status === "DRAFT" ? "，再按「重抓同仁匯款帳戶」" : "" }}。</p>
+          <button v-if="canManage && abilities?.vendorVisible && pr.status !== 'VOID'" type="button" data-testid="pu-payee-register" @click="showRegister = true">代同仁登錄匯款帳戶</button>
+        </div>
+        <p v-if="pr && !editing && buyerText" data-testid="pu-buyer-text">買受人抬頭：{{ buyerText }}</p>
         <p v-if="pr?.vendor_masked" class="muted" data-testid="pu-masked">廠商統編與銀行帳號屬帳務機密，你沒有廠商查看權限，不顯示。</p>
         <template v-else-if="pr">
           <p data-testid="pu-tax">統一編號：{{ pr.vendor_tax_id_snapshot || "—" }}</p>
@@ -321,6 +378,7 @@ const lineState = (l: UtilityBillLine) => {
         <p v-if="pr?.status === 'PAID'" data-testid="pu-paid-info">付款方式 {{ PAY_METHOD_LABELS[pr.pay_method as keyof typeof PAY_METHOD_LABELS] || pr.pay_method }}，付款日 {{ dateText(pr.paid_date) }}<template v-if="pr.paid_ref">，參考號 {{ pr.paid_ref }}</template></p>
         <p v-if="pr && !editing" data-testid="pu-auto-info">送出後帳單自動標記已繳：<strong>{{ pr.auto_mark_paid ? "是" : "否" }}</strong><template v-if="pr.auto_mark_paid && pr.status !== 'DRAFT'">　已標記 {{ pr.auto_marked_count ?? 0 }} 張</template><template v-if="(pr.auto_reverted_count ?? 0) > 0 && pr.status !== 'SUBMITTED' && pr.status !== 'PAID'">　已回復 {{ pr.auto_reverted_count }} 張</template></p>
       </template>
+      <PayeeBuyerFields v-if="editing && !loading && abilities" v-model:payee-type="payeeType" v-model:payee-profile-id="payeeProfileId" v-model:payee-name="payeeNameText" v-model:buyer-company-id="buyerCompanyId" :companies="companies" :editing="editing" prefix="pu" @change="dirty" />
       <div class="pe-grid">
         <label>預計付款日<input v-model="expectedPayDate" type="date" :disabled="!editing" data-testid="pu-pay-date" @input="dirty" /></label>
         <label>備註<input v-model="notes" maxlength="500" :disabled="!editing" data-testid="pu-notes" @input="dirty" /></label>
@@ -384,7 +442,7 @@ const lineState = (l: UtilityBillLine) => {
     <div v-if="!loading" class="dialog-actions pe-actions">
       <template v-if="editing">
         <button v-if="pr" type="button" :disabled="saving || actBusy" data-testid="pu-refresh" @click="refresh">重新帶入帳單金額</button>
-        <button v-if="pr && actions.includes('refresh_bank')" type="button" :disabled="actBusy || saving" data-testid="pu-refresh-bank" @click="quick('refresh_bank')">重抓廠商帳號</button>
+        <button v-if="pr && actions.includes('refresh_bank')" type="button" :disabled="actBusy || saving" data-testid="pu-refresh-bank" @click="quick('refresh_bank')">{{ isEmployee ? "重抓同仁匯款帳戶" : "重抓廠商帳號" }}</button>
         <button type="button" class="primary" :disabled="saving || (creating && !vendorId)" data-testid="pu-save" @click="save">{{ saving ? "儲存中…" : creating ? "建立草稿" : "儲存草稿" }}</button>
       </template>
       <button v-if="actions.includes('submit')" type="button" class="primary" :disabled="actBusy || saving" data-testid="pu-submit" @click="ask('submit')">送出請款</button>
@@ -406,7 +464,7 @@ const lineState = (l: UtilityBillLine) => {
         <p v-if="pr?.status === 'PAID'" class="notice error" role="alert" data-testid="act-void-paid-warning">{{ voidPaidWarning }}</p>
       </template>
       <template v-if="acting === 'mark_paid'">
-        <label>付款方式<select v-model="actMethod" data-testid="act-method"><option v-for="m in PAY_METHODS" :key="m" :value="m">{{ PAY_METHOD_LABELS[m] }}</option></select></label>
+        <PaidFields v-model:method="actMethod" v-model:card="actCard" v-model:platform="actPlatform" :employee="isEmployee" />
         <label>付款日期<input v-model="actDate" type="date" :min="paidRange.min" :max="paidRange.max" data-testid="act-date" /></label>
         <p class="muted" data-testid="act-date-hint">付款日期可以比請款單建立日（{{ createdDay }}）早，但最多早 {{ PAID_BACKDATE_DAYS }} 天（最早 {{ paidRange.min }}），不能是未來。標記已付款不會改動帳單的繳費狀態。</p>
         <label>付款參考號（轉帳末五碼、支票號碼等，選填）<input v-model="actRef" maxlength="60" data-testid="act-ref" /></label>
@@ -419,6 +477,7 @@ const lineState = (l: UtilityBillLine) => {
       </div>
     </Modal>
 
+    <PayoutAccountDialog v-if="showRegister && pr?.payee_profile_id" :who="pr.payee_profile_id" :label="payeeName(pr)" @close="showRegister = false" @saved="accountSaved" />
     <Modal v-if="missingList" title="有帳單還沒有附件" @cancel="missingList = null">
       <p data-testid="missing-intro">每張帳單送出前至少要有一個附件（帳單照片或 PDF）。下面 {{ missingList.length }} 張缺附件，請先上傳；請款單維持草稿。</p>
       <ul class="pu-missing-list" data-testid="missing-list">
@@ -445,6 +504,8 @@ const lineState = (l: UtilityBillLine) => {
 .st.void { color: var(--muted); }
 .src { display: inline-block; margin-left: 8px; border-radius: 6px; padding: 1px 8px; font-size: 12px; font-weight: 600; background: var(--soft); border: 1px solid var(--line); vertical-align: middle; }
 .pre { white-space: pre-wrap; }
+.src.emp { color: #7a3d00; }
+.pe-payee { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--soft); min-width: 0; }
 .pu-auto { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--soft); }
 .pu-auto-row { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 .pu-auto-row input { width: auto; min-height: 0; }
