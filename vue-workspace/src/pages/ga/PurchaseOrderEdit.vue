@@ -5,7 +5,8 @@ import GaShell from "../../components/ga/GaShell.vue";
 import PoPicker from "../../components/ga/PoPicker.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
 import { FULFIL_TEXT, dateText, money, newKey, num, type PoDetail } from "../../lib/ga-purchase";
-import { computeTotals, needsApproval, validateHeader, validateItems } from "../../../../lib/workspace/general-affairs/purchase-order-rules";
+import { ADJ_KIND_LABELS, ADJ_KINDS, MAX_ADJUSTMENTS, PRICE_MODE_LABELS, computeTotalsV2, needsApproval, validateHeader, validateItems, type AdjKind, type PriceMode } from "../../../../lib/workspace/general-affairs/purchase-order-rules";
+import { selectableCompanies, type BuyerCompany } from "../../../../lib/workspace/general-affairs/buyer-company-rules";
 import { useSession, useWorkspace, type WorkTab } from "../../stores";
 
 // G25 新增與編輯採購單草稿。供應商只能選已建好且合作中的（不可臨時輸入名稱）；品項可選料件或填自由品名；每個品項選「入總部庫存」或「到貨直接建設備送門市」；
@@ -19,6 +20,10 @@ type Item = {
   fulfil_mode: "STOCK" | "DIRECT_ASSET" | "NO_STOCK"; target_store_id: string; store: any | null; equipment_template_id: string; template: any | null;
   over_request_reason: string; notes: string; request_id: string; request_no: string; history: any[] | null;
 };
+// ga-improve-b1 G3：調整列。折扣、折價券、點數折抵在畫面輸入正數，送出前轉成負數；其他調整可輸入負數。
+type Adj = { key: string; kind: AdjKind; label: string; amount: string; original_price: string; campaign_name: string; note: string; receipt_no: string };
+const blankAdj = (kind: AdjKind = "FREIGHT"): Adj => ({ key: newKey(), kind, label: "", amount: "", original_price: "", campaign_name: "", note: "", receipt_no: "" });
+const NEGATIVE_KINDS: readonly AdjKind[] = ["DISCOUNT", "COUPON", "POINTS"];
 const blank = (): Item => ({
   key: newKey(), mode: "part", part: null, part_id: "", item_name: "", spec: "", unit: "", quantity: "1", unit_price: "", fulfil_mode: "STOCK", target_store_id: "", store: null,
   equipment_template_id: "", template: null, over_request_reason: "", notes: "", request_id: "", request_no: "", history: null,
@@ -27,6 +32,13 @@ const poId = computed(() => props.tab.recordId || "");
 const detail = ref<PoDetail | null>(null);
 const form = reactive({ vendor_id: "", vendor: null as any, receiving_location_id: "", location: null as any, expected_delivery_date: "", notes: "" });
 const items = ref<Item[]>([blank()]);
+const priceMode = ref<PriceMode>("EXCL");
+const buyerCompanyId = ref("");
+const companies = ref<BuyerCompany[]>([]);
+const adjustments = ref<Adj[]>([]);
+const companyOptions = computed(() => selectableCompanies(companies.value, buyerCompanyId.value || null));
+const defaultCompany = computed(() => companies.value.find((c) => c.is_default && c.is_active) || null);
+const priceLabel = computed(() => (priceMode.value === "INCL" ? "單價（含稅）" : "單價（未稅）"));
 const settings = reactive({ tax_rate: 0.05, approval_threshold: 5000, approval_enabled: true });
 // 一開始就是載入中：資料（設定與既有採購單）載完才顯示表單，避免使用者在載入前填的內容被載入結果蓋掉。
 const loading = ref(true);
@@ -47,6 +59,7 @@ onMounted(async () => {
     settings.tax_rate = Number(st.data.tax_rate);
     settings.approval_threshold = Number(st.data.approval_threshold);
     settings.approval_enabled = !!st.data.approval_enabled;
+    companies.value = (await api<{ data: BuyerCompany[] }>("general-affairs/buyer-companies").catch(() => ({ data: [] as BuyerCompany[] }))).data;
     if (poId.value) {
       const res = await api<{ data: PoDetail }>(`general-affairs/purchase-orders/${poId.value}`);
       fill(res.data);
@@ -69,10 +82,16 @@ function fill(d: PoDetail) {
   form.location = d.receiving_location_id ? { id: d.receiving_location_id, name: d.receiving_location_name || "（位置）", code: null } : null;
   form.expected_delivery_date = dateText(d.expected_delivery_date);
   form.notes = d.notes || "";
+  priceMode.value = d.price_mode === "INCL" ? "INCL" : "EXCL";
+  buyerCompanyId.value = d.buyer_company_id || "";
+  adjustments.value = (d.adjustments || []).map((a) => ({
+    key: a.id, kind: a.kind, label: a.label || "", amount: String(NEGATIVE_KINDS.includes(a.kind) ? Math.abs(a.amount) : a.amount), original_price: a.original_price == null ? "" : String(a.original_price),
+    campaign_name: a.campaign_name || "", note: a.note || "", receipt_no: a.receipt_no || "",
+  }));
   items.value = d.items.length
     ? d.items.map((i) => ({
         key: i.id, mode: i.part_id ? "part" : "free", part: i.part_id ? { id: i.part_id, name: i.part_name || i.item_name, part_code: null } : null, part_id: i.part_id || "", item_name: i.item_name, spec: i.spec || "", unit: i.unit || "",
-        quantity: String(i.quantity), unit_price: String(i.unit_price), fulfil_mode: i.fulfil_mode, target_store_id: i.target_store_id || "",
+        quantity: String(i.quantity), unit_price: String(d.price_mode === "INCL" && i.unit_price_gross != null ? i.unit_price_gross : i.unit_price), fulfil_mode: i.fulfil_mode, target_store_id: i.target_store_id || "",
         store: i.target_store_id ? { id: i.target_store_id, store_name: i.target_store_name || "（門市）", store_code: "" } : null, equipment_template_id: i.equipment_template_id || "",
         template: i.equipment_template_id ? { id: i.equipment_template_id, name: "（已選型號）" } : null, over_request_reason: i.over_request_reason || "", notes: i.notes || "",
         request_id: i.request_id || "", request_no: i.request_no || "", history: null,
@@ -111,12 +130,36 @@ function itemsPayload() {
     equipment_template_id: i.fulfil_mode === "DIRECT_ASSET" ? opt(i.equipment_template_id) : undefined, over_request_reason: opt(i.over_request_reason), notes: opt(i.notes),
   }));
 }
+function addAdj(kind: AdjKind) { adjustments.value.push(blankAdj(kind)); props.tab.dirty = true; }
+function removeAdj(i: number) { adjustments.value.splice(i, 1); props.tab.dirty = true; }
+/** 畫面輸入轉成含正負號的金額：折扣類一律負數（使用者輸入正數或負數都一樣），運費要正數，其他調整照輸入。 */
+function signedAmount(a: Adj): number {
+  const n = Number(String(a.amount).replace(/,/g, ""));
+  if (!Number.isFinite(n)) return NaN;
+  return NEGATIVE_KINDS.includes(a.kind) ? -Math.abs(n) : n;
+}
+function adjustmentsPayload() {
+  return adjustments.value.map((a) => ({
+    kind: a.kind, label: a.label.trim() || undefined, amount: String(signedAmount(a)), original_price: a.original_price.trim() || undefined, campaign_name: a.campaign_name.trim() || undefined, note: a.note.trim() || undefined,
+  }));
+}
+const totalsError = ref("");
 const totals = computed(() => {
   const rows = items.value.map((i) => ({ quantity: Number(i.quantity), unit_price: Number(i.unit_price || 0) })).filter((r) => Number.isFinite(r.quantity) && Number.isFinite(r.unit_price));
-  return computeTotals(rows, settings.tax_rate);
+  const adj = adjustments.value.map((a) => ({ amount: signedAmount(a) })).filter((a) => Number.isFinite(a.amount));
+  try {
+    totalsError.value = "";
+    return computeTotalsV2({ items: rows, adjustments: adj, tax_rate: settings.tax_rate, price_mode: priceMode.value });
+  } catch (e) {
+    totalsError.value = (e as Error).message;
+    return computeTotalsV2({ items: rows, tax_rate: settings.tax_rate, price_mode: priceMode.value });
+  }
 });
 const needsApprove = computed(() => needsApproval(totals.value.total_amount, settings.approval_threshold, settings.approval_enabled));
-const headerPayload = () => ({ vendor_id: form.vendor_id || null, receiving_location_id: form.receiving_location_id || null, expected_delivery_date: form.expected_delivery_date || null, notes: form.notes || null });
+const headerPayload = () => ({
+  vendor_id: form.vendor_id || null, receiving_location_id: form.receiving_location_id || null, expected_delivery_date: form.expected_delivery_date || null, notes: form.notes || null,
+  price_mode: priceMode.value, buyer_company_id: buyerCompanyId.value || null, adjustments: adjustmentsPayload(),
+});
 
 async function save() {
   if (saving.value || !allowed.value) return;
@@ -185,6 +228,20 @@ const overRequired = (i: Item) => !!i.request_id;
           <span v-else class="muted legacy-link" data-testid="vendor-ask-ga">找不到供應商？請洽總務新增。</span>
         </div>
         <PoPicker v-model="form.receiving_location_id" kind="location" label="收貨位置（入庫存的品項到貨後放這裡）" clearable testid="pe-location" :disabled="readOnlyBody" :initial="form.location" @pick="dirty" />
+        <div class="pe-two">
+          <label>單價計價方式
+            <select v-model="priceMode" :disabled="readOnlyBody" data-testid="pe-price-mode" @change="dirty">
+              <option v-for="(l, k) in PRICE_MODE_LABELS" :key="k" :value="k">{{ l }}{{ k === "EXCL" ? "（預設）" : "" }}</option>
+            </select>
+          </label>
+          <label>買受人抬頭
+            <select v-model="buyerCompanyId" :disabled="readOnlyBody" data-testid="pe-buyer" @change="dirty">
+              <option value="">{{ defaultCompany ? `（沿用預設公司：${defaultCompany.name}）` : "（沿用請款設定的抬頭）" }}</option>
+              <option v-for="c in companyOptions" :key="c.id" :value="c.id">{{ c.name }}（{{ c.tax_id }}）{{ c.is_active ? "" : "【已停用】" }}</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted" data-testid="pe-price-mode-hint">{{ priceMode === "INCL" ? "單價與調整列都輸入「含稅」金額；系統用含稅總額反推未稅與稅額（稅額用總額減未稅），含稅總額永遠等於你輸入的合計。" : "單價與調整列都輸入「未稅」金額；稅額依稅率四捨五入。" }}切換後單價的意義會改變，已填的數字不會自動換算，請確認金額。</p>
         <label>預計到貨日<input v-model="form.expected_delivery_date" type="date" :disabled="cannotEdit" data-testid="pe-expected" @input="dirty" /></label>
         <label>備註<textarea v-model="form.notes" rows="2" maxlength="1000" :disabled="cannotEdit" data-testid="pe-notes" @input="dirty" /></label>
       </section>
@@ -205,7 +262,7 @@ const overRequired = (i: Item) => !!i.request_id;
               <label>規格<input v-model="it.spec" maxlength="200" :disabled="readOnlyBody" :data-testid="'pe-spec-' + idx" @input="dirty" /></label>
               <label>數量<input v-model="it.quantity" inputmode="decimal" :disabled="readOnlyBody" :data-testid="'pe-qty-' + idx" @input="dirty" /></label>
               <label>單位<input v-model="it.unit" maxlength="20" :disabled="readOnlyBody" :data-testid="'pe-unit-' + idx" @input="dirty" /></label>
-              <label>單價（未稅）<input v-model="it.unit_price" inputmode="decimal" :disabled="readOnlyBody" :data-testid="'pe-price-' + idx" @input="dirty" /></label>
+              <label>{{ priceLabel }}<input v-model="it.unit_price" inputmode="decimal" :disabled="readOnlyBody" :data-testid="'pe-price-' + idx" @input="dirty" /></label>
             </div>
             <div v-if="it.history" class="pe-history" :data-testid="'pe-history-' + idx">
               <strong>歷史價（最近已下訂的採購）</strong>
@@ -230,9 +287,39 @@ const overRequired = (i: Item) => !!i.request_id;
         <button v-if="!readOnlyBody" type="button" data-testid="pe-add-item" @click="addItem">新增品項</button>
       </section>
 
+      <section class="pe-box" data-testid="pe-adjustments">
+        <h2>調整列（運費、折扣、折價券、點數折抵）</h2>
+        <p class="muted">金額會算進總額：運費是加項，折扣、折價券、點數折抵是減項（輸入正數，系統自動轉成負數）。原價與活動名稱只是備註，不參與計算。{{ priceMode === "INCL" ? "目前是含稅計價，這裡輸入含稅金額。" : "目前是未稅計價，這裡輸入未稅金額。" }}調整列會併入第一張有效進貨單的金額。</p>
+        <ul class="pe-items" aria-label="調整列">
+          <li v-for="(a, idx) in adjustments" :key="a.key" class="pe-item" data-testid="pe-adj">
+            <div class="pe-grid">
+              <label>種類
+                <select v-model="a.kind" :disabled="readOnlyBody" :data-testid="'pe-adj-kind-' + idx" @change="dirty">
+                  <option v-for="k in ADJ_KINDS" :key="k" :value="k">{{ ADJ_KIND_LABELS[k] }}</option>
+                </select>
+              </label>
+              <label>名稱（選填）<input v-model="a.label" maxlength="60" :disabled="readOnlyBody" :data-testid="'pe-adj-label-' + idx" @input="dirty" /></label>
+              <label>金額{{ NEGATIVE_KINDS.includes(a.kind) ? "（輸入正數，視為扣除）" : a.kind === "OTHER" ? "（可輸入負數）" : "" }}<input v-model="a.amount" inputmode="numeric" :disabled="readOnlyBody" :data-testid="'pe-adj-amount-' + idx" @input="dirty" /></label>
+              <label>原價（備註）<input v-model="a.original_price" inputmode="numeric" :disabled="readOnlyBody" :data-testid="'pe-adj-orig-' + idx" @input="dirty" /></label>
+              <label>活動名稱（備註）<input v-model="a.campaign_name" maxlength="100" :disabled="readOnlyBody" :data-testid="'pe-adj-campaign-' + idx" @input="dirty" /></label>
+              <label>備註<input v-model="a.note" maxlength="200" :disabled="readOnlyBody" :data-testid="'pe-adj-note-' + idx" @input="dirty" /></label>
+            </div>
+            <p v-if="NEGATIVE_KINDS.includes(a.kind) && a.amount" class="muted" :data-testid="'pe-adj-sign-' + idx">實際金額 −{{ money(Math.abs(Number(String(a.amount).replace(/,/g, "")) || 0)) }}</p>
+            <p v-if="a.receipt_no" class="muted">已併入進貨單 {{ a.receipt_no }}</p>
+            <button v-if="!readOnlyBody" type="button" class="link" :data-testid="'pe-adj-remove-' + idx" @click="removeAdj(idx)">移除此列</button>
+          </li>
+        </ul>
+        <div v-if="!readOnlyBody" class="pe-adj-add">
+          <button v-for="k in ADJ_KINDS" :key="k" type="button" :disabled="adjustments.length >= MAX_ADJUSTMENTS" :data-testid="'pe-adj-add-' + k" @click="addAdj(k)">新增{{ ADJ_KIND_LABELS[k] }}</button>
+        </div>
+      </section>
+
       <section class="pe-box" data-testid="pe-totals">
         <h2>金額</h2>
-        <p>未稅 <strong data-testid="pe-subtotal">{{ money(totals.subtotal) }}</strong>　稅額 {{ money(totals.tax_amount) }}（{{ Math.round(settings.tax_rate * 10000) / 100 }}%）　含稅總額 <strong data-testid="pe-total">{{ money(totals.total_amount) }}</strong></p>
+        <p v-if="priceMode === 'INCL'">含稅總額（輸入合計） <strong data-testid="pe-total">{{ money(totals.total_amount) }}</strong>　未稅小計 <strong data-testid="pe-subtotal">{{ money(totals.subtotal) }}</strong>　稅額 <span data-testid="pe-tax">{{ money(totals.tax_amount) }}</span>（{{ Math.round(settings.tax_rate * 10000) / 100 }}%）</p>
+        <p v-else>未稅 <strong data-testid="pe-subtotal">{{ money(totals.subtotal) }}</strong>　稅額 <span data-testid="pe-tax">{{ money(totals.tax_amount) }}</span>（{{ Math.round(settings.tax_rate * 10000) / 100 }}%）　含稅總額 <strong data-testid="pe-total">{{ money(totals.total_amount) }}</strong></p>
+        <p v-if="adjustments.length" class="muted" data-testid="pe-adj-total">含調整列合計 {{ money(totals.adjustment_total) }}</p>
+        <p v-if="totalsError" class="field-error" role="alert" data-testid="pe-total-error">{{ totalsError }}</p>
         <p class="muted" data-testid="pe-approval-hint">{{ needsApprove ? `含稅總額超過 ${money(settings.approval_threshold)}，下訂前需要採購核准人核准。` : `含稅總額在 ${money(settings.approval_threshold)} 以內（或未啟用核准），可直接下訂。` }}</p>
       </section>
 
@@ -256,9 +343,12 @@ const overRequired = (i: Item) => !!i.request_id;
 .pe-mode { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
 .pe-mode label { display: flex; gap: 6px; align-items: center; }
 .pe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pe-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.pe-adj-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.pe-box p { margin: 0; overflow-wrap: anywhere; }
 .pe-history { border-left: 3px solid var(--line); padding-left: 10px; font-size: 13px; }
 .pe-history ul { margin: 4px 0 0; padding-left: 16px; }
 .pre { white-space: pre-wrap; }
 button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
-@media (max-width: 700px) { .dialog-actions button, .pe-box > button { min-height: 44px; } }
+@media (max-width: 700px) { .dialog-actions button, .pe-box > button, .pe-adj-add button { min-height: 44px; } }
 </style>

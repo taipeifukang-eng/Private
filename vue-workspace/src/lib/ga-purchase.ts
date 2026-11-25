@@ -6,12 +6,19 @@ export { PO_STATUS_LABEL, isStale, money, newKey, num, storeText } from "./ga-re
 export type PoListRow = {
   id: string; po_no: string; status: string; status_label: string; vendor_id: string | null; vendor_name: string | null; source_request_id: string | null;
   expected_delivery_date: string | null; subtotal: number; tax_amount: number; total_amount: number; approval_required: boolean; item_count: number; first_item_name: string | null;
-  ordered_qty_base: number; received_qty: number; overdue: boolean; created_by: string | null; created_by_name: string | null; created_at: string; updated_at: string; ordered_at: string | null;
+  ordered_qty_base: number; received_qty: number; overdue: boolean;
+  // ga-improve-b1 G1：已預付（有請款檢視權限者才有）；沒有預付單時不出現
+  prepay_balance?: number; prepaid?: number; prepay_overdue?: boolean; prepay_overdue_days?: number | null; created_by: string | null; created_by_name: string | null; created_at: string; updated_at: string; ordered_at: string | null;
 };
 export type PoItem = {
   id: string; line_no: number; part_id: string | null; part_name: string | null; item_name: string; spec: string | null; unit: string | null; quantity: number; quantity_base: number; base_unit: string | null;
-  unit_price: number; line_amount: number; request_id: string | null; request_no: string | null; fulfil_mode: "STOCK" | "DIRECT_ASSET" | "NO_STOCK"; target_store_id: string | null;
+  unit_price: number; line_amount: number; unit_price_gross?: number | null; line_gross?: number | null; request_id: string | null; request_no: string | null; fulfil_mode: "STOCK" | "DIRECT_ASSET" | "NO_STOCK"; target_store_id: string | null;
   target_store_name: string | null; equipment_template_id: string | null; over_request_reason: string | null; received_qty: number; dispatched_qty: number; notes: string | null;
+};
+export type PoAdjustment = { id: string; line_no: number; kind: "FREIGHT" | "DISCOUNT" | "COUPON" | "POINTS" | "OTHER"; label: string; amount: number; original_price: number | null; campaign_name: string | null; note: string | null; receipt_no?: string | null };
+export type PoPrepay = {
+  prepaid: number; paid: number; draft: number; offset: number; refunded: number; balance: number; overdue?: boolean; overdue_days?: number | null;
+  requests: Array<{ id: string; pr_no: string; status: string; amount_total: number; balance: number }>;
 };
 export type PoEvent = { id: string; event_type: string; from_status: string | null; to_status: string | null; actor_id: string | null; actor_name: string | null; note: string | null; payload: any; created_at: string };
 export type PoDetail = {
@@ -22,10 +29,14 @@ export type PoDetail = {
   approved_by_name: string | null; approved_at: string | null; approval_note: string | null; last_reject_reason: string | null; last_reject_at: string | null; ordered_by_name: string | null; ordered_at: string | null;
   cancel_reason: string | null; short_close_reason: string | null; notes: string | null; created_at: string; updated_at: string; items: PoItem[]; events: PoEvent[];
   received_qty_total: number; abilities: PoAbilities;
+  // ga-improve-b1：計價方式（G2）、調整列（G3）、買受人抬頭（G11）、預付摘要（G1，有請款檢視權限且有預付單才有）
+  price_mode?: "EXCL" | "INCL"; adjustments?: PoAdjustment[]; adjustment_total?: number; buyer_company_id?: string | null; buyer_company_name?: string | null; buyer_company_tax_id?: string | null;
+  prepay?: PoPrepay | null;
 };
 export type ReceiptView = {
   id: string; receipt_no: string; received_date: string; delivery_note_no: string | null; notes: string | null; created_at: string; created_by_name?: string | null;
   updated_at?: string; voided_at?: string | null; void_reason?: string | null;
+  voucher_status?: string | null; has_paid_claim?: boolean; amount_total?: number; prepay_offset?: number; adjustments?: Array<{ po_adjustment_id: string; kind: string; label: string; amount: number }>;
   items: Array<{ id: string; po_item_id: string; fulfil_mode?: string; dispatched_qty?: number; delivered_qty: number; accepted_qty: number; rejected_qty: number; reason: string | null; location_id: string | null; location_name?: string | null; received_part_id: string | null; received_part_name?: string | null; change_reason: string | null; item_name?: string | null; equipment?: Array<{ id: string; asset_code: string | null; name: string; serial_number: string | null }> }>;
 };
 export type DispatchView = { id: string; dispatch_no: string; po_item_id: string; store_id: string; store_name?: string | null; quantity: number; created_at: string; notes: string | null; equipment?: Array<{ id: string; asset_code: string | null; name: string; serial_number: string | null }> };
