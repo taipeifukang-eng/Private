@@ -1,4 +1,4 @@
--- 唯讀驗證 09_legacy_inventory_maintenance_attachment.sql（只有 SELECT）。套用後每列 ok 都應為 true；rollback 後第 1～11 列應為 false。
+-- 唯讀驗證 09_legacy_inventory_maintenance_attachment.sql（只有 SELECT）。套用後每列 ok 都應為 true；rollback 後第 01、03～10 列應為 false（第 02、11 列兩邊都是 true）。
 -- 第 10 列：剛做完 09 時 md5 應等於 41a29efc4e62b01a7ce8f7d0fce9eead（總務第 2 批 22 的守衛）；22 之後函式多了設施分支，md5 會變，那也算通過。
 -- 最後一列 info 是參考資訊（維修回報政策不在 09 處理範圍），恆為 true。
 WITH f AS (
