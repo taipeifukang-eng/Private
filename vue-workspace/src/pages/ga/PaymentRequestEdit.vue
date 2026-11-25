@@ -354,8 +354,8 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
     <div>
       <p class="eyebrow">總務服務中心 / 作業管理</p>
       <h1>{{ creating ? "建立請款單" : pr ? `請款單 ${pr.pr_no}` : "請款單" }}<span v-if="pr" class="st" :class="PR_STATUS_CLASS[pr.status]" data-testid="pe-status">{{ PR_STATUS_LABELS[pr.status] }}</span><span v-if="isPrepay" class="kind" data-testid="pe-kind">預付款</span><span v-if="isEmployee" class="kind emp" data-testid="pe-kind-employee">同仁代墊</span></h1>
-      <p v-if="isPrepay" class="muted" data-testid="pe-subtitle">預付款：採購單已下訂、貨還沒到就先付的款項。到貨驗入時系統自動核銷在進貨單上，之後一般請款只請差額；預付款被退回或作廢時，已核銷的金額會自動回復。</p>
-      <p v-else-if="creating || !pr" class="muted" data-testid="pe-subtitle">只能選已驗收進貨的項目；累計請款不能超過累計驗收含稅金額（含 {{ money(tolerance) }} 尾差），也不能超過採購單含稅總額（同樣含尾差）。請款不需要核准。</p>
+      <p v-if="isPrepay" class="muted" data-testid="pe-prepay-subtitle">預付款：採購單已下訂、貨還沒到就先付的款項。到貨驗入時系統自動核銷在進貨單上，之後一般請款只請差額；預付款被退回或作廢時，已核銷的金額會自動回復。</p>
+      <p v-if="creating || !pr" class="muted" data-testid="pe-subtitle">只能選已驗收進貨的項目；累計請款不能超過累計驗收含稅金額（含 {{ money(tolerance) }} 尾差），也不能超過採購單含稅總額（同樣含尾差）。請款不需要核准。</p>
       <p v-else class="muted" data-testid="pe-subtitle">{{ pr.status === "DRAFT" ? "草稿可以修改明細、儲存或送出；送出後要改請先退回草稿。" : pr.status === "SUBMITTED" ? "已送出，等待會計付款；要修改內容請先退回草稿。" : pr.status === "PAID" ? "已付款，內容已鎖定，只能加備註或作廢。" : "已作廢，內容唯讀。" }}累計請款上限含 {{ money(tolerance) }} 尾差。</p>
     </div>
     <div class="head-actions">
