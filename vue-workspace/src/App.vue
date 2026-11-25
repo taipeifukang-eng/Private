@@ -27,6 +27,8 @@ import { fallbackFor, legacyUrl, legacyUrlForKind } from "./legacy-link";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
 import { WORKSPACE_NAV_KINDS } from "../../lib/workspace/page-kinds";
 import { parsePrefill } from "../../lib/workspace/general-affairs/inventory-transfer-rules";
+import SiteNotice from "./components/SiteNotice.vue";
+import { SITE_NOTICE_EVENT, sessionNotOpen, showAdminOnlyBanner, type SiteNoticeKind } from "./site-state";
 import Modal from "./components/Modal.vue";
 import MyReimbursementsDialog from "./components/ga/MyReimbursementsDialog.vue";
 import HomeView from "./components/HomeView.vue";
@@ -42,6 +44,12 @@ const session = useSession(),
   work = useWorkspace(),
   router = useRouter(),
   route = useRoute();
+const siteNotice = ref<SiteNoticeKind | null>(null);
+function onSiteNotice(e: Event) {
+  siteNotice.value = (e as CustomEvent<SiteNoticeKind>).detail;
+}
+const notOpen = computed(() => siteNotice.value ?? (sessionNotOpen(session.data) ? "not-open" : null));
+const adminOnlyBanner = computed(() => showAdminOnlyBanner(session.data?.siteState, session.data?.isAdmin));
 const booting = ref(true),
   bootError = ref(""),
   pendingBusy = ref(false),
@@ -331,6 +339,7 @@ async function init() {
   } catch {}
   window.addEventListener("beforeunload", beforeUnload);
   window.addEventListener("workspace-session-expired", expire);
+  window.addEventListener(SITE_NOTICE_EVENT, onSiteNotice);
   window.addEventListener("focus", refreshSession);
   timer = setInterval(refreshSession, 60000);
   capturePendingOpen();
@@ -360,6 +369,7 @@ onBeforeUnmount(() => {
   clearInterval(timer);
   window.removeEventListener("beforeunload", beforeUnload);
   window.removeEventListener("workspace-session-expired", expire);
+  window.removeEventListener(SITE_NOTICE_EVENT, onSiteNotice);
   window.removeEventListener("focus", refreshSession);
 });
 </script>
@@ -370,6 +380,7 @@ onBeforeUnmount(() => {
     :params="route.params"
   />
   <div v-else-if="booting" class="boot" role="status">正在開啟菁英作業台…</div>
+  <SiteNotice v-else-if="notOpen" :kind="notOpen" :integrated="session.data?.integrated" :name="session.data?.user.name" />
   <LoginForm v-else-if="!session.data" :boot-error="bootError" @success="loggedIn" @retry="boot" />
   <PendingActivation
     v-else-if="session.data.pendingActivation"
@@ -391,7 +402,7 @@ onBeforeUnmount(() => {
           router.push('/');
         "
         ><b>FK</b><span>菁英作業台</span></a
-      ><span class="environment">測試區</span>
+      ><span v-if="session.data.environment === 'DEV'" class="environment">測試區</span>
       <div class="topbar-spacer" />
       <label class="context-picker"
         ><span>新頁預設門市</span
@@ -524,6 +535,7 @@ onBeforeUnmount(() => {
           離開並重新登入
         </button>
       </div>
+      <div v-if="adminOnlyBanner" class="session-notice" role="status" data-testid="admin-only-banner">目前僅管理員可用，其他同仁尚未開放。</div>
       <div v-if="work.fallbackNotice" class="session-notice fallback-banner" role="status" data-testid="fallback-open-notice">
         「{{ work.fallbackNotice.title }}」目前由系統管理員暫時切回舊版<template v-if="work.fallbackNotice.reason">（{{ work.fallbackNotice.reason }}）</template>，請改用舊版。<a :href="work.fallbackNotice.href" target="_blank" rel="noopener" @click="work.fallbackNotice = null">開啟舊版 <ExternalLink :size="12" /></a
         ><button @click="work.fallbackNotice = null">知道了</button>

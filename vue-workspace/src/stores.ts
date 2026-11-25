@@ -7,6 +7,10 @@ import { fallbackFor } from "./legacy-link";
 import type { GaNavGroup } from "../../lib/workspace/general-affairs/nav-types";
 export type Session = {
   integrated: boolean;
+  /** WP6：false 表示新版尚未對這位使用者開放（此時沒有選單與權限資料）。 */
+  open?: boolean;
+  siteState?: { enabled: boolean; audience: "admin_only" | "all" | string };
+  isAdmin?: boolean;
   navigation: { label: string; items: NavItem[] }[];
   user: { id: string; name: string };
   stores: Store[];

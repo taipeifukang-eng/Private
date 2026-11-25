@@ -1535,3 +1535,9 @@ tbody tr:hover {
     padding: 4px 10px;
   }
 }
+.button-link {
+  display: inline-block;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 6px;
+}
