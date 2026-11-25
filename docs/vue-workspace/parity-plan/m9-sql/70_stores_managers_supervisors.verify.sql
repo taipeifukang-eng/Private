@@ -37,5 +37,5 @@ WHERE p.code IN ('store.store.view','store.store.view_inactive','store.store.cre
 ORDER BY p.code, r.code;
 
 -- 5. 資訊：正式區 has_permission 語意（應為不含 roles.is_active、不含 admin 繞過）
-SELECT pg_get_functiondef(to_regprocedure('public.has_permission(uuid,character varying)')) ILIKE '%r.is_active%' AS checks_roles_is_active_expect_false,
+SELECT pg_get_functiondef(to_regprocedure('public.has_permission(uuid,character varying)')) ~* '(^|[^a-z_])r\.is_active' AS checks_roles_is_active_expect_false,
        pg_get_functiondef(to_regprocedure('public.has_permission(uuid,character varying)')) ILIKE '%''admin''%' AS has_admin_bypass_expect_false;

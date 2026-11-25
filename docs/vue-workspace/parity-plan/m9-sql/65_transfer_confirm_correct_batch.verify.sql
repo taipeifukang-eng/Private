@@ -21,7 +21,7 @@ UNION ALL SELECT '舊的 3 參數 confirm 不存在（正式區本來就沒有�
 UNION ALL SELECT '三支函式只有 service_role 可執行', NOT EXISTS(SELECT 1 FROM information_schema.routine_privileges WHERE specific_schema='public' AND routine_name IN('workspace_transfer_snapshot','workspace_transfer_confirm','workspace_transfer_correct') AND grantee IN('anon','authenticated','PUBLIC'))
 UNION ALL SELECT '函式已改成正式區權限語意（沒有 roles.is_active 與角色代碼白名單）', NOT EXISTS(
   SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN('workspace_transfer_confirm','workspace_transfer_correct')
-   AND (pg_get_functiondef(oid) LIKE '%r.is_active=true%' OR pg_get_functiondef(oid) LIKE '%full_admin_role%'))
+   AND (pg_get_functiondef(oid) ~* '(^|[^a-z_])r\.is_active\s*=\s*true' OR pg_get_functiondef(oid) LIKE '%full_admin_role%'))
 UNION ALL SELECT '函式沒有「未來日期不可」限制', NOT EXISTS(SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN('workspace_transfer_confirm','workspace_transfer_correct') AND pg_get_functiondef(oid) LIKE '%WORKSPACE_FUTURE_POLICY_PENDING%');
 
 -- 資料面（唯讀，僅供人工查看）

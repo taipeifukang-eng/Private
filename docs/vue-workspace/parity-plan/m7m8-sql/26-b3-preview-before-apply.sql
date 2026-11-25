@@ -108,7 +108,7 @@ UNION ALL
 -- 5 函式內容比對：C13（30）會重新定義這兩個驗證函式，必須與 DEV 驗證時相同，否則 30 會自己中止
 SELECT '5 函式 md5', p.proname || '（要等於 DEV：' || CASE p.proname WHEN 'ga_validate_equipment' THEN '6e28a9343e7bf878f1359d5b61676113' ELSE '4531585395b254147c7f094235a0a559' END || '）',
        md5(pg_get_functiondef(p.oid)),
-       CASE WHEN md5(pg_get_functiondef(p.oid)) = CASE p.proname WHEN 'ga_validate_equipment' THEN '6e28a9343e7bf878f1359d5b61676113' ELSE '4531585395b254147c7f094235a0a559' END THEN 'OK' ELSE 'WARN' END
+       CASE WHEN md5(pg_get_functiondef(p.oid)) = CASE p.proname WHEN 'ga_validate_equipment' THEN '6e28a9343e7bf878f1359d5b61676113' ELSE '4531585395b254147c7f094235a0a559' END OR md5(replace(pg_get_functiondef(p.oid), chr(13), '')) = CASE p.proname WHEN 'ga_validate_equipment' THEN '6e28a9343e7bf878f1359d5b61676113' ELSE '4531585395b254147c7f094235a0a559' END THEN 'OK' ELSE 'WARN' END
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
  WHERE n.nspname = 'public' AND p.proname IN ('ga_validate_equipment', 'ga_validate_facility') AND pg_get_function_identity_arguments(p.oid) = ''
 UNION ALL

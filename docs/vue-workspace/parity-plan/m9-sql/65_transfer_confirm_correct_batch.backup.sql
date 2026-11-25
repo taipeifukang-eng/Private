@@ -31,4 +31,4 @@ REVOKE ALL ON public.m9_bak_20261124_store_employees, public.m9_bak_20261124_tra
 -- 備份筆數對照（請與來源表筆數相同）
 SELECT 'store_employees' AS 表, (SELECT count(*) FROM public.store_employees) AS 來源筆數, (SELECT count(*) FROM public.m9_bak_20261124_store_employees) AS 備份筆數
 UNION ALL SELECT 'store_transfer_requests', (SELECT count(*) FROM public.store_transfer_requests), (SELECT count(*) FROM public.m9_bak_20261124_transfer_requests)
-UNION ALL SELECT 'store_transfer_confirmations', CASE WHEN to_regclass('public.store_transfer_confirmations') IS NULL THEN 0 ELSE (SELECT count(*) FROM public.store_transfer_confirmations) END, (SELECT count(*) FROM public.m9_bak_20261124_transfer_confirmations);
+UNION ALL SELECT 'store_transfer_confirmations', CASE WHEN to_regclass('public.store_transfer_confirmations') IS NULL THEN 0 ELSE (xpath('/row/c/text()', query_to_xml('SELECT count(*) AS c FROM public.store_transfer_confirmations', false, true, '')))[1]::text::bigint END, (SELECT count(*) FROM public.m9_bak_20261124_transfer_confirmations);
