@@ -146,7 +146,7 @@ async function exportCsv() {
       <label><input v-model="includeVoid" type="checkbox" data-testid="pr-export-void" :disabled="!!effStatus" />加入已作廢</label>
     </div>
     <p v-if="prepayOverdue" class="notice" role="status" data-testid="pr-prepay-overdue-chip">只顯示「逾期未到貨的預付款」（採購單已下訂、超過預計到貨日、預付餘額還沒核銷），請向廠商催貨或登記退款。<button type="button" data-testid="pr-prepay-overdue-clear" @click="prepayOverdue = false">看全部</button></p>
-    <p v-else class="muted prepay-toggle"><label><input v-model="prepayOverdue" type="checkbox" data-testid="pr-prepay-overdue-toggle" />只看逾期未到貨的預付款</label></p>
+    <p class="muted prepay-toggle"><label><input v-model="prepayOverdue" type="checkbox" data-testid="pr-prepay-overdue-toggle" />只看逾期未到貨的預付款</label></p>
     <p v-if="staleDraft" class="notice" role="status" data-testid="pr-stale-chip">只顯示「逾 14 天未送出」的請款草稿。<button type="button" data-testid="pr-stale-clear" @click="staleDraft = false">清除篩選</button></p>
     <p v-if="exportMsg" class="notice" role="status" data-testid="pr-export-msg">{{ exportMsg }}</p>
     <p v-if="error" class="notice error" role="alert" data-testid="pr-error">{{ error }}<button type="button" @click="load">重新載入</button></p>

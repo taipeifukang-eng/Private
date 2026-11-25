@@ -7,10 +7,10 @@ import { selectableCompanies, type BuyerCompany } from "../../../../lib/workspac
 // ga-improve-b1 G4／G11：請款單草稿的「付款對象」（廠商或同仁代墊）與「買受人抬頭」。採購、預付與水電請款單共用。
 // 付款對象選同仁時，從在職同仁清單挑選（只顯示姓名、員編、部門與是否已登錄匯款帳戶，不含帳戶內容）；廠商仍記在請款單上。
 // 買受人抬頭下拉只列啟用中的公司，單據目前已選的（即使已停用）仍保留顯示；不選就沿用預設公司。
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   editing: boolean; prefix: string; showPayee?: boolean;
   payeeType: "VENDOR" | "EMPLOYEE"; payeeProfileId: string; payeeName: string; buyerCompanyId: string; companies: BuyerCompany[];
-}>();
+}>(), { showPayee: true });
 const emit = defineEmits<{
   "update:payeeType": [v: "VENDOR" | "EMPLOYEE"]; "update:payeeProfileId": [v: string]; "update:payeeName": [v: string]; "update:buyerCompanyId": [v: string]; change: [];
 }>();
