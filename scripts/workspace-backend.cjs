@@ -47,6 +47,8 @@ const child = spawn(
       NODE_ENV: build ? "production" : "development",
       NEXT_DIST_DIR: build ? ".next-workspace-build" : ".next",
       WORKSPACE_DEV_ENABLED: "true",
+      // 本機/測試後端預設對所有角色開放（正式區預設 admin_only，見 lib/workspace/site-gate.ts）
+      WORKSPACE_AUDIENCE: e.WORKSPACE_AUDIENCE || "all",
       WORKSPACE_ORIGIN: integrated
         ? "http://localhost:3002"
         : "http://localhost:5173",
