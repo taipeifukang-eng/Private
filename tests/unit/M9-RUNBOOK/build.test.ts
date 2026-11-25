@@ -69,23 +69,23 @@ describe('M9 正式區逐步操作頁：步驟數', () => {
   it('README 總表解析出的步驟數與「合計 N 步」一致，序號連續', () => {
     const parsed = builder.parseReadme(readmeText.slice(readmeText.indexOf('## 全部正式區執行順序總表')));
     expect(parsed.steps.length).toBe(parsed.claimed);
-    expect(parsed.claimed).toBe(91);
-    expect(model.meta.readmeStepCount).toBe(91);
+    expect(parsed.claimed).toBe(92);
+    expect(model.meta.readmeStepCount).toBe(92);
     parsed.steps.forEach((s: any, i: number) => expect(s.no).toBe(i + 1));
   });
 
-  it('頁面步驟 = 總表 91 步扣掉 4 個不執行的步驟，再加上額外步驟；總表每步最多出現一次且順序不變', () => {
-    expect(model.meta.excludedReadmeSteps).toEqual([88, 89, 90, 91]);
-    expect(model.meta.readmeStepsIncluded).toBe(91 - 4);
+  it('頁面步驟 = 總表 92 步扣掉 4 個不執行的步驟，再加上額外步驟；總表每步最多出現一次且順序不變', () => {
+    expect(model.meta.excludedReadmeSteps).toEqual([89, 90, 91, 92]);
+    expect(model.meta.readmeStepsIncluded).toBe(92 - 4);
     expect(model.meta.stepCount).toBe(model.meta.readmeStepsIncluded + model.meta.extraStepIds.length);
     expect(model.steps.length).toBe(model.meta.stepCount);
     const nos = model.steps.filter((s: any) => s.readmeNo).map((s: any) => s.readmeNo);
     expect(new Set(nos).size).toBe(nos.length);
     expect(nos).toEqual([...nos].sort((a: number, b: number) => a - b));
-    expect(nos).not.toContain(91);
-    expect(nos).not.toContain(88);
+    expect(nos).not.toContain(92);
     expect(nos).not.toContain(89);
     expect(nos).not.toContain(90);
+    expect(nos).not.toContain(91);
     // 顯示序號連續
     model.steps.forEach((s: any, i: number) => expect(s.no).toBe(i + 1));
     // 頁面上寫的總步驟數就是模型步驟數
@@ -142,7 +142,7 @@ describe('M9 正式區逐步操作頁：SQL 逐字嵌入', () => {
     try {
       fs.cpSync(planDir, tmp, { recursive: true });
       const p = path.join(tmp, 'm9-sql', 'README.md');
-      fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('合計 **91 步**', '合計 **90 步**'));
+      fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('合計 **92 步**', '合計 **90 步**'));
       expect(() => builder.buildModel({ planDir: tmp })).toThrow(/合計/);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -290,7 +290,7 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     }
     const withCommit = model.steps.filter((s: any) => s.blocks.commit.length > 0).map((s: any) => s.readmeNo);
     expect(withCommit).toContain(22);
-    expect(withCommit).toContain(87);
+    expect(withCommit).toContain(88);
   });
 
   it('套用順序：55 → 90 → 50、20 → 60、65 與 80 都在 API 切換之前', () => {
@@ -385,8 +385,8 @@ describe('M9 正式區逐步操作頁：審查補強', () => {
     expect(fb.what).toContain(`第 ${s15.no} 步`);
   });
 
-  it('BEGIN 開頭的撤回檔（87 號）也提醒要另外 COMMIT', () => {
-    const s = model.steps.find((x: any) => x.readmeNo === 87);
+  it('BEGIN 開頭的撤回檔（88 號）也提醒要另外 COMMIT', () => {
+    const s = model.steps.find((x: any) => x.readmeNo === 88);
     expect(s.rollbackText).toMatch(/COMMIT;/);
   });
 
@@ -480,7 +480,8 @@ describe('M9 正式區逐步操作頁：舊版 migration 補建（2026-11-25 00b
     expect(isReadOnly(s.blocks.verify[0].sql)).toBe(true);
     expect(idxOf(42)).toBeLessThan(idxOf(43));
     expect(idxOf(43)).toBeLessThan(idxOf(44));
-    expect(step(44).blocks.main[0].file).toMatch(/10-g01-catalog-rules\.sql$/);
+    expect(idxOf(44)).toBeLessThan(idxOf(45));
+    expect(step(45).blocks.main[0].file).toMatch(/10-g01-catalog-rules\.sql$/);
     const code = read('08_legacy_qr_revoke_trigger.sql').replace(/--.*$/gm, '');
     expect(code).toContain('trg_ga_equipment_qr_auto_revoke');
     expect(code).toContain('trg_ga_facilities_qr_auto_revoke');
@@ -501,12 +502,107 @@ describe('M9 正式區逐步操作頁：舊版 migration 補建（2026-11-25 00b
     expect(readmeText).toContain('不會再因缺資料表而報 Missing prerequisite');
   });
 
-  it('00b 裡引用的「步驟 N」都是新總表（1～91）裡存在的步驟號', () => {
+  it('00b 裡引用的「步驟 N」都是新總表（1～92）裡存在的步驟號', () => {
     const t = read('00b_prod_object_presence.readonly.sql');
     const refs = new Set([...t.matchAll(/步驟 ?(\d+)/g)].map((m) => Number(m[1])));
     expect(refs.size).toBeGreaterThan(10);
     for (const n of refs) {
-      expect(n >= 1 && n <= 91, String(n)).toBe(true);
+      expect(n >= 1 && n <= 92, String(n)).toBe(true);
     }
+  });
+});
+
+describe('M9 正式區逐步操作頁：舊版庫存與附件補漏（09，2026-11-25 00d 發現）', () => {
+  const step = (no: number) => model.steps.find((x: any) => x.readmeNo === no);
+  const idxOf = (no: number) => model.steps.findIndex((x: any) => x.readmeNo === no);
+  const planM9 = path.join(planDir, 'm9-sql');
+  const read = (f: string) => fs.readFileSync(path.join(planM9, f), 'utf8').replace(/\r\n/g, '\n');
+  const code = (f: string) => read(f).replace(/--.*$/gm, '');
+
+  it('44 號步驟是 09：緊接 08 之後、總務第 1 批之前，附 verify 與 rollback；verify 只有 SELECT', () => {
+    const s = step(44);
+    expect(s.blocks.main[0].file).toBe('m9-sql/09_legacy_inventory_maintenance_attachment.sql');
+    expect(s.blocks.verify[0].file).toBe('m9-sql/09_legacy_inventory_maintenance_attachment.verify.sql');
+    expect(s.blocks.rollback[0].file).toBe('m9-sql/09_legacy_inventory_maintenance_attachment.rollback.sql');
+    expect(isReadOnly(s.blocks.verify[0].sql)).toBe(true);
+    expect(s.blocks.commit.length).toBe(0); // 檔案自己 BEGIN ... COMMIT
+    expect(idxOf(43)).toBe(idxOf(44) - 1);
+    // 附件管理判斷的 md5 守衛在總務第 2 批設施上線貼標（22）：09 必須在它之前，也在庫存過帳（總務第 3 批）之前
+    const onboarding = step(48);
+    expect(onboarding.blocks.main[0].file).toMatch(/22-b2-onboarding\.sql$/);
+    expect(idxOf(44)).toBeLessThan(idxOf(48));
+    expect(step(54).blocks.main[0].file).toMatch(/28-b3-inventory-post\.sql$/);
+    expect(idxOf(44)).toBeLessThan(idxOf(54));
+    expect(fs.readFileSync(path.join(planDir, 'm7m8-sql', '22-b2-onboarding.sql'), 'utf8')).toContain('41a29efc4e62b01a7ce8f7d0fce9eead');
+    expect(s.cautions.join('\n')).toMatch(/md5 守衛/);
+  });
+
+  it('09 只改函式與授權：不寫資料、不建政策、不授權任何權限碼、不碰 role_permissions', () => {
+    // 函式本體（$def$ 內）在被呼叫時才會執行，不算本檔會做的事
+    const c = code('09_legacy_inventory_maintenance_attachment.sql').replace(/\$def\$[\s\S]*?\$def\$/g, '');
+    expect(c).not.toMatch(/\bINSERT INTO\b|\bDELETE FROM\b|\bTRUNCATE\b|\bUPDATE\s+public\./i);
+    expect(c).not.toMatch(/CREATE POLICY|DROP POLICY|ALTER POLICY|ENABLE ROW LEVEL SECURITY/i);
+    expect(c).not.toMatch(/role_permissions|public\.permissions/i);
+    expect(c).not.toMatch(/\bCREATE TABLE\b|\bALTER TABLE\b|\bDROP TABLE\b/i);
+    expect(c).toMatch(/^BEGIN;/m);
+    expect(c).toMatch(/^COMMIT;/m);
+  });
+
+  it('09 的兩個函式本文與舊版 migration 逐字相同；過帳函式用「讀現行定義、只換一句」的做法', () => {
+    const mig = path.join(root, 'supabase', 'migrations');
+    const norm = (x: string) => x.replace(/\r\n/g, '\n');
+    const sql = read('09_legacy_inventory_maintenance_attachment.sql');
+    const soft = norm(fs.readFileSync(path.join(mig, '20260722055852_fix_inventory_location_cascade_deletion_reason.sql'), 'utf8'));
+    const softFn = soft.slice(soft.indexOf('CREATE OR REPLACE FUNCTION'), soft.indexOf('REVOKE ALL')).trimEnd();
+    expect(softFn.length).toBeGreaterThan(500);
+    expect(sql.includes(softFn)).toBe(true);
+    const can = norm(fs.readFileSync(path.join(mig, '20260826042500_general_affairs_store_onboarding_attachment_scope.sql'), 'utf8'));
+    const canFn = can.slice(0, can.indexOf('REVOKE ALL')).trimEnd();
+    expect(canFn.length).toBeGreaterThan(1000);
+    expect(sql.includes(canFn)).toBe(true);
+    expect(sql).toContain('ON CONFLICT ON CONSTRAINT ga_inventory_balances_location_part_unique DO NOTHING;');
+    expect(sql).toMatch(/pg_get_functiondef\(v_oid\)/);
+    // 重跑保護：函式已含設備貼標分支（22 之後也含）就略過，不蓋掉後面的步驟
+    expect(sql).toMatch(/IF position\('e\.onboarding_status IN \(''NEEDS_EQUIPMENT_PHOTO''' IN v_def\) > 0 THEN/);
+    // 授權：序列與取號函式收回 anon／authenticated，過帳函式只留 authenticated
+    expect(sql).toMatch(/REVOKE ALL ON SEQUENCE public\.ga_inventory_transaction_no_seq FROM anon;/);
+    expect(sql).toMatch(/REVOKE ALL ON SEQUENCE public\.ga_inventory_transaction_no_seq FROM authenticated;/);
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.ga_next_inventory_transaction_no\(\) FROM authenticated;/);
+    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.ga_post_inventory_transaction\([^)]*\) TO authenticated;/);
+  });
+
+  it('09 的 rollback 是正式區現況原文（舊 ON CONFLICT 寫法、「父庫存位置刪除衍生」前綴、舊附件分支），只在安全時才還原附件函式', () => {
+    const rb = read('09_legacy_inventory_maintenance_attachment.rollback.sql');
+    expect(rb).toContain('ON CONFLICT (location_id, part_id) DO NOTHING;');
+    expect(rb).toContain("deletion_reason = '父庫存位置刪除衍生：' || v_reason");
+    expect(rb).toContain('request.comment_own_store');
+    expect(rb).toMatch(/41a29efc4e62b01a7ce8f7d0fce9eead/);
+    expect(rb).toMatch(/RAISE EXCEPTION 'ga_resource_attachment_can_manage 已被後面的步驟改過/);
+    expect(rb).toMatch(/GRANT ALL ON SEQUENCE public\.ga_inventory_transaction_no_seq TO anon;/);
+    expect(code('09_legacy_inventory_maintenance_attachment.rollback.sql')).not.toMatch(/role_permissions|CREATE POLICY|DELETE FROM/i);
+  });
+
+  it('00d 標記：庫存與附件的項目標成由 09 補；維修回報 p1e_ 政策標成「正式區是全開政策、待老闆決定」', () => {
+    const d = read('00d_prod_legacy_content_markers.readonly.sql');
+    expect((d.match(/步驟 44（m9-sql\/09_legacy_inventory_maintenance_attachment\.sql）/g) || []).length).toBeGreaterThanOrEqual(8);
+    expect(d).toContain('maintenance_requests_read／maintenance_requests_write');
+  });
+
+  it('操作頁說明：步驟 2 只跑第一段、5 可略過、6 與 7 的預演數字是預期、34 之後重跑 00d、07／08／09 之後重跑 00b／00c／00d', () => {
+    const txt = (no: number) => JSON.stringify({ c: step(no).cautions, e: step(no).expect, s: step(no).stops, o: step(no).optional });
+    expect(txt(2)).toMatch(/第二段/);
+    expect(txt(2)).toMatch(/12 筆/);
+    expect(txt(2)).toMatch(/newbie_level/);
+    expect(step(5).optional).toBe(true);
+    expect(txt(5)).toMatch(/略過/);
+    expect(txt(6)).toMatch(/238/);
+    expect(txt(7)).toMatch(/79 筆/);
+    expect(txt(7)).toMatch(/不是停止點/);
+    expect(txt(34)).toMatch(/55/);
+    expect(txt(34)).toMatch(/已送審／已確認/);
+    expect(txt(44)).toMatch(/00b/);
+    expect(txt(17)).toMatch(/只剩 4 項/);
+    expect(txt(15)).toMatch(/pg_cron/);
+    expect(txt(16)).toMatch(/QR 作廢/);
   });
 });

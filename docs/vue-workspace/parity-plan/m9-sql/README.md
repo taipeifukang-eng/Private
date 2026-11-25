@@ -14,7 +14,8 @@
 - m2 步驟 A → 15：15 開頭檢查 `store_employees.newbie_level` 必須已存在。
 - 06（步驟 18）→ 07（步驟 38）→ 督導日誌軟刪除（步驟 39）→ 語音 AI（步驟 40）：07 的前置檢查要求 7 個督導日誌權限碼已由 06 建立；39 與 40 依賴 07 建的資料表（語音 AI 有外鍵參照 supervisor_management_records，所以還原時要先還原語音 AI 再還原 07）。
 - 08（步驟 43，QR 作廢觸發器）要在總務第 2 批之前；它刻意不含舊版的回填 UPDATE，先跑 08 的 .preview.sql 看待回填筆數，由老闆決定要不要另外回填。
-- 00b、00c、00d（步驟 15、16、17）是唯讀檢查，可以隨時重跑；07、08 套用後再跑一次，原本缺的督導日誌與 QR 觸發器應消失（只剩選用的 pg_cron）。00d 是 00c 的補充：00c 只能確認物件存在，查不出「只改函式內容、授權、約束、資料」的 32 支舊版 migration 有沒有套用，00d 對這些逐支挑記號比對；結果的 missing 裡 superseded_by 是 null 的項目才是真的沒套用，有寫 superseded_by 的是後面步驟會蓋掉、缺了無妨。
+- 09（步驟 44，舊版庫存與附件補漏）要在總務第 2 批「設施上線貼標」（步驟 48，m7m8 22）之前：22 開頭有 md5 守衛，要求 ga_resource_attachment_can_manage 的內容 md5 = 41a29efc4e62b01a7ce8f7d0fce9eead，也就是 09 建立的版本；正式區現在是更舊的版本，不先做 09，22 會自己中止。庫存過帳函式的 ON CONFLICT 修正也要在總務第 3 批庫存過帳（步驟 54）實際使用之前完成，所以放在總務階段開頭、第 1 批之前。09 重跑時若函式已含後面步驟（22、水電帳單、附件類型）的內容會略過，不會蓋掉它們。
+- 00b、00c、00d（步驟 15、16、17）是唯讀檢查，可以隨時重跑。**07、08、09（步驟 38、43、44）都做完後**再各跑一次，預期結果：00b 只剩選用的 pg_cron（pg_cron 啟用後就是全齊）；00c 的督導日誌（5 支）與 QR 作廢（1 支）整支沒套用的項目消失；00d 的 missing 從 18 項降到只剩 4 項（維修回報 p1e_ 政策 1 項，正式區是全開政策、不屬漏套用，待老闆決定；總務角色矩陣授權 3 項，由權限勾選頁與授權步驟決定），庫存 6 項、附件 2 項、督導日誌 6 項都應消失。00d 是 00c 的補充：00c 只能確認物件存在，查不出「只改函式內容、授權、約束、資料」的 32 支舊版 migration 有沒有套用，00d 對這些逐支挑記號比對；結果的 missing 裡 superseded_by 是 null 的項目才是真的沒套用，有寫 superseded_by 的是後面步驟會蓋掉、缺了無妨。
 - 10、15、30、65 → 80：80 的前置檢查會逐一確認；65 在執行調店確認／更正時又會呼叫 80 的名冊重算，所以 65 與 80 要在 API 切到新版前一起套完。重跑 30 會把 `workspace_apply_due_promotions` 蓋回簡化版，重跑後要再跑一次 80。
 - 備份檔緊貼著主檔前一刻執行（30、60、65、80 各有 `.backup.sql`；備份表名稱不同，不會互相覆蓋）。預覽檔（`.preview.sql`）同樣在套用前看。
 - 還原順序與套用順序相反：80 → 65 → 30 → 15 → 50 → 90 → 55 → 60 → 20 → 40 → 70 → 10 → 備援開關。
@@ -68,57 +69,58 @@
 | 42 | `w03-rx-sql/01-prescription-aliases.sql` | 處方箋門市簡稱對照表＋整批匯入函式 | 新增 | 否 | 01-prescription-aliases-rollback.sql | README 套用順序（先套用再部署新版） |
 | **階段 3　M7／M8 總務（依該 README 的批次順序；每批先跑預覽，撤回順序相反）** | | | | | | |
 | 43 | `m9-sql/08_legacy_qr_revoke_trigger.sql` | 補建舊版「設備報廢／設施退役／刪除時自動作廢 QR」：1 個函式、2 個觸發器（trg_ga_equipment_qr_auto_revoke、trg_ga_facilities_qr_auto_revoke）。刻意不含舊版的回填 UPDATE（會改既有資料），先看預覽再由老闆決定。前置：ga_equipment／ga_facilities 的 status、deleted_at、qr_token_revoked_at 三欄 | 新增 | 否（只新增函式與觸發器） | .rollback.sql | .preview.sql（套用前，看待回填筆數）＋.verify.sql |
-| 44 | `m7m8-sql/10-g01-catalog-rules.sql` | 第 1 批：11 個 ga_ws_ 函式 | 新增 | 否 | 10-g01-catalog-rules-rollback.sql | 11 預覽＋00 準備度 |
-| 45 | `m7m8-sql/20-b2-preview-before-apply.sql` | 第 2 批套用前預覽 | 唯讀 | 否 | - | - |
-| 46 | `m7m8-sql/21-b2-asset-events-transfers.sql` | 第 2 批：異動紀錄、轉移單、明細（3 表、1 序號、函式） | 新增 | 否 | 21-…-rollback.sql | 20 預覽 |
-| 47 | `m7m8-sql/22-b2-onboarding.sql` | 第 2 批：設施加 6 欄、重定義 1 函式（上線貼標） | 新增＋改既有 | 是（函式原文） | 22-…-rollback.sql | 20 預覽 |
-| 48 | `m7m8-sql/23-b2-import-history.sql` | 第 2 批：Excel 匯入批次表與函式 | 新增 | 否 | 23-…-rollback.sql | 20 預覽 |
-| 49 | `m7m8-sql/24-b9-block-terminal-with-open-transfer.sql` | 第 2 批：進行中轉移單時擋報廢（1 函式、2 觸發器） | 新增 | 否 | 24-…-rollback.sql | 20 預覽 |
-| 50 | `m7m8-sql/25-b6-history-current-store.sql` | 第 2 批：重新定義 2 個函式（簽章不變） | 改既有資料 | 是（函式原文） | 25-…-rollback.sql | 20 預覽 |
-| 51 | `m7m8-sql/26-b3-preview-before-apply.sql` | 第 3 批套用前預覽 | 唯讀 | 否 | - | - |
-| 52 | `m7m8-sql/27-b3-inventory-rules.sql` | 第 3 批：庫存位置規則函式與觸發器 | 新增 | 否 | 27-…-rollback.sql | 26 預覽 |
-| 53 | `m7m8-sql/28-b3-inventory-post.sql` | 第 3 批：過帳 4 函式 | 新增 | 否 | 28-…-rollback.sql | 26 預覽 |
-| 54 | `m7m8-sql/29-b3-inventory-transfers.sql` | 第 3 批：調撥（單據加欄、2 表、8 函式） | 新增 | 否 | 29-…-rollback.sql（會刪調撥資料） | 26 預覽 |
-| 55 | `m7m8-sql/30-b3-category-keep-inactive.sql` | 第 3 批：重新定義 2 個既有函式 | 改既有資料 | 是（函式原文） | 30-…-rollback.sql | 26 預覽 |
-| 56 | `m7m8-sql/31-b4-preview-before-apply.sql` | 第 4 批套用前預覽 | 唯讀 | 否 | - | - |
-| 57 | `m7m8-sql/32-b4-request-rules.sql` | 第 4 批：2 表、9 欄；覆蓋既有函式（32 與 33 必須連續套用） | 新增＋改既有 | 是（pg_get_functiondef 備份 4 個被覆蓋函式） | 32-…-rollback.sql | 31 預覽 |
-| 58 | `m7m8-sql/33-b4-purchase-orders.sql` | 第 4 批：採購單、核准、11 函式、1 權限碼（只建立、不授權） | 新增 | 同 32 | 33-…-rollback.sql | 31 預覽 |
-| 59 | `m7m8-sql/34-b4-receipt-dispatch.sql` | 第 4 批：到貨驗入與配發（4 表、欄位、函式；覆蓋 1 舊函式） | 新增＋改既有 | 是（函式原文） | 34-…-rollback.sql | 31 預覽 |
-| 60 | `m7m8-sql/35-b4-asset-transfer-follow.sql` | 第 4 批：資產移轉搬單（1 表、4 函式；覆蓋 2 函式） | 新增＋改既有 | 是（函式原文） | 35-…-rollback.sql | 31 預覽 |
-| 61 | `m7m8-sql/36-b5-preview-before-apply.sql` | 第 5 批套用前預覽（第 6、7 區名單要看） | 唯讀 | 否 | - | - |
-| 62 | `m7m8-sql/37-b5-work-order-rules.sql` | 第 5 批：工單規則函式（不改表） | 新增 | 否 | 37-…-rollback.sql | 36 預覽 |
-| 63 | `m7m8-sql/38-b5-request-supplement-sync.sql` | 第 5 批：覆蓋第 4 批 2 函式（檔頭有 md5 守衛） | 改既有資料 | 是（函式原文） | 38-…-rollback.sql | 36 預覽 |
-| 64 | `m7m8-sql/39-b5-work-order-parts.sql` | 第 5 批：領用料件 1 函式 | 新增 | 否 | 39-…-rollback.sql | 36 預覽 |
-| 65 | `m7m8-sql/40-b5-work-order-rls.sql` | 第 5 批：收緊 3 條 RLS 政策（驗收並補授權後才執行） | 改既有資料 | 是（先存三條政策現況） | 40-…-rollback.sql | 36 預覽第 6、7 區 |
-| 66 | `m7m8-sql/41-b6-preview-before-apply.sql` | 第 6 批套用前預覽 | 唯讀 | 否 | - | - |
-| 67 | `m7m8-sql/42-b6-vendor-columns.sql` | 第 6 批：廠商欄位與固定資料（既有廠商 contract_required 一次性改 false） | 新增＋改既有 | 建議（先備份 ga_vendors） | 42-…-rollback.sql | 41 預覽 |
-| 68 | `m7m8-sql/44-b6-vendor-functions.sql` | 第 6 批：廠商相關函式（不改表） | 新增 | 否 | 44-…-rollback.sql | 41 預覽 |
-| 69 | `m7m8-sql/48-b6-vendor-tax-unique.sql` | 第 6 批：統編唯一索引（有重複會中止） | 新增 | 否 | 48-…-rollback.sql | 41 第 3 區重複須為 0 |
-| 70 | `m7m8-sql/47-b6-work-order-vendor-check.sql` | 第 6 批：覆蓋第 5 批 1 個內部函式 | 改既有資料 | 是（函式原文） | 47-…-rollback.sql | 41 預覽 |
-| 71 | `m7m8-sql/45-b6-utility-bills.sql` | 第 6 批：水電帳單欄位／索引、改 1 條讀取政策 | 新增＋改既有 | 是（先存 41 第 10 區政策） | 45-…-rollback.sql | 41 預覽 |
-| 72 | `m7m8-sql/46-b6-stats-home.sql` | 第 6 批：績效、首頁徽章；文字替換 ga_ws_po_list | 新增＋改既有 | 是（函式原文） | 46-…-rollback.sql | 41 預覽 |
-| 73 | `m7m8-sql/49-b6-perf-inline-predicates.sql` | 第 6 批：8 個述詞函式移除 search_path 設定（效能） | 改既有資料 | 否（rollback 設回原值） | 49-…-rollback.sql | 41 預覽 |
-| 74 | `m7m8-sql/43-b6-vendor-rls.sql` | 第 6 批：改 3 張表 RLS（最後套用；名單確認前不得套用） | 改既有資料 | 是（先存第 5 區政策） | 43-…-rollback.sql | 41 預覽第 6、7、8 區 |
-| 75 | `m7m8-sql/50-b45-preview-before-apply.sql` | 第 4.5 批套用前預覽（沒有 rollback） | 唯讀 | 否 | - | - |
-| 76 | `m7m8-sql/51-b45-receipt-voucher.sql` | 第 4.5 批：進貨明細回填未稅金額＋觸發器 | 改既有資料 | 是：zz_bak_b45_receipts／receipt_items（README 有 SQL） | 51-…-rollback.sql | 50 預覽第 2 區 |
-| 77 | `m7m8-sql/52-b45-payment-requests.sql` | 第 4.5 批：請款單 3 表、取號函式、1 筆設定 | 新增 | 否 | 52-…-rollback.sql（會刪請款資料） | 50 預覽 |
-| 78 | `m7m8-sql/53-b45-vendor-bank.sql` | 第 4.5 批：廠商銀行 4 欄 | 新增 | 否 | 53-…-rollback.sql | 50 預覽 |
-| 79 | `m7m8-sql/54-b45-attachment-types.sql` | 第 4.5 批：重建 CHECK、改 2 個共用附件函式 | 改既有資料 | 是（先存 50 第 3 區兩函式全文） | 54-…-rollback.sql | 50 預覽 |
-| 80 | `m7m8-sql/55-b45-permissions.sql` | 第 4.5 批：2 個權限碼（只建立、不授權） | 新增 | 否 | 55-…-rollback.sql | 50 預覽第 9 區 |
-| 81 | `m7m8-sql/56-b45-functions.sql` | 第 4.5 批：函式（不動資料） | 新增＋改既有 | 否（DEV 已逐字比對） | 56-…-rollback.sql | 50 預覽 |
-| 82 | `m7m8-sql/57-b45-analysis.sql` | 第 4.5 批：待請款／分析，文字替換 6 函式 | 新增＋改既有 | 否（rollback 反向替換） | 57-…-rollback.sql | 50 預覽 |
-| 83 | `m7m8-sql/58-b45-receipt-void.sql` | 第 4.5 批：作廢進貨（欄位、唯一索引、函式、替換 2 個第 4 批函式） | 新增＋改既有 | 否（rollback 反向替換） | 58-…-rollback.sql | 50 預覽 |
-| 84 | `m7m8-sql/59-b45f-vendor-bank-log.sql` | 第 4.5 批追加：廠商銀行異動紀錄（只新增不可改刪） | 新增 | 否 | 59-…-rollback.sql | 50 預覽 |
-| 85 | `m7m8-sql/60-b45f-pay-rules.sql` | 第 4.5 批追加：請款規則，文字替換 3 函式 | 改既有資料 | 否（rollback 反向替換） | 60-…-rollback.sql | 50 預覽 |
-| 86 | `m7m8-sql/61-b45f-stale-draft.sql` | 第 4.5 批追加：草稿過期，文字替換 3 函式 | 改既有資料 | 否（rollback 反向替換） | 61-…-rollback.sql | 50 預覽 |
+| 44 | `m9-sql/09_legacy_inventory_maintenance_attachment.sql` | 補舊版庫存與附件 4 組漏套用（00d 發現、沒有任何步驟會補）：①刪除庫存位置時下層明細原因（20260722055852）；②庫存過帳函式 ON CONFLICT 歧義（20260722094917，不修的話總務第 3 批過帳建第一筆餘額就報錯）；③庫存交易序號與取號、過帳函式的授權收回（20260722091526、20260722092849）；④附件管理判斷函式換成舊版最終版（20260826042500；總務第 2 批（步驟 48，22-b2-onboarding）開頭有 md5 守衛要求這個版本，沒做這步 22 會自己中止）。只改函式與授權，不碰資料、不碰 RLS 政策、不建也不授權權限碼；重跑時若函式已含後面步驟的內容會略過，不會蓋掉。**刻意不補**維修回報 20260727021000 的 p1e_maintenance_requests_read：正式區 maintenance_* 七張表是更早的全開政策（登入者皆可讀寫），改成 p1e_ 政策組會讓沒有總務權限碼的人立刻讀不到，要和授權一起由老闆決定。前置：庫存、設備、設施、需求單、維修回報等舊表（缺就中止） | 改既有資料 | 否（只改函式與授權；正式區現況原文在 .rollback.sql） | .rollback.sql（附件管理判斷只在仍是 09 的版本時才還原；已被後面步驟改過會中止） | .verify.sql |
+| 45 | `m7m8-sql/10-g01-catalog-rules.sql` | 第 1 批：11 個 ga_ws_ 函式 | 新增 | 否 | 10-g01-catalog-rules-rollback.sql | 11 預覽＋00 準備度 |
+| 46 | `m7m8-sql/20-b2-preview-before-apply.sql` | 第 2 批套用前預覽 | 唯讀 | 否 | - | - |
+| 47 | `m7m8-sql/21-b2-asset-events-transfers.sql` | 第 2 批：異動紀錄、轉移單、明細（3 表、1 序號、函式） | 新增 | 否 | 21-…-rollback.sql | 20 預覽 |
+| 48 | `m7m8-sql/22-b2-onboarding.sql` | 第 2 批：設施加 6 欄、重定義 1 函式（上線貼標） | 新增＋改既有 | 是（函式原文） | 22-…-rollback.sql | 20 預覽 |
+| 49 | `m7m8-sql/23-b2-import-history.sql` | 第 2 批：Excel 匯入批次表與函式 | 新增 | 否 | 23-…-rollback.sql | 20 預覽 |
+| 50 | `m7m8-sql/24-b9-block-terminal-with-open-transfer.sql` | 第 2 批：進行中轉移單時擋報廢（1 函式、2 觸發器） | 新增 | 否 | 24-…-rollback.sql | 20 預覽 |
+| 51 | `m7m8-sql/25-b6-history-current-store.sql` | 第 2 批：重新定義 2 個函式（簽章不變） | 改既有資料 | 是（函式原文） | 25-…-rollback.sql | 20 預覽 |
+| 52 | `m7m8-sql/26-b3-preview-before-apply.sql` | 第 3 批套用前預覽 | 唯讀 | 否 | - | - |
+| 53 | `m7m8-sql/27-b3-inventory-rules.sql` | 第 3 批：庫存位置規則函式與觸發器 | 新增 | 否 | 27-…-rollback.sql | 26 預覽 |
+| 54 | `m7m8-sql/28-b3-inventory-post.sql` | 第 3 批：過帳 4 函式 | 新增 | 否 | 28-…-rollback.sql | 26 預覽 |
+| 55 | `m7m8-sql/29-b3-inventory-transfers.sql` | 第 3 批：調撥（單據加欄、2 表、8 函式） | 新增 | 否 | 29-…-rollback.sql（會刪調撥資料） | 26 預覽 |
+| 56 | `m7m8-sql/30-b3-category-keep-inactive.sql` | 第 3 批：重新定義 2 個既有函式 | 改既有資料 | 是（函式原文） | 30-…-rollback.sql | 26 預覽 |
+| 57 | `m7m8-sql/31-b4-preview-before-apply.sql` | 第 4 批套用前預覽 | 唯讀 | 否 | - | - |
+| 58 | `m7m8-sql/32-b4-request-rules.sql` | 第 4 批：2 表、9 欄；覆蓋既有函式（32 與 33 必須連續套用） | 新增＋改既有 | 是（pg_get_functiondef 備份 4 個被覆蓋函式） | 32-…-rollback.sql | 31 預覽 |
+| 59 | `m7m8-sql/33-b4-purchase-orders.sql` | 第 4 批：採購單、核准、11 函式、1 權限碼（只建立、不授權） | 新增 | 同 32 | 33-…-rollback.sql | 31 預覽 |
+| 60 | `m7m8-sql/34-b4-receipt-dispatch.sql` | 第 4 批：到貨驗入與配發（4 表、欄位、函式；覆蓋 1 舊函式） | 新增＋改既有 | 是（函式原文） | 34-…-rollback.sql | 31 預覽 |
+| 61 | `m7m8-sql/35-b4-asset-transfer-follow.sql` | 第 4 批：資產移轉搬單（1 表、4 函式；覆蓋 2 函式） | 新增＋改既有 | 是（函式原文） | 35-…-rollback.sql | 31 預覽 |
+| 62 | `m7m8-sql/36-b5-preview-before-apply.sql` | 第 5 批套用前預覽（第 6、7 區名單要看） | 唯讀 | 否 | - | - |
+| 63 | `m7m8-sql/37-b5-work-order-rules.sql` | 第 5 批：工單規則函式（不改表） | 新增 | 否 | 37-…-rollback.sql | 36 預覽 |
+| 64 | `m7m8-sql/38-b5-request-supplement-sync.sql` | 第 5 批：覆蓋第 4 批 2 函式（檔頭有 md5 守衛） | 改既有資料 | 是（函式原文） | 38-…-rollback.sql | 36 預覽 |
+| 65 | `m7m8-sql/39-b5-work-order-parts.sql` | 第 5 批：領用料件 1 函式 | 新增 | 否 | 39-…-rollback.sql | 36 預覽 |
+| 66 | `m7m8-sql/40-b5-work-order-rls.sql` | 第 5 批：收緊 3 條 RLS 政策（驗收並補授權後才執行）。**正式區現況注意（2026-11-25 唯讀查證）**：正式區維修表的政策是更早的全開版（maintenance_requests_read／maintenance_requests_write，登入者皆可讀寫，沒有 p1e_ 前綴），這份只新增 p1e_ 的 update／delete／updates_write 政策，全開的 _write 政策仍在（政策是 OR 關係），所以**這步在正式區不會真的收緊**；要真的收緊，需另做「先授權、再撤掉全開政策」的一份，待老闆決定 | 改既有資料 | 是（先存三條政策現況） | 40-…-rollback.sql | 36 預覽第 6、7 區 |
+| 67 | `m7m8-sql/41-b6-preview-before-apply.sql` | 第 6 批套用前預覽 | 唯讀 | 否 | - | - |
+| 68 | `m7m8-sql/42-b6-vendor-columns.sql` | 第 6 批：廠商欄位與固定資料（既有廠商 contract_required 一次性改 false） | 新增＋改既有 | 建議（先備份 ga_vendors） | 42-…-rollback.sql | 41 預覽 |
+| 69 | `m7m8-sql/44-b6-vendor-functions.sql` | 第 6 批：廠商相關函式（不改表） | 新增 | 否 | 44-…-rollback.sql | 41 預覽 |
+| 70 | `m7m8-sql/48-b6-vendor-tax-unique.sql` | 第 6 批：統編唯一索引（有重複會中止） | 新增 | 否 | 48-…-rollback.sql | 41 第 3 區重複須為 0 |
+| 71 | `m7m8-sql/47-b6-work-order-vendor-check.sql` | 第 6 批：覆蓋第 5 批 1 個內部函式 | 改既有資料 | 是（函式原文） | 47-…-rollback.sql | 41 預覽 |
+| 72 | `m7m8-sql/45-b6-utility-bills.sql` | 第 6 批：水電帳單欄位／索引、改 1 條讀取政策 | 新增＋改既有 | 是（先存 41 第 10 區政策） | 45-…-rollback.sql | 41 預覽 |
+| 73 | `m7m8-sql/46-b6-stats-home.sql` | 第 6 批：績效、首頁徽章；文字替換 ga_ws_po_list | 新增＋改既有 | 是（函式原文） | 46-…-rollback.sql | 41 預覽 |
+| 74 | `m7m8-sql/49-b6-perf-inline-predicates.sql` | 第 6 批：8 個述詞函式移除 search_path 設定（效能） | 改既有資料 | 否（rollback 設回原值） | 49-…-rollback.sql | 41 預覽 |
+| 75 | `m7m8-sql/43-b6-vendor-rls.sql` | 第 6 批：改 3 張表 RLS（最後套用；名單確認前不得套用） | 改既有資料 | 是（先存第 5 區政策） | 43-…-rollback.sql | 41 預覽第 6、7、8 區 |
+| 76 | `m7m8-sql/50-b45-preview-before-apply.sql` | 第 4.5 批套用前預覽（沒有 rollback） | 唯讀 | 否 | - | - |
+| 77 | `m7m8-sql/51-b45-receipt-voucher.sql` | 第 4.5 批：進貨明細回填未稅金額＋觸發器 | 改既有資料 | 是：zz_bak_b45_receipts／receipt_items（README 有 SQL） | 51-…-rollback.sql | 50 預覽第 2 區 |
+| 78 | `m7m8-sql/52-b45-payment-requests.sql` | 第 4.5 批：請款單 3 表、取號函式、1 筆設定 | 新增 | 否 | 52-…-rollback.sql（會刪請款資料） | 50 預覽 |
+| 79 | `m7m8-sql/53-b45-vendor-bank.sql` | 第 4.5 批：廠商銀行 4 欄 | 新增 | 否 | 53-…-rollback.sql | 50 預覽 |
+| 80 | `m7m8-sql/54-b45-attachment-types.sql` | 第 4.5 批：重建 CHECK、改 2 個共用附件函式 | 改既有資料 | 是（先存 50 第 3 區兩函式全文） | 54-…-rollback.sql | 50 預覽 |
+| 81 | `m7m8-sql/55-b45-permissions.sql` | 第 4.5 批：2 個權限碼（只建立、不授權） | 新增 | 否 | 55-…-rollback.sql | 50 預覽第 9 區 |
+| 82 | `m7m8-sql/56-b45-functions.sql` | 第 4.5 批：函式（不動資料） | 新增＋改既有 | 否（DEV 已逐字比對） | 56-…-rollback.sql | 50 預覽 |
+| 83 | `m7m8-sql/57-b45-analysis.sql` | 第 4.5 批：待請款／分析，文字替換 6 函式 | 新增＋改既有 | 否（rollback 反向替換） | 57-…-rollback.sql | 50 預覽 |
+| 84 | `m7m8-sql/58-b45-receipt-void.sql` | 第 4.5 批：作廢進貨（欄位、唯一索引、函式、替換 2 個第 4 批函式） | 新增＋改既有 | 否（rollback 反向替換） | 58-…-rollback.sql | 50 預覽 |
+| 85 | `m7m8-sql/59-b45f-vendor-bank-log.sql` | 第 4.5 批追加：廠商銀行異動紀錄（只新增不可改刪） | 新增 | 否 | 59-…-rollback.sql | 50 預覽 |
+| 86 | `m7m8-sql/60-b45f-pay-rules.sql` | 第 4.5 批追加：請款規則，文字替換 3 函式 | 改既有資料 | 否（rollback 反向替換） | 60-…-rollback.sql | 50 預覽 |
+| 87 | `m7m8-sql/61-b45f-stale-draft.sql` | 第 4.5 批追加：草稿過期，文字替換 3 函式 | 改既有資料 | 否（rollback 反向替換） | 61-…-rollback.sql | 50 預覽 |
 | **階段 4　選用／授權類（老闆決定後才做）與「不要執行」的舊草稿** | | | | | | |
-| 87 | `m5-sql/w19_q2_B_reactivate.sql` | 把誤停用的活動改回啟用（選用，先填 id；BEGIN 開頭，要另外 COMMIT） | 改既有資料 | 是：檔內備份到 m5_w19_campaign_backup | m5-sql/w19_q2_C_rollback.sql | 檔內最後一段核對 |
-| 88 | `m3-sql/grant_task_view_archived_B_grant.sql` | 補授權 task.view_archived（授權類；新規則是授權改用勾選頁，這份由老闆決定要不要用） | 改既有資料 | 是：檔內記錄新增的授權列 | grant_task_view_archived_C_rollback.sql | A 預覽 |
-| 89 | `m3-sql/grant_task_manage_B_grant.sql` | 建立 task_proxy_manager 角色並加入名單（授權類，同上） | 改既有資料 | 是：m3_task_manage_grants | grant_task_manage_C_rollback.sql | A 預覽 |
-| 90 | `m4-sql/w17_B_apply.sql` | 【不要執行】已被 m9 的 55 取代 | 改既有資料 | - | m4-sql/w17_C_rollback.sql | - |
-| 91 | `m4-sql/w18_B_apply.sql` | 【不要執行】已被 m9 的 90 取代 | 改既有資料 | - | m4-sql/w18_C_rollback.sql | - |
+| 88 | `m5-sql/w19_q2_B_reactivate.sql` | 把誤停用的活動改回啟用（選用，先填 id；BEGIN 開頭，要另外 COMMIT） | 改既有資料 | 是：檔內備份到 m5_w19_campaign_backup | m5-sql/w19_q2_C_rollback.sql | 檔內最後一段核對 |
+| 89 | `m3-sql/grant_task_view_archived_B_grant.sql` | 補授權 task.view_archived（授權類；新規則是授權改用勾選頁，這份由老闆決定要不要用） | 改既有資料 | 是：檔內記錄新增的授權列 | grant_task_view_archived_C_rollback.sql | A 預覽 |
+| 90 | `m3-sql/grant_task_manage_B_grant.sql` | 建立 task_proxy_manager 角色並加入名單（授權類，同上） | 改既有資料 | 是：m3_task_manage_grants | grant_task_manage_C_rollback.sql | A 預覽 |
+| 91 | `m4-sql/w17_B_apply.sql` | 【不要執行】已被 m9 的 55 取代 | 改既有資料 | - | m4-sql/w17_C_rollback.sql | - |
+| 92 | `m4-sql/w18_B_apply.sql` | 【不要執行】已被 m9 的 90 取代 | 改既有資料 | - | m4-sql/w18_C_rollback.sql | - |
 
-合計 **91 步**（唯讀 24、新增 32、改既有資料 17、新增＋改既有 18）。其中階段 1～3 真正會寫入的有 62 步；階段 4 的 5 步是選用或「不要執行」。
+合計 **92 步**（唯讀 24、新增 32、改既有資料 18、新增＋改既有 18）。其中階段 1～3 真正會寫入的有 63 步；階段 4 的 5 步是選用或「不要執行」。
 
 ---
 
@@ -139,6 +141,9 @@
 | `08_legacy_qr_revoke_trigger.preview.sql` | 套用前預覽（唯讀）：設備與設施已報廢、已退役或已刪除但 QR 尚未作廢的筆數；回填 SQL 以註解附在檔尾，由老闆決定 | 同上 |
 | `08_legacy_qr_revoke_trigger.rollback.sql` | 移除 2 個觸發器與 1 個函式（不動資料） | 同上 |
 | `08_legacy_qr_revoke_trigger.verify.sql` | 唯讀驗證（只有 SELECT）：函式、2 個觸發器（時機、事件、欄位）與前置欄位 | 同上 |
+| `09_legacy_inventory_maintenance_attachment.sql` | 舊版庫存與附件補漏（4 組，2026-11-25 正式區 00d 發現沒套用）：刪除庫存位置下層明細原因、過帳函式 ON CONFLICT 改指定約束、庫存交易序號與取號／過帳函式授權收回、附件管理判斷換成舊版最終版（md5 = 41a29efc4e62b01a7ce8f7d0fce9eead，總務第 2 批 22 的守衛要求）。只改函式與授權；不改資料、不碰政策、不建也不授權權限碼；可重複執行，函式已含後面步驟內容時略過。不補維修回報 p1e_ 政策（正式區是全開政策，見步驟 66 的說明） | 2026-11-25 00d；舊版 20260722055852、20260722091526、20260722092849、20260722094917、20260826042500 |
+| `09_legacy_inventory_maintenance_attachment.rollback.sql` | 還原成 2026-11-25 正式區唯讀查到的現況原文（函式、序號與函式授權）；附件管理判斷只在仍是 09 版本時才還原，被後面步驟改過會中止 | 同上 |
+| `09_legacy_inventory_maintenance_attachment.verify.sql` | 唯讀驗證（只有 SELECT）：12 列（11 項 ok＋1 列參考資訊） | 同上 |
 | `20261123150000_m9_page_fallbacks.sql` | 新增 `workspace_page_fallbacks`（逐頁「回舊版」開關，每個頁面種類一列）、`workspace_page_fallback_events`（切換稽核紀錄，只新增）、`workspace_set_page_fallback(text, boolean, text, uuid)`（同一交易寫入目前狀態與稽核紀錄） | M9 F01S，2026-11-23 上線準備問卷 N2 |
 | `20261123150000_m9_page_fallbacks.rollback.sql` | 移除上述函式與兩張資料表 | 同上 |
 | `20261123150000_m9_page_fallbacks.verify.sql` | 唯讀驗證（只有 SELECT）：RLS、無政策、稽核表只有 SELECT／INSERT、函式只給 service_role（2026-11-24 審查補上，主檔未動） | 同上 |

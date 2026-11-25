@@ -36,6 +36,8 @@ const SUP = {
   s07: { file: 'm9-sql/07_legacy_supervisor_management.sql', note: '會建立督導管理日誌的最終版（含這項），這項缺了無妨' },
   s33: { file: 'm9-sql/80_movement_batch_monthly_roster.sql', note: '會重建 valid_movement_type（一樣含 acting_manager），這項缺了無妨' },
   grants: { note: '授權之後由權限勾選頁（授權步驟）決定；老闆改過授權就會缺，不一定代表舊版沒套用' },
+  s09: { file: 'm9-sql/09_legacy_inventory_maintenance_attachment.sql', note: '會補上這項（只改函式內容與授權），這項缺了無妨；做完後重跑應消失' },
+  maint: { note: '正式區維修回報用的是更早的全開政策（maintenance_requests_read／maintenance_requests_write，登入者皆可讀寫），舊版 p1e_ 政策組（20260724011554、20260727021000）從沒套用；改成 p1e_ 會讓沒有總務權限碼的人讀不到維修資料，要和授權一起由老闆決定，不屬於漏套用，所以 09 不處理，這項會一直缺' },
   rrp: { note: '舊版 20260926163000 已把 3 參數版 DROP 後改成 4 參數版；這支的最終效果就是這兩項，其中一項缺代表 20260926163000 或本支沒套用（00c 會顯示 163000 的函式在不在）' },
 };
 
@@ -339,5 +341,20 @@ WHERE monthly.position IS DISTINCT FROM resolved.resolved_position
   END`,
   },
 ];
+
+// 由 09（舊版庫存與附件補漏）補上的項目：標成 superseded_by，重跑 00d 時說明「步驟 N 會補」。
+const S09_MIGRATIONS = new Set([
+  '20260722055852_fix_inventory_location_cascade_deletion_reason',
+  '20260722091526_revoke_inventory_transaction_sequence_grants',
+  '20260722092849_restrict_inventory_transaction_function_execute_grants',
+  '20260722094917_fix_inventory_balance_upsert_conflict_ambiguity',
+  '20260826042500_general_affairs_store_onboarding_attachment_scope',
+]);
+for (const g of migrations) {
+  if (S09_MIGRATIONS.has(g.migration)) for (const m of g.markers) if (!m.superseded_by) m.superseded_by = SUP.s09;
+  if (g.migration === '20260727021000_general_affairs_maintenance_work_order_permission_split') {
+    for (const m of g.markers) if (m.kind === 'policy_has' && !m.superseded_by) m.superseded_by = SUP.maint;
+  }
+}
 
 module.exports = { migrations, undeterminable, observations, SUP };
