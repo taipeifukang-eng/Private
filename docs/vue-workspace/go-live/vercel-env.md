@@ -93,7 +93,7 @@ Preview **不需要** `WORKSPACE_ALLOWED_REFS`。
 ## 五、建置相關提醒
 
 - 每次部署會先建置新版工作台畫面（Vue），再建置主網站（Next.js）。多出約 30 秒，整體約 1 到 2 分鐘。
-- Vercel 專案的 Node 版本請設成 **20.x**（Settings 的 **General**，找到 **Node.js Version**）。程式裡也寫了 20.x。
+- Vercel 專案的 Node.js Version（Settings 的 **General**）請維持現有設定即可，只要是 22.x 或更新的版本就行，不要改選 20.x（Vercel 已不支援）。程式裡沒有鎖定 Node 版本。
 - 不要設 `NODE_ENV=production`（見最上面第 4 點）。
 - Production 與 Preview 兩邊建置時都一定要有 `NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY`，沒有的話建置會失敗（這是舊版就有的行為）。
 
@@ -127,4 +127,4 @@ Preview **不需要** `WORKSPACE_ALLOWED_REFS`。
 - [ ] 每個變數都選對範圍（Production 或 Preview）
 - [ ] 沒有設 `NODE_ENV`
 - [ ] 改完變數已經 Redeploy，狀態是 Ready
-- [ ] Node.js Version 是 20.x
+- [ ] Node.js Version 維持現有設定且是 22.x 或更新（不是 20.x）

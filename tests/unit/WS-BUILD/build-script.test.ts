@@ -69,8 +69,8 @@ describe('build wiring', () => {
   it('root build runs the workspace build before next build', () => {
     expect(pkg.scripts.build).toBe('node scripts/build-workspace.cjs && next build');
   });
-  it('pins node 20', () => {
-    expect(pkg.engines.node).toBe('20.x');
+  it('does not pin engines.node (Vercel project setting decides)', () => {
+    expect(pkg.engines?.node).toBeUndefined();
   });
   it('vue-workspace has no self file: dependency', () => {
     expect(JSON.stringify(vuePkg.dependencies)).not.toMatch(/file:/);

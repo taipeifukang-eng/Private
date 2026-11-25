@@ -21,7 +21,7 @@
 | 3. 依 `vercel-env.md` 第二節，把 Production 變數設好，但 `WORKSPACE_ENABLED` **先不設**，`WORKSPACE_AUDIENCE` 設 `admin_only` | 你（照手冊操作） | 手冊第八節「自我檢查清單」全部打勾 |
 | 4. 確認 `WORKSPACE_ALLOWED_REFS` 裡**只有正式專案代號** | 你 | 沒有測試專案的代號 |
 | 5. 確認 Production 沒有那四個模擬開關（`WORKSPACE_DEV_ENABLED`、`WORKSPACE_CALENDAR_MOCK`、`WORKSPACE_AUTH_MAIL_MOCK`、`WORKSPACE_OPENAI_MOCK`） | 你 | 在 Environment Variables 頁面逐一搜尋，Production 底下都找不到 |
-| 6. 確認 Vercel 的 Node.js Version 是 20.x（Settings > General） | 你 | 顯示 20.x |
+| 6. 確認 Vercel 的 Node.js Version 維持現有設定，且是 22.x 或更新、不是 20.x（Settings > General） | 你 | 顯示 22.x 以上 |
 | 7. 準備好備份：這次要跑的資料庫指令，操作頁裡每一步都有「先備份」的區塊 | 你與工程 | 備份檔案已存好、知道放在哪 |
 | 8. 在 GitHub 看這次的 Pull Request 預覽部署狀態 | 你 | Vercel 顯示綠燈（建置成功） |
 

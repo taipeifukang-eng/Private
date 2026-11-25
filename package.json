@@ -36,9 +36,6 @@
     "test:page": "node tests/run-all.cjs --layers all --page",
     "test:all": "node tests/run-all.cjs --layers all"
   },
-  "engines": {
-    "node": "20.x"
-  },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.45.4",
