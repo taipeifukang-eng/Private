@@ -185,7 +185,8 @@ test('採購單詳情「發票與請款」分頁：請款管理者看得到金�
   let m = await open('clerk');
   try {
     await expect(m.page.getByTestId('pd-tab-pay')).toBeVisible();
-    await expect(m.page.getByTestId('reg-voucher-' + receipt.receipt_no)).toBeVisible();
+    // ga-improve-b1 小錯字：這張進貨單已連結發票，採購單詳情的進貨紀錄不再顯示「登錄憑證」連結（原本斷言為可見，隨規格更新；未連結的進貨單仍顯示，見下方 rc2 的案例）
+    await expect(m.page.getByTestId('reg-voucher-' + receipt.receipt_no)).toHaveCount(0);
     await m.page.getByTestId('pd-tab-pay').click();
     await expect(m.page.getByTestId('pp-received')).toContainText('1,050');
     await expect(m.page.getByTestId('pp-claimed')).toContainText('0');
