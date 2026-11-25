@@ -1,6 +1,7 @@
 -- 還原 07_legacy_supervisor_management.sql：移除督導管理日誌 6 張表（連同索引、觸發器、政策）與 14 個 supervisor_management_* 函式。
 -- 安全規則：只要任何一張表已經有資料列，整份中止、什麼都不刪（避免誤刪日誌）。要強制移除請先自行備份再手動 DROP。
 -- 順序：若已套用「語音與 AI」（m6 的 workspace_supervisor_voice_transcripts 有外鍵參照 supervisor_management_records），要先還原語音那一步，否則 DROP TABLE 會因外鍵而失敗（DEV 實測）。
+-- 也要先還原「督導日誌軟刪除」那一步（m6 的 20261122130000_m6_supervisor_log_rpc），否則它的函式會留下來變成找不到資料表的孤兒函式。
 -- 不動：權限碼（06 建立）、舊版 current_user_has_permission(varchar)、任何角色授權。
 -- 可重複執行。
 BEGIN;

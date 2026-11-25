@@ -60,7 +60,7 @@
 | 34 | `m6-sql/20261121100000_m6_relationship_sales_import.sql` | 關係會員銷售匯入函式（內容相同的明細自動略過） | 新增 | 否 | .rollback.sql | m6 README 注意事項 |
 | 35 | `m6-sql/20261122100000_m6_products_master_logs.sql` | 商品主檔操作紀錄表 | 新增 | 否 | .rollback.sql | 同上 |
 | 36 | `m6-sql/20261122110000_m6_stockout_rpc.sql` | 缺貨回覆、刪除回報 2 函式 | 新增 | 否 | .rollback.sql | 同上 |
-| 37 | `m9-sql/07_legacy_supervisor_management.sql` | 補建舊版督導管理日誌整組（5 支舊 migration 的最終狀態）：6 張表、14 個 supervisor_management_* 函式、5 個驗證觸發器、RLS 政策與 grant。正式區 00b 查出整組沒套用；不建權限碼（15 步的 06 已建）、不授權任何角色。前置：舊版 current_user_has_permission(varchar)、store_managers 等舊表；放在 06 權限碼之後、督導日誌軟刪除與語音 AI 之前 | 新增 | 否（只新增物件，無資料） | .rollback.sql（只有 6 張表都是空的才刪；已套用語音 AI 要先還原語音） | .verify.sql |
+| 37 | `m9-sql/07_legacy_supervisor_management.sql` | 補建舊版督導管理日誌整組（5 支舊 migration 的最終狀態）：6 張表、14 個 supervisor_management_* 函式、5 個驗證觸發器、RLS 政策與 grant。正式區 00b 查出整組沒套用；不建權限碼（步驟 17 的 06 已建）、不授權任何角色。前置：舊版 current_user_has_permission(varchar)、store_managers 等舊表；放在 06 權限碼之後、督導日誌軟刪除與語音 AI 之前 | 新增 | 否（只新增物件，無資料） | .rollback.sql（只有 6 張表都是空的才刪；已套用語音 AI 要先還原語音） | .verify.sql |
 | 38 | `m6-sql/20261122130000_m6_supervisor_log_rpc.sql` | 督導日誌軟刪除函式（以呼叫者身分執行，授權 authenticated、service_role） | 新增 | 否 | .rollback.sql | 同上；前置：4 支舊 migration |
 | 39 | `m6-sql/20261122133000_m6_voice_ai.sql` | 語音／AI：5 表＋函式（每月上限預設 30 美元） | 新增 | 否 | .rollback.sql | 同上 |
 | 40 | `m6-sql/20261123140000_m6_clinic_selfpay_bucket.sql` | 自費診所截圖私有 bucket（同名桶會被改回私有、10MB） | 新增＋改既有 | 先確認既有桶是否私有 | .rollback.sql（注意：用 SQL 刪 bucket 可能被 Storage 保護觸發器擋下，需改走 Dashboard） | 檔尾內建檢查 |
