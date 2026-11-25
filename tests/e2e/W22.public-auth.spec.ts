@@ -1,7 +1,7 @@
 import { expect, test, request as pwRequest, type Browser, type Page } from '@playwright/test';
 import { adminDb, apiForUser, cleanupM5Users, assertAuthMailMock } from '../support/m5-fixtures';
 import { createAuthUser, createPlainRole, grantRole } from '../support/m5-org-fixtures';
-import { TEST_ORIGIN } from '../support/auth';
+import { TEST_ORIGIN, BYPASS_HEADERS } from '../support/auth';
 import { applyProjectViewport } from '../support/w04-ui';
 import { fillAndSubmitLogin, loginViaUi, openLogin } from '../support/w22-ui';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -33,7 +33,7 @@ async function sessionContext(browser: Browser, user: { email: string; password:
   const api = await apiForUser({ key: 'w22', ...user } as never);
   const state = await api.storageState();
   await api.dispose();
-  return browser.newContext({ baseURL: 'http://localhost:3002', storageState: state });
+  return browser.newContext({ baseURL: TEST_ORIGIN, storageState: state, extraHTTPHeaders: BYPASS_HEADERS });
 }
 
 test('註冊：欄位驗證為中文；成功後出現前往登入；用新帳號登入看到「帳號待管理員開通」，管理員開通後按重新檢查進入工作台', async ({ page }, testInfo) => {
@@ -147,7 +147,7 @@ test('重設密碼：驗證密碼規則（Q16 最短 6 字元）、顯示強度�
   } finally {
     await ctx.close();
   }
-  const fresh = await pwRequest.newContext({ baseURL: 'http://localhost:3002', extraHTTPHeaders: { Origin: 'http://localhost:3002' } });
+  const fresh = await pwRequest.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: { Origin: TEST_ORIGIN, ...BYPASS_HEADERS } });
   expect((await fresh.post('/api/workspace/login', { data: { email: user.email, password: user.password } })).status()).toBe(401);
   expect((await fresh.post('/api/workspace/login', { data: { email: user.email, password: 'Abcdef1!x' } })).status()).toBe(200);
   await fresh.dispose();
@@ -169,20 +169,20 @@ test('登入後回原頁：站內路徑會回去（舊網址轉新版）；外�
   const admin = getAccount('admin');
   // 站內路徑：/activity-management（舊網址）-> 登入後回到該路徑 -> 轉新版活動檢視
   {
-    const ctx = await browser.newContext({ baseURL: 'http://localhost:3002' });
+    const ctx = await browser.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: BYPASS_HEADERS });
     try {
       const page = await ctx.newPage();
       await applyProjectViewport(page, testInfo);
       await openLogin(page, '/activity-management');
       await fillAndSubmitLogin(page, admin.email, admin.password);
       await expect(page.getByRole('heading', { name: '活動檢視', exact: true })).toBeVisible({ timeout: 45_000 });
-      expect(new URL(page.url()).origin).toBe('http://localhost:3002');
+      expect(new URL(page.url()).origin).toBe(TEST_ORIGIN);
     } finally {
       await ctx.close();
     }
   }
   for (const unsafe of ['https://evil.example/phish', '//evil.example/phish', '/\\evil.example', 'javascript:alert(1)', '/login']) {
-    const ctx = await browser.newContext({ baseURL: 'http://localhost:3002' });
+    const ctx = await browser.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: BYPASS_HEADERS });
     try {
       const page = await ctx.newPage();
       await applyProjectViewport(page, testInfo);
@@ -191,7 +191,7 @@ test('登入後回原頁：站內路徑會回去（舊網址轉新版）；外�
       await openLogin(page, unsafe);
       await fillAndSubmitLogin(page, admin.email, admin.password);
       await expect(page.locator('.menu-toggle')).toBeVisible({ timeout: 45_000 });
-      expect(new URL(page.url()).origin, unsafe).toBe('http://localhost:3002');
+      expect(new URL(page.url()).origin, unsafe).toBe(TEST_ORIGIN);
       expect(requests.some((u) => new URL(u).hostname.includes('evil.example')), unsafe).toBe(false);
     } finally {
       await ctx.close();

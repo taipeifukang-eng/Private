@@ -1,12 +1,13 @@
 import { expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { apiForUser, type M5User } from './m5-fixtures';
+import { TEST_ORIGIN, BYPASS_HEADERS } from './auth';
 
 /** 以 apiForUser 登入後的 cookie 開瀏覽器 context（W21 e2e 同做法）。 */
 export async function contextFor(browser: Browser, user: M5User): Promise<BrowserContext> {
   const api = await apiForUser(user);
   const state = await api.storageState();
   await api.dispose();
-  return browser.newContext({ baseURL: 'http://localhost:3002', storageState: state, serviceWorkers: 'block' }); // 離線用的 service worker 會吃掉 page.route 的攔截（D17 的 Google 攔截需要）
+  return browser.newContext({ baseURL: TEST_ORIGIN, storageState: state, serviceWorkers: 'block', extraHTTPHeaders: BYPASS_HEADERS }); // 離線用的 service worker 會吃掉 page.route 的攔截（D17 的 Google 攔截需要）
 }
 export function watchErrors(page: Page) {
   const errors: string[] = [];

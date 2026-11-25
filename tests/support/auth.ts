@@ -15,6 +15,7 @@ const { resolveBaseUrl, bypassHeaders } = require('./env-refs.cjs') as {
 // 預設 http://localhost:3002；設 E2E_BASE_URL 時改打 Vercel preview（並帶 VERCEL_PROTECTION_BYPASS 標頭）。
 export const TEST_ORIGIN: string = resolveBaseUrl();
 const BYPASS = bypassHeaders();
+export const BYPASS_HEADERS: Record<string, string> = BYPASS;
 const AUTH_DIR = path.resolve(__dirname, '..', 'reports', '.auth');
 // 登入狀態快取有效期（Supabase access token 預設 1 小時，保守取 30 分鐘）。
 const MAX_AGE_MS = 30 * 60 * 1000;
