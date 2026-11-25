@@ -26,7 +26,8 @@ export interface GateResult {
 
 export function urlRefOf(env: GateEnv): string {
   try {
-    return new URL(env.NEXT_PUBLIC_SUPABASE_URL || "http://invalid").hostname.split(".")[0];
+    if (!env.NEXT_PUBLIC_SUPABASE_URL) return "";
+    return new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
   } catch {
     return "";
   }
@@ -50,7 +51,11 @@ export function killSwitchOn(env: GateEnv): boolean {
 
 function jwtClaims(token: string | undefined): { ref?: unknown; role?: unknown } | null {
   try {
-    return JSON.parse(Buffer.from((token || "").split(".")[1], "base64url").toString());
+    // 不用 Buffer，讓這個模組在 Edge runtime 也能用
+    const b64 = (token || "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+    const parsed = JSON.parse(atob(padded));
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
@@ -124,7 +129,11 @@ export function allowedOrigin(env: GateEnv, headers?: HeaderLike): string[] {
 
 /** 模擬服務（行事曆／信件／OpenAI）：只在 WORKSPACE_DEV_ENABLED 且連 DEV 資料庫時開，不受正式開關影響。 */
 export function devMockEnabled(env: GateEnv): boolean {
-  return env.WORKSPACE_DEV_ENABLED === "true" && urlRefOf(env) === DEV_REF;
+  return (
+    env.WORKSPACE_DEV_ENABLED === "true" &&
+    urlRefOf(env) === DEV_REF &&
+    deploymentOf(env) !== "production"
+  );
 }
 
 /** 環境名稱，給 session 回傳用。 */

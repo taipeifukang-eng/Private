@@ -46,6 +46,9 @@ describe("evaluateGate", () => {
     expect(evaluateGate(prod({ SUPABASE_SERVICE_ROLE_KEY: jwt(PROD, "anon") })).reason).toBe("key_mismatch");
     expect(evaluateGate(prod({ SUPABASE_SERVICE_ROLE_KEY: "garbage" })).reason).toBe("key_mismatch");
     expect(evaluateGate(prod({ NEXT_PUBLIC_SUPABASE_URL: undefined })).open).toBe(false);
+    const noUrl = prod({ NEXT_PUBLIC_SUPABASE_URL: undefined, EXPECTED_SUPABASE_PROJECT_REF: "invalid", WORKSPACE_ALLOWED_REFS: "invalid", NEXT_PUBLIC_SUPABASE_ANON_KEY: jwt("invalid", "anon"), SUPABASE_SERVICE_ROLE_KEY: jwt("invalid", "service_role") });
+    expect(evaluateGate(noUrl).open).toBe(false);
+    expect(evaluateGate(prod({ NEXT_PUBLIC_SUPABASE_ANON_KEY: "a." + Buffer.from("null").toString("base64url") + ".s" })).reason).toBe("key_mismatch");
   });
   it("production allowlist", () => {
     expect(evaluateGate(prod({ WORKSPACE_ALLOWED_REFS: `x, ${PROD}` })).open).toBe(true);
@@ -115,6 +118,8 @@ describe("mocks and environment name", () => {
     expect(devMockEnabled(base(DEV_REF))).toBe(false);
     expect(devMockEnabled(base(PROD, { WORKSPACE_DEV_ENABLED: "true" }))).toBe(false);
     expect(devMockEnabled(prod())).toBe(false);
+    expect(devMockEnabled(base(DEV_REF, { WORKSPACE_DEV_ENABLED: "true", VERCEL_ENV: "production" }))).toBe(false);
+    expect(devMockEnabled(base(DEV_REF, { WORKSPACE_DEV_ENABLED: "true", VERCEL_ENV: "preview" }))).toBe(true);
   });
   it("environmentName", () => {
     expect(environmentName(base(DEV_REF))).toBe("DEV");
