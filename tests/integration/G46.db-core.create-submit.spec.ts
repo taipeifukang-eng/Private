@@ -245,7 +245,7 @@ test('建立與修改的權限：需要請款管理加水電管理，缺一不�
     const r = await createUb(who, payee, m);
     expectErr(r, 403, 'PERMISSION_DENIED');
   }
-  expectErr(await createUb('accountant', payee, m), 403, 'PERMISSION_DENIED', '水電網費管理');
+  expectErr(await createUb('accountant', payee, m), 403, 'PERMISSION_DENIED', '水電話網費管理');
   expectErr(await createUb('billonly', payee, m), 403, 'PERMISSION_DENIED', '請款管理');
   const anon = await anonClient().rpc('ga_ws_pay_ub_create', { p_payload: { vendor_id: payee.id, bill_month: m }, p_key: key() });
   expect(anon.error, '未登入不能呼叫').not.toBeNull();
@@ -409,7 +409,7 @@ test('送出前重驗：帳單金額被改、被刪除、被標已繳（不勾�
   const refreshed = okData(await fn('clerk', 'ga_ws_pay_ub_update', { p_id: pr.id, p_payload: { refresh: true }, p_expected_updated_at: pr.updated_at }));
   expect(Number(refreshed.amount_total)).toBe(1200);
   // 送出需要兩個權限：只有請款管理的人（會計、第 4.5 批總務）送出被擋，請款單維持草稿
-  expectErr(await act('accountant', refreshed, 'submit'), 403, 'PERMISSION_DENIED', '水電網費管理');
+  expectErr(await act('accountant', refreshed, 'submit'), 403, 'PERMISSION_DENIED', '水電話網費管理');
   expectErr(await act('ga45_clerk', refreshed, 'submit'), 403, 'PERMISSION_DENIED');
   expectErr(await act('payman_ubview', refreshed, 'submit'), 403, 'PERMISSION_DENIED');
   expect((await dbPr(pr.id)).status).toBe('DRAFT');

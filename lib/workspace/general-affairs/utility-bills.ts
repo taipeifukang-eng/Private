@@ -6,7 +6,7 @@
 // V7：儲存時回 anomaly／warnings（金額異常只提醒，仍已儲存）；anomaly-check 供表單送出前預先檢查。V8：標記已繳預設台北今天、不可未來、不可早於帳單月份前 1 個月。
 import { NextRequest } from "next/server";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
-import { parseReportParams, parseUtilityFilters, pickBillPayload, utilityBillAbilities } from "./utility-bill-rules";
+import { UTILITY_BILL_MANAGE_LABEL, parseReportParams, parseUtilityFilters, pickBillPayload, utilityBillAbilities } from "./utility-bill-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { parseUtilityBillExtraFilters, pickPayeeField, validateSetPayee } from "./utility-payment-rules";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
@@ -23,7 +23,7 @@ const needView = (ctx: Context) => {
 };
 const needManage = (ctx: Context, what: string) => {
   const ab = abilitiesOf(ctx);
-  if (!ab.canManage) throw new GaError(403, `沒有${what}的權限（需要水電網費管理權限）`);
+  if (!ab.canManage) throw new GaError(403, `沒有${what}的權限（需要${UTILITY_BILL_MANAGE_LABEL}權限）`);
   return ab;
 };
 /** 選填的版本資訊：有帶就驗格式，沒帶交給資料庫函式判斷（冪等操作可以不帶）。 */

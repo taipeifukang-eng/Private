@@ -120,7 +120,7 @@ test('建立水電話費請款單（API）：驗證、權限、固定識別、�
   // 權限：缺水電管理、缺請款管理
   const d1 = await createUb('accountant', payee, m);
   expect(d1.status).toBe(403);
-  expect(d1.body.error).toContain('水電網費管理');
+  expect(d1.body.error).toContain('水電話網費管理');
   expect((await createUb('billonly', payee, m)).status).toBe(403);
   expect((await createUb('ga45_clerk', payee, m)).status).toBe(403);
   expect((await createUb('payview', payee, m)).status).toBe(403);

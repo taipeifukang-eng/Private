@@ -1,4 +1,4 @@
-// 套用 總務採購與請款改善第一批（ga-improve-b1）資料庫物件到 DEV：100000 買受人公司、110000 含稅與調整列、120000 付款方式與同仁代墊、130000 預付款、140000 DEV 測試資料與清除函式；加 --rollback 反向執行 rollback。
+// 套用 總務採購與請款改善第一批（ga-improve-b1）資料庫物件到 DEV：090000 權限顯示名稱、100000 買受人公司、110000 含稅與調整列、120000 付款方式與同仁代墊、130000 預付款、140000 DEV 測試資料與清除函式；加 --rollback 反向執行 rollback。
 // 檔案不存在（該階段還沒做）就略過。可重複執行。可用 --only=100000 只跑一份。
 // 環境守衛只解析 .env.development.local（不讀 .env.local），並確認 supabase CLI 連結的專案是 DEV。
 const { spawnSync } = require("child_process");
@@ -15,6 +15,7 @@ if (fs.readFileSync(path.join(root, "supabase/.temp/project-ref"), "utf8").trim(
 const rollback = process.argv.includes("--rollback");
 const only = (process.argv.find((a) => a.startsWith("--only=")) || "").slice(7);
 const base = [
+  "20261125090000_ga_improve_b1_perm_label",
   "20261125100000_ga_improve_b1_buyer_companies",
   "20261125110000_ga_improve_b1_po_tax_adjust",
   "20261125120000_ga_improve_b1_pay_methods_payee",

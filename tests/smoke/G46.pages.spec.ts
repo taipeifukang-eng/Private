@@ -279,7 +279,7 @@ test('沒有請款權限者沒有入口且 API 403：只有水電管理、第 4.
     await nav(page, '請款單');
     await expect(vis(page, 'new-pr')).toBeVisible();
     await expect(vis(page, 'new-pr-utility')).toBeDisabled();
-    await expect(vis(page, 'new-pr-utility-need')).toContainText('水電網費管理');
+    await expect(vis(page, 'new-pr-utility-need')).toContainText('水電話網費管理');
     expect(real(errors), errors.join('\n')).toEqual([]);
   } finally {
     await ctx.close();

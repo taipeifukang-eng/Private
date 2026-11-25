@@ -110,6 +110,9 @@ async function list(ctx: Context, url: URL, approvals: boolean) {
   if (p.get("attention") === "1" || p.get("attention") === "true") filters.attention = true;
   // 第 4.5 批：待請款採購單（驗入含稅額 − 有效請款累計 > 尾差；只有請款檢視／管理權限者有結果，與首頁與導覽徽章同一個述詞 ga_pay_unclaimed_po_ids）。
   if (p.get("payUnclaimed") === "1" || p.get("payUnclaimed") === "true") filters.pay_unclaimed = true;
+  // G1 預付款：已預付（餘額大於 0）與預付逾期（已下訂未到貨且預付餘額大於 0）；只有請款檢視／管理權限者有結果（資料庫判斷）。
+  if (p.get("prepaid") === "1" || p.get("prepaid") === "true") filters.prepaid = true;
+  if (p.get("prepayOverdue") === "1" || p.get("prepayOverdue") === "true") filters.prepay_overdue = true;
   if (approvals || p.get("view") === "approvals") {
     if (!who.approve) throw new GaError(403, "待簽核清單只有持「採購核准」權限的人可以看");
     filters.approvals = true;

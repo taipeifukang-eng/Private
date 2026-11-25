@@ -4,8 +4,8 @@
 import { isUuid } from "./rules";
 import { isRealDate, taipeiToday } from "./payment-rules";
 import { PAY, paymentAbilities } from "./payment-rules";
-import { UB, utilityBillAbilities, EXPENSE_TYPE_LABELS, identifierLabel, monthStart, type ExpenseType } from "./utility-bill-rules";
-import { buildCsv, csvCell, type CsvColumn, type PayMethod, PAY_METHOD_LABELS, PR_SOURCES, PR_SOURCE_LABELS, PR_STATUS_LABELS, type PrStatus, MONTH_RE } from "./payment-request-rules";
+import { UB, UTILITY_BILL_MANAGE_LABEL, utilityBillAbilities, EXPENSE_TYPE_LABELS, identifierLabel, monthStart, type ExpenseType } from "./utility-bill-rules";
+import { PAYEE_BUYER_KEYS, pickPayeeBuyer, buildCsv, csvCell, type CsvColumn, type PayMethod, PAY_METHOD_LABELS, PR_SOURCES, PR_SOURCE_LABELS, PR_STATUS_LABELS, type PrStatus, MONTH_RE } from "./payment-request-rules";
 
 // ---------------------------------------------------------------- 來源
 export const PR_SOURCE_VALUES = PR_SOURCES;
@@ -37,7 +37,7 @@ export function utilityPaymentAbilities(p: Has) {
     /** 建立、修改草稿、送出水電請款單：請款管理＋水電管理，缺一不可。 */
     canCreateUtility: pay.canManage && bill.canManage,
     /** 缺哪個（給畫面反灰說明用）。 */
-    missingForCreate: [!pay.canManage ? "請款管理" : null, !bill.canManage ? "水電網費管理" : null].filter(Boolean) as string[],
+    missingForCreate: [!pay.canManage ? "請款管理" : null, !bill.canManage ? UTILITY_BILL_MANAGE_LABEL : null].filter(Boolean) as string[],
   };
 }
 export type UtilityPaymentAbilities = ReturnType<typeof utilityPaymentAbilities>;
@@ -48,7 +48,7 @@ export function utilityActionAllowed(action: string, p: Has): { ok: boolean; mis
   const a = utilityPaymentAbilities(p);
   const missing: string[] = [];
   if (!a.canManage) missing.push("請款管理");
-  if (action === "submit" && !a.billManage) missing.push("水電網費管理");
+  if (action === "submit" && !a.billManage) missing.push(UTILITY_BILL_MANAGE_LABEL);
   return { ok: missing.length === 0, missing };
 }
 
@@ -213,11 +213,12 @@ const bool = (v: unknown, label: string) => {
   return v;
 };
 export function validateUtilityCreatePayload(raw: Record<string, any>) {
-  for (const k of Object.keys(raw)) if (!["source", "vendor_id", "bill_month", "bill_ids", "auto_mark_paid", "expected_pay_date", "notes"].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  for (const k of Object.keys(raw)) if (!["source", "vendor_id", "bill_month", "bill_ids", "auto_mark_paid", "expected_pay_date", "notes", ...PAYEE_BUYER_KEYS].includes(k)) throw new Error(`不支援的欄位：${k}`);
   if (!isUuid(String(raw.vendor_id ?? ""))) throw new Error("請選擇繳費單位");
   const month = normalizeBillMonth(raw.bill_month);
   if (!month) throw new Error("請選擇帳單月份（YYYY-MM）");
-  const out: Record<string, unknown> = { vendor_id: String(raw.vendor_id), bill_month: month.slice(0, 7), notes: text(raw.notes, 500, "備註") };
+  // G4：水電請款單也能選同仁代墊（付款對象是同仁，繳費單位仍是 vendor_id）；G11：可選買受人抬頭
+  const out: Record<string, unknown> = { vendor_id: String(raw.vendor_id), bill_month: month.slice(0, 7), notes: text(raw.notes, 500, "備註"), ...pickPayeeBuyer(raw) };
   if (raw.bill_ids !== undefined && raw.bill_ids !== null) out.bill_ids = billIds(raw.bill_ids);
   if (raw.auto_mark_paid !== undefined && raw.auto_mark_paid !== null) out.auto_mark_paid = bool(raw.auto_mark_paid, "送出後帳單自動標記已繳的選項");
   const pay = String(raw.expected_pay_date ?? "").trim();
@@ -229,7 +230,8 @@ export function validateUtilityCreatePayload(raw: Record<string, any>) {
 }
 export function validateUtilityUpdatePayload(raw: Record<string, any>) {
   const out: Record<string, unknown> = {};
-  for (const k of Object.keys(raw)) if (!["bill_ids", "refresh", "auto_mark_paid", "expected_pay_date", "notes"].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  for (const k of Object.keys(raw)) if (!["bill_ids", "refresh", "auto_mark_paid", "expected_pay_date", "notes", ...PAYEE_BUYER_KEYS].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  Object.assign(out, pickPayeeBuyer(raw));
   if ("bill_ids" in raw) out.bill_ids = billIds(raw.bill_ids);
   if ("refresh" in raw) out.refresh = bool(raw.refresh, "重新帶入");
   if ("auto_mark_paid" in raw) out.auto_mark_paid = bool(raw.auto_mark_paid, "送出後帳單自動標記已繳的選項");

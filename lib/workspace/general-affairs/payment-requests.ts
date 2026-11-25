@@ -9,16 +9,17 @@ import {
   buildUtilityExportCsv, maskUtilityRequest, parseCandidateParams, parseSourceParam, utilityExportFileName, utilityPaymentAbilities, validateUtilityCreatePayload, validateUtilityUpdatePayload,
 } from "./utility-payment-rules";
 import {
-  buildExportCsv, exportFileName, isPrAction, maskRequest, parseExportStatuses, parseRequestFilters, validateActionPayload, validateCreatePayload, validateSettings, validateUpdatePayload,
+  buildExportCsv, exportFileName, isPrAction, maskRequest, parseExportStatuses, parseRequestFilters, validateActionPayload, validateCreatePayload, validatePrepayCreatePayload, validatePrepaySettlePayload, validateSettings, validateUpdatePayload,
   MONTH_RE,
 } from "./payment-request-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
+import { UTILITY_BILL_MANAGE_LABEL } from "./utility-bill-rules";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
 
 // G46：請款能力加上水電話費請款的判斷（建立與送出需請款管理＋水電網費管理；明細需水電檢視），欄位是原本能力的超集合。
 const abilitiesOf = (ctx: Context) => utilityPaymentAbilities(ctx.permissions);
-const shape = (row: any, ab: ReturnType<typeof abilitiesOf>) => maskUtilityRequest(maskRequest(row, ab.vendorVisible), ab.billsVisible);
+const shape = (row: any, ab: ReturnType<typeof abilitiesOf>, viewerId?: string | null) => maskUtilityRequest(maskRequest(row, ab.vendorVisible, viewerId), ab.billsVisible);
 function needView(ctx: Context, what = "查看請款單") {
   const ab = abilitiesOf(ctx);
   if (!ab.canView) throw new GaError(403, `沒有${what}的權限（需要請款檢視或管理權限）`);
@@ -27,7 +28,7 @@ function needView(ctx: Context, what = "查看請款單") {
 /** 建立、修改草稿、送出水電話費請款單：請款管理加水電網費管理，缺一不可（資料庫函式與觸發器再檢查一次）。 */
 function needUtilityManage(ctx: Context, what: string) {
   const ab = needManage(ctx, what);
-  if (!ab.billManage) throw new GaError(403, `沒有${what}的權限（需要水電網費管理權限）`);
+  if (!ab.billManage) throw new GaError(403, `沒有${what}的權限（需要${UTILITY_BILL_MANAGE_LABEL}權限）`);
   return ab;
 }
 function needManage(ctx: Context, what: string) {
@@ -53,6 +54,12 @@ export async function paymentRequestsApi(ctx: Context, request: NextRequest, res
     if (m === "POST") return create(ctx, request);
     throw new GaError(405, "不支援的操作");
   }
+  if (a === "prepay") {
+    // G1 預付款：POST /prepay 建立；GET /prepay/:poId 採購單的預付摘要
+    if (!b && m === "POST") return createPrepay(ctx, request);
+    if (b && m === "GET") return prepayOverview(ctx, b);
+    throw new GaError(405, "不支援的操作");
+  }
   if (a === "utility-candidates" && !b) {
     if (m !== "GET") throw new GaError(405, "不支援的操作");
     return utilityCandidates(ctx, new URL(request.url));
@@ -72,6 +79,7 @@ export async function paymentRequestsApi(ctx: Context, request: NextRequest, res
     throw new GaError(405, "不支援的操作（請款單不能刪除，請用「作廢」）");
   }
   if (b === "actions" && m === "POST") return action(ctx, request, id);
+  if (b === "prepay-refund" && m === "POST") return prepayRefund(ctx, request, id);
   throw new GaError(404, "找不到這個功能");
 }
 
@@ -83,7 +91,7 @@ async function list(ctx: Context, url: URL) {
   const d = r.data || {};
   const total = Number(d.total) || 0;
   return respond({
-    data: ((d.rows as any[]) || []).map((row) => shape(row, ab)),
+    data: ((d.rows as any[]) || []).map((row) => shape(row, ab, ctx.user.id)),
     total, meta: pagingMeta(page, pageSize, total), summary: d.summary ?? {}, global: r.global ?? {}, permissions: ab,
   });
 }
@@ -91,7 +99,7 @@ async function list(ctx: Context, url: URL) {
 async function detail(ctx: Context, id: string) {
   const ab = needView(ctx);
   const r = await rpc(ctx, "ga_ws_pay_request_get", { p_id: id });
-  return respond({ data: shape(r.data || {}, ab), buyer: r.buyer ?? {}, permissions: { ...ab, canManage: ab.canManage && r.can_manage !== false } });
+  return respond({ data: shape(r.data || {}, ab, ctx.user.id), buyer: r.buyer ?? {}, permissions: { ...ab, canManage: ab.canManage && r.can_manage !== false } });
 }
 
 /** 可請款的進貨與尚可請款額（建立頁挑選用）。需請款檢視，並需採購評估檢視（資料庫 PO_VIEW_REQUIRED）。 */
@@ -132,12 +140,12 @@ async function create(ctx: Context, request: NextRequest) {
     const ab = needUtilityManage(ctx, "建立水電話費請款單");
     const payload = validated(() => validateUtilityCreatePayload(raw));
     const r = await rpc(ctx, "ga_ws_pay_ub_create", { p_payload: payload, p_key: keyOf(idempotency_key) });
-    return respond({ data: shape(r.data, ab), replay: !!r.replay }, r.status === 201 ? 201 : 200);
+    return respond({ data: shape(r.data, ab, ctx.user.id), replay: !!r.replay }, r.status === 201 ? 201 : 200);
   }
   const ab = needManage(ctx, "建立請款單");
   const payload = validated(() => validateCreatePayload(raw));
   const r = await rpc(ctx, "ga_ws_pay_request_create", { p_payload: payload, p_key: keyOf(idempotency_key) });
-  return respond({ data: shape(r.data, ab), replay: !!r.replay }, r.status === 201 ? 201 : 200);
+  return respond({ data: shape(r.data, ab, ctx.user.id), replay: !!r.replay }, r.status === 201 ? 201 : 200);
 }
 
 async function update(ctx: Context, request: NextRequest, id: string) {
@@ -150,7 +158,7 @@ async function update(ctx: Context, request: NextRequest, id: string) {
   const expected = validated(() => parseExpectedUpdatedAt(expected_updated_at));
   const payload = validated(() => (utilityKeys.length ? validateUtilityUpdatePayload(raw) : validateUpdatePayload(raw)));
   const r = await rpc(ctx, "ga_ws_pay_request_update", { p_id: id, p_payload: payload, p_expected_updated_at: expected });
-  return respond({ data: shape(r.data, ab) });
+  return respond({ data: shape(r.data, ab, ctx.user.id) });
 }
 
 async function action(ctx: Context, request: NextRequest, id: string) {
@@ -163,7 +171,35 @@ async function action(ctx: Context, request: NextRequest, id: string) {
   const payload = validated(() => validateActionPayload(name, null, raw));
   const expected = validated(() => parseExpectedUpdatedAt(expected_updated_at));
   const r = await rpc(ctx, "ga_ws_pay_request_action", { p_id: id, p_action: name, p_payload: payload, p_key: keyOf(idempotency_key), p_expected_updated_at: expected });
-  return respond({ data: shape(r.data, ab), replay: !!r.replay });
+  return respond({ data: shape(r.data, ab, ctx.user.id), replay: !!r.replay });
+}
+
+/** G1 建立預付請款單：採購單已下訂（ORDERED／PARTIALLY_RECEIVED）才能開；金額是含稅額；需請款管理＋採購評估檢視（資料庫判斷）。 */
+async function createPrepay(ctx: Context, request: NextRequest) {
+  const ab = needManage(ctx, "建立預付款請款單");
+  const b = await body(request);
+  const { idempotency_key, ...raw } = b;
+  const payload = validated(() => validatePrepayCreatePayload(raw));
+  const r = await rpc(ctx, "ga_ws_pay_prepay_create", { p_payload: payload, p_key: keyOf(idempotency_key) });
+  return respond({ data: shape(r.data, ab, ctx.user.id), replay: !!r.replay }, r.status === 201 ? 201 : 200);
+}
+
+/** G1 登記退款或轉抵：已付款的預付單，金額不超過餘額、原因必填；帶 expected_updated_at 與 idempotency_key。 */
+async function prepayRefund(ctx: Context, request: NextRequest, id: string) {
+  const ab = needManage(ctx, "登記預付款退款");
+  const b = await body(request);
+  const expected = validated(() => parseExpectedUpdatedAt(b.expected_updated_at));
+  const p = validated(() => validatePrepaySettlePayload(b));
+  const r = await rpc(ctx, "ga_ws_pay_prepay_settle", { p_id: id, p_amount: p.amount, p_reason: p.reason, p_key: keyOf(b.idempotency_key), p_expected_updated_at: expected });
+  return respond({ data: shape(r.data, ab, ctx.user.id), replay: !!r.replay });
+}
+
+/** G1 採購單的預付摘要（已預付、已核銷、退款、餘額、逾期天數、各預付單）；沒有預付單時 prepay 為 null。需請款檢視與採購評估檢視。 */
+async function prepayOverview(ctx: Context, poId: string) {
+  const ab = needView(ctx, "查看預付款");
+  if (!isUuid(poId)) throw new GaError(400, "採購單 id 格式錯誤");
+  const r = await rpc(ctx, "ga_ws_pay_prepay_overview", { p_po_id: poId });
+  return respond({ data: r.data?.prepay ?? null, permissions: { ...ab, canManage: ab.canManage && r.data?.can_manage !== false } });
 }
 
 const EXPORT_MAX_ROWS = 5000;
@@ -182,11 +218,13 @@ async function exportCsv(ctx: Context, url: URL) {
   }
   const source = validated(() => parseSourceParam(p.get("source")));
   const statuses = validated(() => parseExportStatuses(p));
+  // G1／G4／G11：extended=1（畫面的匯出按鈕帶）才追加類型、付款對象、抬頭、信用卡末四碼、平台欄位；沒帶時欄位與順序完全不動。
+  const extended = ["1", "true"].includes((p.get("extended") || "").trim());
   // 資料庫匯出函式一次只收一個狀態：每個狀態各呼叫一次，再依建立時間與單號合併（同一張請款單只在同一個狀態裡，明細順序不變）。
   const rows: any[] = [];
   let secret = false;
   for (const st of statuses) {
-    const r = await rpc(ctx, "ga_ws_pay_export", { p_filters: { ...filters, status: st, ...(source === "UTILITY" ? { source } : {}) } });
+    const r = await rpc(ctx, "ga_ws_pay_export", { p_filters: { ...filters, status: st, ...(source === "UTILITY" ? { source } : {}), ...(extended ? { extended: "1" } : {}) } });
     const d = r.data || {};
     rows.push(...((d.rows as any[]) || []));
     secret = secret || !!d.include_vendor_secret;
@@ -196,7 +234,7 @@ async function exportCsv(ctx: Context, url: URL) {
   if (statuses.length > 1) rows.sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)) || String(x.pr_no).localeCompare(String(y.pr_no)));
   // 水電話費請款單的對帳欄位與採購不同（門市、費用類型、電號／水號／用戶號碼…），分開匯出；未指定來源時維持原本的採購對帳。
   const utility = source === "UTILITY";
-  const csv = utility ? buildUtilityExportCsv(rows, secret) : buildExportCsv(rows, secret);
+  const csv = utility ? buildUtilityExportCsv(rows, secret) : buildExportCsv(rows, secret, extended);
   return new Response(csv, {
     status: 200,
     headers: {

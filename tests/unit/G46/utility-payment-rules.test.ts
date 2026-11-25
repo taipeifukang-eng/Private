@@ -270,15 +270,15 @@ describe('權限矩陣（U7）：建立、修改、送出需請款管理＋水�
   ];
   it.each(cases)('%s', (_n, codes, expected) => expect(utilityPaymentAbilities(perms(...codes))).toMatchObject(expected));
   it('缺哪個（給畫面反灰說明）', () => {
-    expect(utilityPaymentAbilities(perms(PAYM)).missingForCreate).toEqual(['水電網費管理']);
+    expect(utilityPaymentAbilities(perms(PAYM)).missingForCreate).toEqual(['水電話網費管理']);
     expect(utilityPaymentAbilities(perms(UBM)).missingForCreate).toEqual(['請款管理']);
-    expect(utilityPaymentAbilities(perms()).missingForCreate).toEqual(['請款管理', '水電網費管理']);
+    expect(utilityPaymentAbilities(perms()).missingForCreate).toEqual(['請款管理', '水電話網費管理']);
     expect(utilityPaymentAbilities(perms(PAYM, UBM)).missingForCreate).toEqual([]);
   });
   it('動作權限：送出需兩個；退回、作廢、標已付款、備註只要請款管理', () => {
     expect(utilityActionAllowed('submit', perms(PAYM, UBM))).toEqual({ ok: true, missing: [] });
-    expect(utilityActionAllowed('submit', perms(PAYM))).toEqual({ ok: false, missing: ['水電網費管理'] });
-    expect(utilityActionAllowed('submit', perms(UBM))).toEqual({ ok: false, missing: ['請款管理', '水電網費管理'].filter((x) => x === '請款管理') });
+    expect(utilityActionAllowed('submit', perms(PAYM))).toEqual({ ok: false, missing: ['水電話網費管理'] });
+    expect(utilityActionAllowed('submit', perms(UBM))).toEqual({ ok: false, missing: ['請款管理', '水電話網費管理'].filter((x) => x === '請款管理') });
     for (const a of ['return', 'void', 'mark_paid', 'note', 'refresh_bank']) {
       expect(utilityActionAllowed(a, perms(PAYM)).ok, a).toBe(true);
       expect(utilityActionAllowed(a, perms(UBM)).ok, a).toBe(false);

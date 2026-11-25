@@ -12,6 +12,8 @@ import { isRosterMember, isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { fulfillmentsApi } from "./part-fulfillments";
 import { partsApi } from "./parts";
+import { buyerCompaniesApi } from "./buyer-companies";
+import { myReimbursementsApi, payeeAccountsApi, payeeOptionsApi } from "./payee-accounts";
 import { paymentRequestsApi, paymentSettingsApi } from "./payment-requests";
 import { purchaseInvoicesApi } from "./purchase-invoices";
 import { purchaseOrdersApi } from "./purchase-orders";
@@ -94,6 +96,15 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return paymentRequestsApi(ctx, request, rest);
     case "payment-settings":
       return paymentSettingsApi(ctx, request, rest);
+    // ga-improve-b1：G11 多家買受人公司、G4 同仁匯款帳戶／代墊同仁挑選／我的代墊款
+    case "buyer-companies":
+      return buyerCompaniesApi(ctx, request, rest);
+    case "payee-accounts":
+      return payeeAccountsApi(ctx, request, rest);
+    case "payee-options":
+      return payeeOptionsApi(ctx, request, rest);
+    case "my-reimbursements":
+      return myReimbursementsApi(ctx, request, rest);
     case "vendors":
       return vendorsApi(ctx, request, rest);
     case "vendor-options":
