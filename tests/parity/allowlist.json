@@ -9977,5 +9977,65 @@
         "admin"
       ]
     }
+  },
+  {
+    "id": "m7m8-g46-ub-list-locked",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「是否鎖定」：帳單已放進未作廢的水電請款單時鎖定（不能改金額、不能刪除）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#locked",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-paid-by-pr-no",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「由哪張請款單標記已繳」：帳單由哪一張請款單自動標記為已繳（請款單號）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#paid_by_pr_no",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-payment-request",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「所屬請款單」：帳單目前所屬的請款單（單號與狀態）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#payment_request",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-attachment-count",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「附件數量」：帳單的附件數量（帳單照片或 PDF）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#attachment_count",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-payee-vendor-name",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「繳費單位名稱」：帳單的繳費單位（公用事業廠商，例如台電、台水、電信公司）名稱。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#payee_vendor_name",
+      "kind": "only-native"
+    }
   }
 ]

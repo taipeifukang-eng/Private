@@ -65,7 +65,10 @@ describe('白名單驗證與分類', () => {
     // 2026-11-23 差異確認頁（M6）送出後，白名單已全部核可；之後新出現的待核可條目請加進這個清單。
     // M9 F01S（2026-11-23）：開發端自選的三項（回舊版連結另開分頁、明細頁連到清單頁、備援開關範圍）待使用者在差異確認頁決定。
     // 2026-11-24 差異確認頁（M9 F01）7 項已全部核可；之後新出現的待核可條目請加進這個清單。
-    const STILL_PENDING = new Set<string>([]);
+    // 2026-11-25 回歸（ga-improve-b1）：G46 水電話費請款在帳單列表新增的五個欄位，舊版沒有請款功能，登記為待核可（見 plain.json）。
+    const STILL_PENDING = new Set<string>([
+      'm7m8-g46-ub-list-locked', 'm7m8-g46-ub-list-paid-by-pr-no', 'm7m8-g46-ub-list-payment-request', 'm7m8-g46-ub-list-attachment-count', 'm7m8-g46-ub-list-payee-vendor-name',
+    ]);
     const list = loadAllowlist();
     const unapproved = list.filter((e) => !e.approvedBy && e.decision !== 'fix' && !STILL_PENDING.has(e.id)).map((e) => e.id);
     expect(unapproved, `這些條目沒有 approvedBy：${unapproved.join(', ')}`).toEqual([]);
