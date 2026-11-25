@@ -253,7 +253,8 @@ test('請款單列表：類型與付款對象篩選、預付與同仁代墊標�
     await vis(page, 'pr-settings').click();
     const form = vis(page, 'pay-settings-form');
     await expect(form).toBeVisible();
-    await expect(form.getByTestId('ps-company')).toHaveCount(2);
+    // DEV 裡可能還有其他測試留下的已停用公司，只數本測試建立的兩家
+    await expect(form.getByTestId('ps-company').filter({ hasText: /-C-SM-/ })).toHaveCount(2);
     await expect(form.getByTestId('ps-company-default')).toHaveCount(1);
     await expect(form.getByTestId('ps-company').filter({ hasText: companyA.name }).getByTestId('ps-company-default')).toBeVisible();
     await expect(form.getByTestId('ps-title')).toHaveValue(companyA.name);
