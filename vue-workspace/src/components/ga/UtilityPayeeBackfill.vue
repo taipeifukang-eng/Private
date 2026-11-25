@@ -5,7 +5,7 @@ import Modal from "../Modal.vue";
 import { errorText, money, monthText, type Bill } from "../../lib/ga-utility-bills";
 
 // G46 補填繳費單位：列出還沒有指定繳費單位的帳單，依供應商（帳單上寫的供應商名稱）分組顯示筆數；對每一組選一個繳費單位按「套用到這一組」。
-// 只填空白（已有繳費單位的、已刪除的會跳過並說明）；一次最多 200 筆，超過的組會分批送出。需要水電網費管理權限。
+// 只填空白（已有繳費單位的、已刪除的會跳過並說明）；一次最多 200 筆，超過的組會分批送出。需要水電話網費管理權限。
 const emit = defineEmits<{ close: []; changed: [] }>();
 type Payee = { id: string; name: string };
 const payees = ref<Payee[]>([]);

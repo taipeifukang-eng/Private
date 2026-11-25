@@ -1,6 +1,6 @@
 // G23 水電網費 API（/api/workspace/general-affairs/utility-bills/**）。
 // 讀取與寫入全走資料庫函式 ga_ws_ub_*（SECURITY DEFINER、has_permission 語意、同交易、鎖列、版本檢查）；繞開觸發器對 service_role 的 AUTH_REQUIRED（用使用者自己的登入身分呼叫），不直接讀寫資料表。
-// 權限：列表、詳情、報表、門市清單＝水電網費檢視或管理；新增、編輯、標記已繳、改回待繳、刪除、異常檢查＝水電網費管理。店長與其他人 403（資料庫 RLS 也已移除店長直讀）。
+// 權限：列表、詳情、報表、門市清單＝水電網費檢視或管理；新增、編輯、標記已繳、改回待繳、刪除、異常檢查＝水電話網費管理。店長與其他人 403（資料庫 RLS 也已移除店長直讀）。
 // 共通：非 GET 檢查 Origin（runGa）、未登入 401、更新帶 expected_updated_at（缺少 400、不符 409 STALE）、pageSize ≤ 100 回 {data,total}、無 DELETE（刪除用 POST :id/delete 並必填原因）。
 // V6：已繳帳單改金額、識別欄位或刪除需 confirm_paid_change:true，否則回 409 PAID_CHANGE_CONFIRM_REQUIRED 附原值；改回待繳需 confirm:true（409 UNPAY_CONFIRM_REQUIRED 附原繳費日期）。
 // V7：儲存時回 anomaly／warnings（金額異常只提醒，仍已儲存）；anomaly-check 供表單送出前預先檢查。V8：標記已繳預設台北今天、不可未來、不可早於帳單月份前 1 個月。
@@ -86,7 +86,7 @@ async function payees(ctx: Context) {
   return respond({ data: r.data ?? [], category_id: r.category_id ?? null, permissions: ab });
 }
 
-/** G46 批次補填繳費單位：只填空白，已有繳費單位與已刪除的跳過並回報；一次最多 200 筆。需水電網費管理。 */
+/** G46 批次補填繳費單位：只填空白，已有繳費單位與已刪除的跳過並回報；一次最多 200 筆。需水電話網費管理。 */
 async function setPayee(ctx: Context, request: NextRequest) {
   needManage(ctx, "補填繳費單位");
   const b = await body(request);

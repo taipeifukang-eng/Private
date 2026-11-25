@@ -17,7 +17,7 @@ import { UTILITY_BILL_MANAGE_LABEL } from "./utility-bill-rules";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
 
-// G46：請款能力加上水電話費請款的判斷（建立與送出需請款管理＋水電網費管理；明細需水電檢視），欄位是原本能力的超集合。
+// G46：請款能力加上水電話費請款的判斷（建立與送出需請款管理＋水電話網費管理；明細需水電檢視），欄位是原本能力的超集合。
 const abilitiesOf = (ctx: Context) => utilityPaymentAbilities(ctx.permissions);
 const shape = (row: any, ab: ReturnType<typeof abilitiesOf>, viewerId?: string | null) => maskUtilityRequest(maskRequest(row, ab.vendorVisible, viewerId), ab.billsVisible);
 function needView(ctx: Context, what = "查看請款單") {
@@ -25,7 +25,7 @@ function needView(ctx: Context, what = "查看請款單") {
   if (!ab.canView) throw new GaError(403, `沒有${what}的權限（需要請款檢視或管理權限）`);
   return ab;
 }
-/** 建立、修改草稿、送出水電話費請款單：請款管理加水電網費管理，缺一不可（資料庫函式與觸發器再檢查一次）。 */
+/** 建立、修改草稿、送出水電話費請款單：請款管理加水電話網費管理，缺一不可（資料庫函式與觸發器再檢查一次）。 */
 function needUtilityManage(ctx: Context, what: string) {
   const ab = needManage(ctx, what);
   if (!ab.billManage) throw new GaError(403, `沒有${what}的權限（需要${UTILITY_BILL_MANAGE_LABEL}權限）`);
