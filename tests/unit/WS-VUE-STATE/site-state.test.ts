@@ -7,7 +7,9 @@ const read = (p: string) => readFileSync(p, "utf8");
 describe("WP6 新版尚未開放／暫時關閉判斷", () => {
   it("503 為暫時關閉，403 NOT_OPEN_YET 為尚未開放，其餘為 null", () => {
     expect(siteNoticeFor(503, { error: "新版暫時關閉" })).toBe("closed");
-    expect(siteNoticeFor(503, {})).toBe("closed");
+    expect(siteNoticeFor(503, { error: "新版工作台設定不符，暫時無法使用" })).toBe("closed");
+    expect(siteNoticeFor(503, {})).toBeNull();
+    expect(siteNoticeFor(503, { error: "檔案上傳失敗，請稍後重試" })).toBeNull();
     expect(siteNoticeFor(403, { error: "NOT_OPEN_YET" })).toBe("not-open");
     expect(siteNoticeFor(403, { error: "沒有權限" })).toBeNull();
     expect(siteNoticeFor(401, { error: "NOT_OPEN_YET" })).toBeNull();

@@ -6,10 +6,13 @@ export const SITE_NOTICE_TEXT: Record<SiteNoticeKind, { title: string; body: str
   "not-open": { title: "新版尚未開放", body: "新版作業台目前尚未對您開放，請先使用舊版作業。" },
 };
 
+const CLOSED_MESSAGES = ["新版暫時關閉", "新版工作台設定不符"];
+
 /** 從 API 回應判斷是否為「整站關閉（503）」或「尚未開放（403 NOT_OPEN_YET）」。其他錯誤回 null。 */
 export function siteNoticeFor(status: number, data: unknown): SiteNoticeKind | null {
-  if (status === 503) return "closed";
   const error = (data as { error?: unknown } | null | undefined)?.error;
+  // 503 也會用在一般的資料讀寫失敗，只有整站關閉的兩句固定訊息才算「暫時關閉」，避免誤蓋整頁。
+  if (status === 503) return typeof error === "string" && CLOSED_MESSAGES.some((m) => error.startsWith(m)) ? "closed" : null;
   if (status === 403 && error === "NOT_OPEN_YET") return "not-open";
   return null;
 }
