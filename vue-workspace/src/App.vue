@@ -25,6 +25,7 @@ import {
 import { api, ApiError } from "./api";
 import { fallbackFor, legacyUrl, legacyUrlForKind } from "./legacy-link";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
+import { WORKSPACE_NAV_KINDS } from "../../lib/workspace/page-kinds";
 import { parsePrefill } from "../../lib/workspace/general-affairs/inventory-transfer-rules";
 import Modal from "./components/Modal.vue";
 import MyReimbursementsDialog from "./components/ga/MyReimbursementsDialog.vue";
@@ -61,7 +62,8 @@ const navigationSearch = ref("");
 // ga-improve-b1 G4：任何登入者都能開「我的代墊款」（匯款帳戶與同仁代墊的請款單），不要求總務權限。
 const showReimbursements = ref(false);
 // M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
-const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers", "ga-report-create", "ga-part-fulfillments"];
+const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers", "ga-report-create", "ga-part-fulfillments", ...WORKSPACE_NAV_KINDS];
+// WP5：舊版選單直接連到新版頁面（/workspace/index.html#/open/<kind>）。導覽 kind 全部接受；未知 kind 在 capturePendingOpen 被忽略（停在首頁）。open() 仍會套用逐頁回舊版的攔截。
 const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string }; date?: string; prefill?: Record<string, string>; assetToken?: string; fulfillmentId?: string } | null>(null);
 function capturePendingOpen() {
   if (!route.meta.open) return;

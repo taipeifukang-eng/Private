@@ -42,10 +42,10 @@ describe('M6-W30：導覽、頁面登記與 API 契約', () => {
     expect(lib).toContain('authorizedStores(');
     expect(lib).not.toMatch(/create table/i);
   });
-  it('舊版頁面、舊 API、舊 Navbar 一行未改（相對於 W30 開工前的提交 7b7be83e）', () => {
+  it('舊版頁面、舊 API、舊 Navbar 權限 hook 一行未改（Navbar.tsx 本身在上線 WP5 加了新版連結，不在此列）（相對於 W30 開工前的提交 7b7be83e）', () => {
     let out = '';
     try {
-      out = execFileSync('git', ['diff', '--name-only', '7b7be83e', '--', 'app/api/clinic-selfpay', 'app/store/clinic-selfpay-margin', 'components/Navbar.tsx', 'hooks/useNavbarPermissions.ts'], { cwd: root, encoding: 'utf8' });
+      out = execFileSync('git', ['diff', '--name-only', '7b7be83e', '--', 'app/api/clinic-selfpay', 'app/store/clinic-selfpay-margin', 'hooks/useNavbarPermissions.ts'], { cwd: root, encoding: 'utf8' });
     } catch {
       return; // 沒有 git 或沒有這個提交（例如打包環境）：略過
     }

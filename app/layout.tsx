@@ -5,6 +5,10 @@ import Navbar from '@/components/Navbar';
 import PWARegister from '@/components/PWARegister';
 import { Suspense } from 'react';
 import AuthCodeHandler from '@/components/AuthCodeHandler';
+import { loadMenuTargets } from '@/lib/workspace/legacy-menu-server';
+
+// 選單連結依閘門與備援集合每次請求計算（有 30 秒記憶體快取），不可被靜態化。
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'FK菁英業務管理',
@@ -40,6 +44,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const { user } = await getCurrentUser();
+  const menu = user ? await loadMenuTargets(user.id) : { enabled: false, links: {} };
 
   return (
     <html lang="zh-TW">
@@ -51,7 +56,7 @@ export default async function RootLayout({
           <AuthCodeHandler />
         </Suspense>
         
-        {user && <Navbar workspacePreviewEnabled={process.env.WORKSPACE_DEV_ENABLED === 'true' && process.env.EXPECTED_SUPABASE_PROJECT_REF === 'mjpdfpxqttbhzeimmtqr'} user={{
+        {user && <Navbar workspaceEnabled={menu.enabled} workspaceLinks={menu.links} user={{
           id: user.id,
           email: user.email,
           profile: user.profile,
