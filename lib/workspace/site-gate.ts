@@ -136,6 +136,15 @@ export function devMockEnabled(env: GateEnv): boolean {
   );
 }
 
+/** 信件 mock 旗標：正式部署或連到非 DEV 資料庫時一律視為關閉（防止誤設環境變數而在正式區建立免驗證帳號）。 */
+export function authMailMockFlag(env: GateEnv): string | undefined {
+  if (env.WORKSPACE_AUTH_MAIL_MOCK !== "true") return undefined;
+  if (deploymentOf(env) === "production") return undefined;
+  const ref = urlRefOf(env);
+  if (ref && ref !== DEV_REF) return undefined;
+  return "true";
+}
+
 /** 環境名稱，給 session 回傳用。 */
 export function environmentName(env: GateEnv): "DEV" | "PROD" {
   return urlRefOf(env) === DEV_REF ? "DEV" : "PROD";

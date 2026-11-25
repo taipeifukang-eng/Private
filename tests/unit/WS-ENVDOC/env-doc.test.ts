@@ -43,3 +43,17 @@ describe("Vercel 環境變數文件", () => {
     expect(doc).not.toMatch(/sk-[A-Za-z0-9]{20,}/);
   });
 });
+
+import { authMailMockFlag } from "../../../lib/workspace/site-gate";
+describe("信件 mock 旗標防呆", () => {
+  it("正式部署一律關閉", () => {
+    expect(authMailMockFlag({ WORKSPACE_AUTH_MAIL_MOCK: "true", VERCEL_ENV: "production" })).toBeUndefined();
+  });
+  it("連到非 DEV 資料庫關閉", () => {
+    expect(authMailMockFlag({ WORKSPACE_AUTH_MAIL_MOCK: "true", NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co" })).toBeUndefined();
+  });
+  it("本機無環境時照旗標", () => {
+    expect(authMailMockFlag({ WORKSPACE_AUTH_MAIL_MOCK: "true" })).toBe("true");
+    expect(authMailMockFlag({})).toBeUndefined();
+  });
+});

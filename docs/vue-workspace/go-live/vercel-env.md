@@ -80,7 +80,7 @@ Preview 只能連**測試資料庫**，程式也會擋掉連到別的資料庫�
 | `WORKSPACE_USE_EXISTING_SESSION` | `true` | 和正式一致 |
 | `NEXT_PUBLIC_SITE_URL` | 預覽網址（沒有固定的話可先不設） | 只影響信件與 QR 網址 |
 | `WORKSPACE_ORIGIN` | 可不設 | 預覽網址系統會自己辨識 |
-| `WORKSPACE_DEV_ENABLED`、`WORKSPACE_CALENDAR_MOCK`、`WORKSPACE_AUTH_MAIL_MOCK`、`WORKSPACE_OPENAI_MOCK` | 只有要跑自動化測試（不寄真信、不真的呼叫 OpenAI）時才設 `true` | 只能設在 Preview，而且只在連測試資料庫時才會生效 |
+| `WORKSPACE_DEV_ENABLED`、`WORKSPACE_CALENDAR_MOCK`、`WORKSPACE_AUTH_MAIL_MOCK`、`WORKSPACE_OPENAI_MOCK` | 只有要跑自動化測試（不寄真信、不真的呼叫 OpenAI）時才設 `true` | 只能設在 Preview；程式也會在正式部署或連到非測試資料庫時自動忽略它們 |
 
 Preview **不需要** `WORKSPACE_ALLOWED_REFS`。
 
