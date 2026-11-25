@@ -411,3 +411,22 @@ DEV 另有 `20261125140000_ga_improve_b1_dev_seed.sql`（測試用假公司、�
 8. **沒有新增 DEV 測試角色**：整合測試沿用既有 DEV 角色與臨時角色（沒有新增角色代碼，所以也沒有撞名風險）；清除函式 `ga_dev_cleanup_ga_improve_b1` 只處理 `QA-GAIB1-` 標記的廠商與公司、以及 `m7m8-test-` 測試帳號的同仁帳戶與事件，採購單與進貨單仍由既有 `cleanupM7M8` 清除。
 9. **黃金比對**：`tests/integration/GAIB1.db-golden.regression.spec.ts` 必須在「套用前」錄製（`GAIB1_GOLDEN=capture`）、套用後比對（`compare`）；DEV 已用「全撤回→錄製→全套用→比對」做過，27 組輸出只有首頁摘要與徽章的 `generated_at` 不同。
 10. **尚未做（前端與劇本）**：兩個小錯字（`RequestDetail.vue`、`PoDetailDialog.vue`）、所有 Vue 畫面與列印、e2e 多角色劇本與截圖。後端 API 已提供畫面需要的欄位與端點：`/buyer-companies`、`/payee-accounts/own|:profileId`、`/payee-options`、`/my-reimbursements`、`/payment-requests/prepay`、`/payment-requests/prepay/:poId`、`/payment-requests/:id/prepay-refund`、匯出 `extended=1`、採購單與請款單列表新篩選。
+
+## 18. 實作紀錄（Vue 畫面、小錯字與測試，2026-11-25）與設計的不同處
+
+畫面、兩個小錯字、冒煙與 e2e 已完成（commit 在 `feature/vue-parity`，沒有 push）。與 §3 至 §10 的畫面設計不同的地方：
+
+1. **「我的代墊款」不是獨立頁面，是頂端工具列的對話框**（錢包圖示，`data-testid="open-my-reimbursements"`，元件 `MyReimbursementsDialog.vue`）。原因：新增頁面種類要同步動 `page-kinds`、`legacy-routes`、導覽旗標與 `G01` 的 `capabilities` 整物件比對等多個既有測試，且「任何登入者都能進」本來就不屬於總務權限旗標；做成全站對話框，任何登入者（包含沒有總務權限的同仁）都開得到，不改任何既有頁面登錄與測試。對應疑義 Q8 的「個人頁連結」：入口就在每個人都看得到的頂端工具列。
+2. **請款設定保留「預設買受人抬頭／統編」兩欄**（`ps-title`、`ps-tax`，舊流程與既有 G45、M9-GAJ 測試仍用它們），下方加「買受人公司清單」（新增、編輯、設為預設、停用）。兩欄存檔走舊的設定端點，後端雙寫到預設公司（§17 第 6 點）。
+3. **採購單的買受人抬頭與計價方式、調整列**一律在草稿階段可改，下訂後下拉選單與調整列欄位停用（與後端 `PO_LOCKED` 一致）；備註與預計到貨日仍可改。
+4. **請款單修改只送有變動的欄位**：付款對象與買受人抬頭在修改草稿時只在與目前值不同才帶上，建立時只在有選才帶，避免「沒選」被當成「清空預設抬頭」。
+5. **一般請款的候選進貨單**用後端回傳的 `receipt_prepay_offset` 與 `prepay_covered`：已被預付款全額核銷的進貨單顯示「已由預付款核銷，免再請款」並停用「加入」；部分核銷的預設金額＝進貨單含稅額 − 已請款 − 核銷額，稅額用減的（未稅 `round(含稅額÷(1＋稅率))`），與後端 `claimAfterOffset` 一致；發票差異檢查用「請款額＋核銷額」。
+6. **登錄憑證連結**（小錯字）改成 `voucherOpen(r)`：有請款管理權限、不是作廢、`voucher_status !== 'LINKED'`、`!has_paid_claim`（後端 `ga_ib1_receipt_data_ext` 回傳，已付款請款或已付款預付單核銷都算）。
+7. **確認完成提示**（小錯字）用 `doneNotice()`（`lib/workspace/general-affairs/notice-rules.ts`）。parity 測試沒有比對這句提示文字，所以沒有加 `allowlist.json` 與 `plain.json` 條目。
+8. **G12 殘留**：Vue 畫面與 `lib` 註解裡剩下的「水電網費管理」也改成「水電話網費管理」，畫面訊息一律用 `UTILITY_BILL_MANAGE_LABEL`。
+
+測試（循序、DEV、標記 `QA-GAIB1-`／`QA-GAUP-`）：
+
+- 單元 `tests/unit/GAIB1/ui-wiring.test.ts`：`doneNotice`、憑證連結條件、G12 殘留掃描、各畫面接線。
+- 冒煙 `tests/smoke/GAIB1.pages.spec.ts`（桌機 1440、手機 390，另補 1920×1080）：採購單編輯與詳情、請款單列表與篩選、預付請款單頁、同仁代墊請款單頁（會計看完整帳戶、無廠商帳務檢視權限者只看末四碼）、請款設定、列印頁、我的代墊款；每頁檢查無 console 錯誤、整頁無水平溢出、**內層容器無橫向溢出**（`tests/support/gaib1-ui.ts` 的 `innerOverflow`，並有負向自檢 `GAIB1.overflow-helper.spec.ts` 證明抓得到擠出容器的內容）。
+- e2e `tests/e2e/GAIB1.journey-ui.e2e.spec.ts`（五個劇本，桌機 project 跑一次，同仁用手機 390 視窗）與 `GAIB1.journey-typo.e2e.spec.ts`（店長確認完成提示）。
