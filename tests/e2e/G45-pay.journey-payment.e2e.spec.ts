@@ -202,7 +202,7 @@ test('5. 請款檢視者唯讀：看得到結果與付款資訊，沒有任何�
     for (const id of ['pe-submit', 'pe-return', 'pe-paid', 'pe-void-btn', 'pe-note', 'pe-save']) await expect(v.page.getByTestId(id), id).toHaveCount(0);
     expect(await v.page.content()).not.toContain('123-456-789012');
     await expect(v.page.locator('[data-testid="pe-event"]:visible').first()).toBeVisible();
-    await vis(v.page, 'pe-print').click();
+    await vis(v.page, 'pe-print-detail').click();
     await expect(vis(v.page, 'pp-sign-ga')).toContainText('GA45 clerk');
     await expect(vis(v.page, 'pp-sign-acc')).toContainText('GA45 accountant');
     await expect(v.page.getByTestId('pp-bank')).toHaveCount(0);

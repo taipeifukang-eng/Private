@@ -163,7 +163,7 @@ test('檢視與列印：來源與帳單月份、水電明細欄位、列印頁�
     await expect(vis(page, 'pu-paid')).toBeVisible();
     await expect(vis(page, 'pu-void-btn')).toBeVisible();
     expect(await noPageOverflow(page)).toBe(true);
-    await vis(page, 'pu-print').click();
+    await vis(page, 'pu-print-detail').click();
     await expect(visibleHeading(page, '請款單列印')).toBeVisible();
     await expect(vis(page, 'pp-source')).toHaveText('水電話費');
     await expect(vis(page, 'pp-bill-month')).toHaveText('2038-03');
@@ -193,7 +193,7 @@ test('只有請款檢視：明細遮蔽、沒有建立入口、列印頁明細�
     await expect(vis(page, 'pu-lines-masked')).toContainText('明細已遮蔽');
     await expect(vis(page, 'pu-masked')).toBeVisible(); // 統編與銀行遮蔽
     await expect(vis(page, 'pu-submit')).toHaveCount(0);
-    await vis(page, 'pu-print').click();
+    await vis(page, 'pu-print-detail').click();
     await expect(vis(page, 'pp-bills-masked')).toContainText('明細已遮蔽');
     await expect(page.locator('[data-testid="pp-secret"]:visible')).toHaveCount(0);
     expect(await noPageOverflow(page)).toBe(true);

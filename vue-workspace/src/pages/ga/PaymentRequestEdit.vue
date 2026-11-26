@@ -4,6 +4,7 @@ import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import Modal from "../../components/Modal.vue";
 import PaymentRequestUtility from "../../components/ga/PaymentRequestUtility.vue";
+import PrintFieldsBox from "../../components/ga/PrintFieldsBox.vue";
 import PayeeBuyerFields from "../../components/ga/PayeeBuyerFields.vue";
 import PaidFields from "../../components/ga/PaidFields.vue";
 import PayoutAccountDialog from "../../components/ga/PayoutAccountDialog.vue";
@@ -343,7 +344,14 @@ async function accountSaved() {
   if (pr.value && actions.value.includes("refresh_bank")) await quick("refresh_bank");
   else await loadRequest().catch(() => {});
 }
-const printPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id);
+// 預設列印紙本格式請款單；「列印明細版」是原本的 A4 明細版面。
+const printPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id, { layout: "paper" });
+const printDetailPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id, { layout: "detail" });
+// 列印欄位另外儲存（不動請款單版本時間）：只更新這四欄與操作紀錄，不覆蓋表單上尚未儲存的修改。
+function printFieldsSaved(r: PaymentRequest) {
+  if (!pr.value) return;
+  Object.assign(pr.value, { applicant_name: r.applicant_name ?? null, applicant_dept: r.applicant_dept ?? null, attach_docs: r.attach_docs ?? null, reason_override: r.reason_override ?? null, events: r.events ?? pr.value.events });
+}
 function backToList() { openGaPage("ga-payment-requests"); work.remove([props.tab.id]); }
 </script>
 
@@ -360,6 +368,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
     </div>
     <div class="head-actions">
       <button v-if="pr" type="button" data-testid="pe-print" @click="printPage">列印請款單</button>
+      <button v-if="pr" type="button" data-testid="pe-print-detail" @click="printDetailPage">列印明細版</button>
       <button type="button" data-testid="pe-back" @click="backToList">回請款單清單</button>
     </div>
   </header>
@@ -400,6 +409,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
       </div>
     </section>
 
+    <PrintFieldsBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pe" @saved="printFieldsSaved" />
     <section v-if="!loading && isPrepay && pr" class="pe-box" data-testid="pe-prepay">
       <h2>預付款</h2>
       <p v-if="pr.prepay_unsettled" class="notice error" role="alert" data-testid="pe-prepay-unsettled">採購單已全部到貨，但這張預付款還有餘額 {{ money(pr.prepay_balance) }} 沒有核銷，請向廠商要求退款後，在下方登記退款或轉抵。</p>

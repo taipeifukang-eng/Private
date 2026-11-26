@@ -549,7 +549,7 @@ test('M9-GUP 水電話費帳單接進請款單（登錄帳單、台電自動標�
     try {
       await openPrList(w.page);
       await openPr(w.page, S.tpc.no);
-      await vis(w.page, 'pu-print').click();
+      await vis(w.page, 'pu-print-detail').click();
       const sheet = vis(w.page, 'pp-sheet');
       await expect(sheet).toBeVisible();
       await expect(vis(w.page, 'pp-no')).toHaveText(S.tpc.no);
