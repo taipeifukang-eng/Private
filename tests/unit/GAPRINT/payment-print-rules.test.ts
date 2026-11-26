@@ -78,7 +78,7 @@ describe('水電：同門市合併一列、電號數、使用單位', () => {
   const lines = [bill(1, 'S1', '景鏵', 11454), bill(2, 'S2', '中鏵', 4000), bill(3, 'S2', '中鏵', 4000), bill(4, 'S2', '中鏵', 4000), bill(5, 'S2', '中鏵', 4344), bill(6, 'S3', '建恭', 74)];
   const p = buildPaperPrint(utilityPr(lines), extra);
   it('同一門市多張帳單合併一列、金額加總；單張不加後綴', () => {
-    expect(p.rows.filter((r) => r.no !== null)).toHaveLength(3);
+    expect(p.rows.filter((r) => r.key !== '')).toHaveLength(3);
     expect(p.rows[0]).toMatchObject({ no: 1, unit: '景鏵', reason: '115年11月電費', amount: 11454 });
     expect(p.rows[1]).toMatchObject({ no: 2, unit: '中鏵', reason: '115年11月電費（共 4 個電號）', amount: 16344 });
   });
@@ -102,12 +102,12 @@ describe('水電：同門市合併一列、電號數、使用單位', () => {
   });
   it('申請事由覆寫：每列都用它，不加後綴', () => {
     const o = buildPaperPrint(utilityPr(lines, { reason_override: '11月店面電費' }), extra);
-    expect(o.rows.filter((r) => r.no !== null).map((r) => r.reason)).toEqual(['11月店面電費', '11月店面電費', '11月店面電費']);
+    expect(o.rows.filter((r) => r.key !== '').map((r) => r.reason)).toEqual(['11月店面電費', '11月店面電費', '11月店面電費']);
   });
   it('水電內部訂單空白、營業稅 0、合計＝請款單應付總額', () => {
     expect(p.rows.every((r) => r.order === '')).toBe(true);
     expect(p.tax).toBe(0);
-    expect(p.taxLabel).toBe('5% 營業稅');
+    expect(p.taxLabel).toBe('5%營業稅');
     expect(p.total).toBe(11454 + 16344 + 74);
   });
   it('沒有水電檢視權限（明細遮蔽）合成一列只印張數', () => {
@@ -116,15 +116,16 @@ describe('水電：同門市合併一列、電號數、使用單位', () => {
   });
 });
 
-describe('補空白列到 7 列', () => {
-  it('不足 7 列補空白，空白列沒有項次與金額', () => {
+describe('補空白列到 5 列', () => {
+  it('不足 5 列補空白，空白列保留項次、沒有金額', () => {
     const p = buildPaperPrint(utilityPr([bill(1, 'S1', 'A', 100)]), null);
     expect(p.rows).toHaveLength(MIN_ROWS);
-    expect(p.rows[1]).toEqual({ no: null, unit: '', reason: '', amount: null, order: '' });
+    expect(p.rows[1]).toEqual({ no: 2, key: '', unit: '', defaultUnit: '', reason: '', amount: null, order: '' });
+    expect(p.rows.map((r) => r.no)).toEqual([1, 2, 3, 4, 5]);
     expect(moneyCell(p.rows[1].amount)).toBe('');
     expect(moneyCell(11454)).toBe('11,454');
   });
-  it('超過 7 列照長，不截斷', () => {
+  it('超過 5 列照長，不截斷', () => {
     const lines = Array.from({ length: 9 }, (_, i) => bill(i + 1, `S${i}`, `門市${i}`, 10));
     const p = buildPaperPrint(utilityPr(lines), null);
     expect(p.rows).toHaveLength(9);
@@ -193,7 +194,7 @@ describe('表頭預設值', () => {
   it('簽核欄與附註與紙本相同；系統單號獨立回傳', () => {
     const p = buildPaperPrint(utilityPr([bill(1, 'S1', 'A', 10)]), null);
     expect(p.signRows).toBe(SIGN_ROWS);
-    expect(SIGN_ROWS.flat()).toEqual(['董事長', '副董事長', '總經理/長級高階主管', '事業群主管', '部門主管', '直屬主管', '財會部']);
+    expect(SIGN_ROWS.flat()).toEqual(['董　事　長', '副董事長', '總經理/長級高階主管', '事業群主管', '部　門　主管', '直屬主管', '財會部']);
     expect(p.signNote).toBe(SIGN_NOTE);
     expect(SIGN_NOTE).toBe('註：依核決權限簽核完成再交由財會部入帳。');
     expect(SIGN_CELL_SUFFIX['財會部']).toBe('(註)');
@@ -202,6 +203,36 @@ describe('表頭預設值', () => {
   it('付款方式帶進紙面（平台名稱優先用 pay_platform）', () => {
     const p = buildPaperPrint({ ...utilityPr([bill(1, 'S1', 'A', 10)]), pay_method: 'ONLINE_PLATFORM', pay_platform: '蝦皮' }, null);
     expect(p.pay).toMatchObject({ other: true, otherText: '蝦皮' });
+  });
+});
+
+describe('使用單位逐列覆寫', () => {
+  const ls = [bill(1, 'S1', '景鏵', 100), bill(2, 'S2', '苳門', 200)];
+  const ex = { creator: null, bill_lines: [{ line_id: 'b1', store_short_name: '景鏵', notes: null }, { line_id: 'b2', store_short_name: '苳門', notes: '舊址' }] };
+  it('水電：預設＝門市簡稱加備註；以門市 id 為 key 覆寫，空白或沒有的列用預設', () => {
+    const d = buildPaperPrint(utilityPr(ls), ex);
+    expect(d.rows.slice(0, 2).map((r) => [r.key, r.unit, r.defaultUnit])).toEqual([['S1', '景鏵', '景鏵'], ['S2', '苳門（舊址）', '苳門（舊址）']]);
+    const o = buildPaperPrint(utilityPr(ls, { print_units: { S2: ' 苳門店 ', S1: '  ', X: '不存在的列' } }), ex);
+    expect(o.rows[0].unit).toBe('景鏵');
+    expect(o.rows[1]).toMatchObject({ unit: '苳門店', defaultUnit: '苳門（舊址）' });
+  });
+  it('採購：預設空白，以採購單號為 key 覆寫', () => {
+    const pur = { source: 'PURCHASE', amount_total: 1050, tax_amount: 50, lines: [{ line_no: 1, po_no: 'PO-9', claim_untaxed: 1000, items: [{ item_name: '品A' }] }] };
+    expect(buildPaperPrint(pur, null).rows[0]).toMatchObject({ key: 'PO-9', unit: '' });
+    expect(buildPaperPrint({ ...pur, print_units: { 'PO-9': '總部倉庫' } }, null).rows[0]).toMatchObject({ unit: '總部倉庫', defaultUnit: '', order: 'PO-9' });
+  });
+  it('驗證：值去空白、空字串與 null 清除、超長與型別錯誤擋下、列數上限', () => {
+    expect(validatePrintFieldsPayload({ units: { a: ' 甲 ', b: '', c: null } })).toEqual({ units: { a: '甲', b: null, c: null } });
+    expect(validatePrintFieldsPayload({ units: null })).toEqual({ units: null });
+    expect(validatePrintFieldsPayload({ units: { a: 'x'.repeat(40) } })).toEqual({ units: { a: 'x'.repeat(40) } });
+    expect(() => validatePrintFieldsPayload({ units: { a: 'x'.repeat(41) } })).toThrow('使用單位不可超過 40 個字');
+    expect(() => validatePrintFieldsPayload({ units: { a: 5 } })).toThrow('使用單位格式錯誤');
+    expect(() => validatePrintFieldsPayload({ units: ['x'] })).toThrow('使用單位格式錯誤');
+    expect(() => validatePrintFieldsPayload({ units: { '': 'x' } })).toThrow('列識別錯誤');
+    expect(() => validatePrintFieldsPayload({ units: { ['k'.repeat(101)]: 'x' } })).toThrow('列識別錯誤');
+    const many = Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`k${i}`, 'x']));
+    expect(() => validatePrintFieldsPayload({ units: many })).toThrow('最多 50 列');
+    expect(Object.keys(validatePrintFieldsPayload({ units: Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`k${i}`, 'x'])) }).units!)).toHaveLength(50);
   });
 });
 

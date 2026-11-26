@@ -9,18 +9,23 @@
 //   付款方式依系統付款方式打勾；到期日＝預計付款日，沒填取所含帳單最早繳費期限。付款對象＝廠商名稱，同仁代墊印同仁姓名。
 import { EXPENSE_TYPE_LABELS, type ExpenseType } from "./utility-bill-rules";
 
-export const MIN_ROWS = 7;
+export const MIN_ROWS = 5;
+export const UNIT_MAX_LEN = 40;
+export const UNIT_MAX_KEYS = 50;
+export const UNIT_KEY_MAX_LEN = 100;
 export const DEFAULT_COMPANY_TITLE = "富康活力醫藥股份有限公司";
 export const PRINT_FIELD_LIMITS = { applicant_name: 50, applicant_dept: 50, attach_docs: 100, reason_override: 200 } as const;
 export type PrintFieldKey = keyof typeof PRINT_FIELD_LIMITS;
 export const PRINT_FIELD_LABELS: Record<PrintFieldKey, string> = { applicant_name: "申請人", applicant_dept: "申請部門", attach_docs: "檢附單據", reason_override: "申請事由" };
 export const SIGN_ROWS: ReadonlyArray<ReadonlyArray<string>> = [
-  ["董事長", "副董事長", "總經理/長級高階主管"],
+  ["董　事　長", "副董事長", "總經理/長級高階主管"],
   ["事業群主管"],
-  ["部門主管", "直屬主管", "財會部"],
+  ["部　門　主管", "直屬主管", "財會部"],
 ];
 // 紙本在「財會部：＿＿」後面印「(註)」，對應下方附註。
 export const SIGN_CELL_SUFFIX: Readonly<Record<string, string>> = { 財會部: "(註)" };
+export const TAX_LABEL = "5%營業稅";
+export const TOTAL_LABEL = "合　　　　　計";
 export const SIGN_NOTE = "註：依核決權限簽核完成再交由財會部入帳。";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -86,13 +91,15 @@ type ExtraIn = {
 export type PrintPr = {
   pr_no?: string | null; source?: string | null; bill_month?: string | null; expected_pay_date?: string | null; created_at?: string | null;
   applicant_name?: string | null; applicant_dept?: string | null; attach_docs?: string | null; reason_override?: string | null;
+  print_units?: Record<string, string> | null;
   pay_method?: string | null; pay_platform?: string | null; platform?: string | null;
   payee_type?: string | null; payee_name?: string | null; payee_name_snapshot?: string | null; vendor_name_snapshot?: string | null;
   tax_amount?: number | string | null; amount_untaxed?: number | string | null; amount_total?: number | string | null; created_by_name?: string | null;
   buyer_title_snapshot?: string | null; pay_kind?: string | null; prepay_po_no?: string | null; po_nos?: string[] | null;
   lines?: PurchaseLineIn[] | null; bill_lines?: BillLineIn[] | null; bills_masked?: boolean; bill_count?: number | null;
 };
-export type PaperRow = { no: number | null; unit: string; reason: string; amount: number | null; order: string };
+/** key＝列的穩定識別（水電＝門市 id、採購＝採購單號）；補的空白列 key 是空字串。unit＝印出的使用單位（覆寫優先）、defaultUnit＝系統預設。 */
+export type PaperRow = { no: number | null; key: string; unit: string; defaultUnit: string; reason: string; amount: number | null; order: string };
 export type PaperPrint = {
   title: string; subtitle: string; dept: string; applicant: string; attach: string; applyDate: string; register: string;
   rows: PaperRow[]; taxLabel: string; tax: number; total: number; pay: PayBoxes; dueDate: string; payee: string; prNo: string; signRows: ReadonlyArray<ReadonlyArray<string>>; signNote: string;
@@ -128,6 +135,7 @@ function utilityRows(pr: PrintPr, extra: ExtraIn, override: string): PaperRow[] 
   const rows: PaperRow[] = [];
   for (const g of groups.values()) {
     const first = g[0];
+    const rowKey = first.store_id ? String(first.store_id) : `n:${clean(first.location_name)}`;
     const meta = first.id ? info.get(first.id) : undefined;
     const unitName = firstOf(meta?.store_short_name, meta?.store_name, first.location_name);
     const notes = uniq(g.map((l) => clean(l.id ? info.get(l.id)?.notes : "")).filter(Boolean));
@@ -139,7 +147,8 @@ function utilityRows(pr: PrintPr, extra: ExtraIn, override: string): PaperRow[] 
       reason = `${month}${types.map(expenseLabel).join("、")}`;
       if (g.length > 1) reason += types.length === 1 ? `（共 ${g.length} 個${identifierWord(types[0])}）` : `（共 ${g.length} 張帳單）`;
     }
-    rows.push({ no: null, unit: notes.length ? `${unitName}（${notes.join("、")}）` : unitName, reason, amount: g.reduce((s, l) => s + num(l.claim_total), 0), order: "" });
+    const def = notes.length ? `${unitName}（${notes.join("、")}）` : unitName;
+    rows.push({ no: null, key: rowKey, unit: def, defaultUnit: def, reason, amount: g.reduce((s, l) => s + num(l.claim_total), 0), order: "" });
   }
   return rows;
 }
@@ -149,7 +158,7 @@ function purchaseRows(pr: PrintPr, override: string): PaperRow[] {
   if (!lines.length) {
     // 預付款單沒有進貨明細：一列，採購單號、預付未稅金額。
     const po = firstOf(pr.prepay_po_no, (pr.po_nos || [])[0]);
-    if (pr.pay_kind === "PREPAY" || po) return [{ no: null, unit: "", reason: override || (po ? `${po} 預付款` : "預付款"), amount: num(pr.amount_untaxed), order: po }];
+    if (pr.pay_kind === "PREPAY" || po) return [{ no: null, key: po || "_prepay", unit: "", defaultUnit: "", reason: override || (po ? `${po} 預付款` : "預付款"), amount: num(pr.amount_untaxed), order: po }];
     return [];
   }
   const groups = new Map<string, PurchaseLineIn[]>();
@@ -158,7 +167,7 @@ function purchaseRows(pr: PrintPr, override: string): PaperRow[] {
   for (const [po, g] of groups) {
     const names = uniq(g.flatMap((l) => (l.items || []).map((i) => clean(i.item_name))).filter(Boolean));
     const summary = names.length ? (names.length > 2 ? `${names.slice(0, 2).join("、")}等 ${names.length} 項` : names.join("、")) : "";
-    rows.push({ no: null, unit: "", reason: override || [po, summary].filter(Boolean).join(" "), amount: g.reduce((s, l) => s + num(l.claim_untaxed), 0), order: po });
+    rows.push({ no: null, key: po || "_", unit: "", defaultUnit: "", reason: override || [po, summary].filter(Boolean).join(" "), amount: g.reduce((s, l) => s + num(l.claim_untaxed), 0), order: po });
   }
   return rows;
 }
@@ -169,9 +178,11 @@ export function buildPaperPrint(pr: PrintPr, extra: ExtraIn, buyerTitle?: string
   const override = clean(pr.reason_override);
   let data = utility ? utilityRows(pr, extra, override) : purchaseRows(pr, override);
   // 沒有水電檢視權限看不到帳單明細：整張合成一列，只印張數與合計，不洩漏門市與電號。
-  if (utility && !data.length && pr.bills_masked) data = [{ no: null, unit: "", reason: override || `${rocMonthLabel(pr.bill_month)}水電話費（共 ${pr.bill_count ?? 0} 張帳單）`, amount: num(pr.amount_total), order: "" }];
-  const rows: PaperRow[] = data.map((r, i) => ({ ...r, no: i + 1 }));
-  while (rows.length < MIN_ROWS) rows.push({ no: null, unit: "", reason: "", amount: null, order: "" });
+  if (utility && !data.length && pr.bills_masked) data = [{ no: null, key: "_masked", unit: "", defaultUnit: "", reason: override || `${rocMonthLabel(pr.bill_month)}水電話費（共 ${pr.bill_count ?? 0} 張帳單）`, amount: num(pr.amount_total), order: "" }];
+  const units = pr.print_units && typeof pr.print_units === "object" ? pr.print_units : {};
+  const rows: PaperRow[] = data.map((r, i) => ({ ...r, no: i + 1, unit: clean(units[r.key]) || r.defaultUnit }));
+  // 空白列也印項次（和紙本一樣）。
+  while (rows.length < MIN_ROWS) rows.push({ no: rows.length + 1, key: "", unit: "", defaultUnit: "", reason: "", amount: null, order: "" });
   return {
     title: firstOf(pr.buyer_title_snapshot, buyerTitle, DEFAULT_COMPANY_TITLE),
     subtitle: "請款單",
@@ -181,7 +192,7 @@ export function buildPaperPrint(pr: PrintPr, extra: ExtraIn, buyerTitle?: string
     applyDate: rocDate(pr.created_at),
     register: "",
     rows,
-    taxLabel: "5% 營業稅",
+    taxLabel: TAX_LABEL,
     tax: utility ? 0 : num(pr.tax_amount),
     total: num(pr.amount_total),
     pay: payMethodBoxes(pr.pay_method, firstOf(pr.pay_platform, pr.platform)),
@@ -197,8 +208,28 @@ export function buildPaperPrint(pr: PrintPr, extra: ExtraIn, buyerTitle?: string
 export const moneyCell = (n: number | null) => (n === null ? "" : n.toLocaleString("en-US"));
 
 /** 儲存列印欄位的內容驗證（前後端共用）：只收四個欄位，字串、去頭尾空白、空字串＝清除、超長丟錯。 */
-export function validatePrintFieldsPayload(raw: Record<string, unknown>): Partial<Record<PrintFieldKey, string | null>> {
-  const out: Partial<Record<PrintFieldKey, string | null>> = {};
+export type PrintFieldsPayload = Partial<Record<PrintFieldKey, string | null>> & { units?: Record<string, string | null> | null };
+export function validatePrintFieldsPayload(raw: Record<string, unknown>): PrintFieldsPayload {
+  const out: PrintFieldsPayload = {};
+  if ("units" in raw) {
+    const u = raw.units;
+    if (u === null) out.units = null;
+    else if (typeof u !== "object" || Array.isArray(u)) throw new Error("使用單位格式錯誤");
+    else {
+      const keys = Object.keys(u as object);
+      if (keys.length > UNIT_MAX_KEYS) throw new Error(`使用單位最多 ${UNIT_MAX_KEYS} 列`);
+      const m: Record<string, string | null> = {};
+      for (const k of keys) {
+        if (!k || k.length > UNIT_KEY_MAX_LEN) throw new Error("使用單位的列識別錯誤");
+        const v = (u as Record<string, unknown>)[k];
+        if (v !== null && typeof v !== "string") throw new Error("使用單位格式錯誤");
+        const t = (v ?? "").trim();
+        if (t.length > UNIT_MAX_LEN) throw new Error(`使用單位不可超過 ${UNIT_MAX_LEN} 個字`);
+        m[k] = t || null;
+      }
+      out.units = m;
+    }
+  }
   for (const k of Object.keys(PRINT_FIELD_LIMITS) as PrintFieldKey[]) {
     if (!(k in raw)) continue;
     const v = raw[k];

@@ -350,7 +350,7 @@ const printDetailPage = () => pr.value && openGaPage("ga-payment-request-print",
 // 列印欄位另外儲存（不動請款單版本時間）：只更新這四欄與操作紀錄，不覆蓋表單上尚未儲存的修改。
 function printFieldsSaved(r: PaymentRequest) {
   if (!pr.value) return;
-  Object.assign(pr.value, { applicant_name: r.applicant_name ?? null, applicant_dept: r.applicant_dept ?? null, attach_docs: r.attach_docs ?? null, reason_override: r.reason_override ?? null, events: r.events ?? pr.value.events });
+  Object.assign(pr.value, { applicant_name: r.applicant_name ?? null, applicant_dept: r.applicant_dept ?? null, attach_docs: r.attach_docs ?? null, reason_override: r.reason_override ?? null, print_units: r.print_units ?? null, events: r.events ?? pr.value.events });
 }
 function backToList() { openGaPage("ga-payment-requests"); work.remove([props.tab.id]); }
 </script>

@@ -10,9 +10,10 @@ import { addBillAttachment, cleanupGaup, mkBill, seedPayee, setupGaupUsers, type
 
 // GAPR 請款單紙本格式列印 e2e（只在桌機 project 跑；列印版面與 1920×1080 截圖只有桌機有意義）：
 //   1. 水電請款（老闆範例）：5 個門市、其中一個門市 4 張帳單（6653+387+8797+507）合併一列；付款方式轉帳、預計付款日有填。
-//      驗證抬頭、副標、民國日期、合併列「（共 4 個電號）」、帳單備註接在使用單位後、至少 7 列、營業稅 0、合計 59,496、轉帳打勾、到期日、簽核欄 7 格與附註、系統單號。
+//      驗證抬頭、副標、民國日期、合併列「（共 4 個電號）」、帳單備註接在使用單位後、至少 5 列（空白列也印項次）、營業稅 0、合計 59,496、轉帳打勾、到期日、簽核欄文字與附註、系統單號、標楷體與無「$」。
+//      再到請款單頁的「列印欄位」表格改第 4 列使用單位並儲存，重印驗證覆寫生效（並驗證 41 字被拒）。
 //      再以列印媒體 + A4 PDF 驗證內容只佔一頁的上半頁。
-//   2. 採購請款：印出稅額與採購單號（內部訂單欄），檢附單據預設「發票」。
+//   2. 採購請款：印出稅額與採購單號（內部訂單欄），檢附單據預設「發票」；使用單位預設空白，在列印欄位表格填「總部倉庫」後重印。
 // 設定環境變數 PRP_SHOTS=<資料夾> 才會輸出截圖與 PDF（平常不輸出）。資料只用 VW／ZT 門市、2038 年；結束時清掉自己建立的資料。
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(360_000);
@@ -65,15 +66,13 @@ async function printCheck(page: any, name: string) {
       const rg = document.createRange(); rg.selectNodeContents(td);
       return new Set(Array.from(rg.getClientRects()).map((q) => Math.round(q.top))).size > 1;
     }).map((td) => td.textContent);
-    const sigW = Array.from(sheet.querySelectorAll('.pk-sign-row')).map((row) => Array.from(row.querySelectorAll('.pk-sign-cell')).map((u) => Math.round(u.getBoundingClientRect().width)));
-    return { heightPx: r.height, widthPx: r.width, wide, top: r.top, wrapped, sigW };
+    return { heightPx: r.height, widthPx: r.width, wide, top: r.top, wrapped };
   });
   await page.setViewportSize(keep!);
   expect(m, '列印媒體下找得到紙張區塊').not.toBeNull();
   // 硬性要求：一張 A4 放得下（PDF 只有 1 頁），且內容在上半頁（底端 ≤ 50%）。
   expect(m!.heightPx / MM, `紙張高度 ${(m!.heightPx / MM).toFixed(1)}mm 要在一張 A4 可印範圍（277mm）內`).toBeLessThanOrEqual(277);
   expect(m!.wrapped, '使用單位欄不換行').toEqual([]);
-  expect(m!.sigW[1][0], '事業群主管格與董事長格同寬').toBe(m!.sigW[0][0]);
   expect(m!.wide, '列印時紙張內沒有橫向被截斷的區塊').toEqual([]);
   expect((m!.top + m!.heightPx) / MM, `紙張底端 ${((m!.top + m!.heightPx) / MM).toFixed(1)}mm（含上方偏移 ${(m!.top / MM).toFixed(1)}mm）要在 A4 上半頁（${HALF_PAGE_MM}mm）內`).toBeLessThanOrEqual(HALF_PAGE_MM);
   const pdf = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true });
@@ -140,7 +139,7 @@ test('紙本格式列印 1 水電請款（老闆範例）：合併列、營業�
     await expect(vis(page, 'pk-attach')).toHaveText('繳費單');
     await expect(vis(page, 'pk-date')).toHaveText(/^\d{3}\/\d{2}\/\d{2}$/);
     // 5 個門市 → 5 筆資料列＋補空白到 7 列
-    await expect(rowsOf(page)).toHaveCount(7);
+    await expect(rowsOf(page)).toHaveCount(5);
     const rows = await rowsOf(page).evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())));
     const amounts = rows.slice(0, 5).map((r) => r[3].replace(/[$\s]/g, ''));
     expect(amounts.slice().sort()).toEqual(['11,454', '16,344', '16,577', '15,047', '74'].sort());
@@ -149,17 +148,19 @@ test('紙本格式列印 1 水電請款（老闆範例）：合併列、營業�
     expect(merged[2], '合併列申請事由').toContain('127年3月電費（共 4 個電號）');
     for (const r of rows.slice(0, 5)) expect(r[2]).toContain('127年3月電費');
     expect(rows.find((r) => r[3].includes('74'))![1], '帳單備註接在使用單位後').toContain('（新地址614號）');
-    expect(rows.slice(5).every((r) => r.every((c) => c === '')), '第 6、7 列是空白列').toBe(true);
+    for (const r of rows) expect(r[3], '金額欄沒有 $ 符號').not.toContain('$');
+    expect(await vis(page, 'pp-paper').evaluate((e) => getComputedStyle(e).fontFamily), '標楷體').toContain('DFKai-SB');
     for (const r of rows) expect(r[4], '水電內部訂單空白').toBe('');
     await expect(vis(page, 'pk-tax-label')).toContainText('營業稅');
     await expect(vis(page, 'pk-tax')).toHaveText('0');
     await expect(vis(page, 'pk-total')).toContainText('59,496');
-    await expect(vis(page, 'pk-box-transfer')).toHaveText('☑');
+    await expect(vis(page, 'pk-box-transfer')).toHaveText('■');
     for (const id of ['pk-box-check', 'pk-box-cash', 'pk-box-other']) await expect(vis(page, id)).toHaveText('□');
     await expect(vis(page, 'pk-due')).toHaveText('127年3月31日');
     await expect(vis(page, 'pk-payee')).toHaveText(payee.name);
+    await expect(vis(page, 'pk-pay')).toContainText('受款人簽收：');
     const sign = await vis(page, 'pk-sign').innerText();
-    for (const x of ['董事長', '副董事長', '總經理/長級高階主管', '事業群主管', '部門主管', '直屬主管', '財會部']) expect(sign).toContain(x);
+    for (const x of ['董　事　長：__________', '副董事長：__________', '總經理/長級高階主管：__________', '事業群主管：__________', '部　門　主管：__________', '直屬主管：__________', '財會部：__________']) expect(sign).toContain(x);
     expect(sign).toContain('(註)');
     await expect(page.locator('.pk-note:visible')).toHaveText('註：依核決權限簽核完成再交由財會部入帳。');
     await expect(vis(page, 'pk-no')).toHaveText(`系統單號 ${pr.pr_no}`);
@@ -168,6 +169,29 @@ test('紙本格式列印 1 水電請款（老闆範例）：合併列、營業�
     await shotsFor(page, '01-水電請款單');
     const { heightMm } = await printCheck(page, '01-水電請款單-A4');
     testInfo.annotations.push({ type: '紙張高度', description: `${heightMm.toFixed(1)}mm（上半頁上限 ${HALF_PAGE_MM}mm，${heightMm <= HALF_PAGE_MM ? '符合' : '超出上半頁'}）` });
+    // 使用單位逐列可改：回請款單頁，在列印欄位表格改第 4 列（建恭）並儲存，重印。
+    const before = (await rowsOf(page).nth(3).locator('td').nth(1).innerText()).trim();
+    expect(before).toContain('新地址614號');
+    await vis(page, 'pp-back').click();
+    await expect(vis(page, 'pu-pf-unit-4')).toHaveAttribute('placeholder', /新地址614號/);
+    await vis(page, 'pu-pf-unit-4').fill('建恭 QA 改');
+    if (SHOTS) {
+      fs.mkdirSync(SHOTS, { recursive: true });
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await vis(page, 'pu-pf-box').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(SHOTS, '03-列印欄位使用單位表格-首屏.png') });
+      await vis(page, 'pu-pf-box').screenshot({ path: path.join(SHOTS, '03-列印欄位使用單位表格.png') });
+    }
+    await vis(page, 'pu-pf-save').click();
+    await expect(vis(page, 'pu-pf-done')).toBeVisible();
+    await vis(page, 'pu-print').click();
+    await expect(vis(page, 'pp-paper')).toBeVisible();
+    await expect(rowsOf(page).nth(3).locator('td').nth(1)).toHaveText('建恭 QA 改');
+    await expect(rowsOf(page).nth(0).locator('td').nth(1), '其他列仍是預設門市簡稱').not.toHaveText('');
+    // 超過 40 字被後端拒絕，資料不變
+    const long = await apis.clerk.patch(`${P}/payment-requests/${pr.id}/print-fields`, { data: { units: { x: 'x'.repeat(41) } } });
+    expect(long.status()).toBe(400);
+    await printCheck(page, '01-水電請款單-改使用單位-A4');
     // 「列印明細版」仍可用
     await vis(page, 'pp-layout-detail').click();
     await expect(vis(page, 'pp-sheet')).toBeVisible();
@@ -201,10 +225,21 @@ test('紙本格式列印 2 採購請款：稅額與採購單號（內部訂單�
     const poNo = String(po.po_no);
     expect(poNo).toBeTruthy();
     const rows = await rowsOf(page).evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())));
-    expect(rows.length).toBeGreaterThanOrEqual(7);
+    expect(rows.length).toBeGreaterThanOrEqual(5);
     expect(rows[0][2], '申請事由含採購單號').toContain(poNo);
     expect(rows[0][4], '內部訂單印採購單號').toContain(poNo);
     await expect(vis(page, 'pk-payee')).toHaveText(vendor.name);
+    await expect(vis(page, 'pk-due')).toHaveText('____年____月____日');
+    expect(rows[0][1], '採購使用單位預設空白').toBe('');
+    // 使用單位逐列可改：預設空白，在列印欄位表格填「總部倉庫」後重印。
+    await vis(page, 'pp-back').click();
+    await vis(page, 'pe-pf-unit-1').fill('總部倉庫');
+    await vis(page, 'pe-pf-save').click();
+    await expect(vis(page, 'pe-pf-done')).toBeVisible();
+    await vis(page, 'pe-print').click();
+    await expect(vis(page, 'pp-paper')).toBeVisible();
+    await expect(rowsOf(page).nth(0).locator('td').nth(1)).toHaveText('總部倉庫');
+    await expect(rowsOf(page).nth(0).locator('td').nth(4)).toHaveText(poNo);
     await shotsFor(page, '02-採購請款單');
     await printCheck(page, '02-採購請款單-A4');
     expect(real(errors), errors.join('\n')).toEqual([]);

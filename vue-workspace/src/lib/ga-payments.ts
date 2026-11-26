@@ -64,6 +64,7 @@ export type PaymentRequest = {
   buyer_company_id?: string | null; buyer_title_snapshot?: string | null; buyer_tax_id_snapshot?: string | null;
   // 紙本列印欄位（空白＝列印時用系統預設）
   applicant_name?: string | null; applicant_dept?: string | null; attach_docs?: string | null; reason_override?: string | null;
+  print_units?: Record<string, string> | null;
 };
 export type PayeeAccount = { bank_name?: string | null; bank_branch?: string | null; bank_account?: string | null; bank_account_name?: string | null };
 export type PrepayLedgerRow = { id: string; kind: "OFFSET" | "REFUND"; amount: number; receipt_no: string | null; reason: string | null; created_at: string; reversed_at: string | null; reversed_reason: string | null };

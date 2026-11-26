@@ -6,7 +6,7 @@ import { openGaPage, useGaGuard } from "../../lib/ga";
 import { PAY_METHOD_LABELS, PR_STATUS_LABELS, UTILITY_PRINT_HEADERS, bankText, dateText, errorText, isUtilityRequest, money, payeeBankText, payeeName, timeText, utilityPrintRow, type PaymentRequest } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS } from "../../lib/ga-invoices";
 import { useWorkspace, type WorkTab } from "../../stores";
-import { SIGN_CELL_SUFFIX, buildPaperPrint, moneyCell } from "../../../../lib/workspace/general-affairs/payment-print-rules";
+import { SIGN_CELL_SUFFIX, TOTAL_LABEL, buildPaperPrint, moneyCell } from "../../../../lib/workspace/general-affairs/payment-print-rules";
 
 // 第 4.5 批 請款單 A4 列印頁（/general-affairs/payment-requests/:id/print）：抬頭用請款設定的買受人；
 // 廠商統編與銀行帳號沒有廠商查看權限時整區省略；簽章區顯示總務請款與會計付款的人與時間。列印只輸出紙張那一塊。
@@ -90,28 +90,22 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
         <span>登錄：<b>{{ paper.register }}</b></span>
       </div>
       <table class="pk-table" data-testid="pk-table">
-        <thead><tr><th class="c-no">項<br />次</th><th class="c-unit">使　用　單　位</th><th class="c-reason">申　請　事　由</th><th class="c-amt">金額</th><th class="c-order">內部訂單</th></tr></thead>
+        <thead><tr><th class="c-no">項次</th><th class="c-unit">使用單位</th><th class="c-reason">申請事由</th><th class="c-amt">金額</th><th class="c-order">內部訂單</th></tr></thead>
         <tbody>
           <tr v-for="(r, i) in paper.rows" :key="i" data-testid="pk-row">
-            <td class="c-no">{{ r.no ?? "" }}</td><td>{{ r.unit }}</td><td>{{ r.reason }}</td>
-            <td class="amt"><template v-if="r.amount !== null"><span class="cur">$</span><span>{{ moneyCell(r.amount) }}</span></template></td><td>{{ r.order }}</td>
+            <td class="c-no">{{ r.no ?? "" }}</td><td class="u">{{ r.unit }}</td><td>{{ r.reason }}</td>
+            <td class="amt">{{ r.amount !== null ? moneyCell(r.amount) : "" }}</td><td>{{ r.order }}</td>
           </tr>
-          <tr class="pk-sum"><td colspan="3" class="mid" data-testid="pk-tax-label">{{ paper.taxLabel }}</td><td class="amt" data-testid="pk-tax"><span>{{ moneyCell(paper.tax) }}</span></td><td></td></tr>
-          <tr class="pk-sum"><td colspan="3" class="mid">合　　　　計</td><td class="amt" data-testid="pk-total"><span class="cur">$</span><span>{{ moneyCell(paper.total) }}</span></td><td></td></tr>
+          <tr class="pk-sum"><td colspan="3" class="mid" data-testid="pk-tax-label">{{ paper.taxLabel }}</td><td class="amt" data-testid="pk-tax">{{ moneyCell(paper.tax) }}</td><td></td></tr>
+          <tr class="pk-sum"><td colspan="3" class="mid">{{ TOTAL_LABEL }}</td><td class="amt" data-testid="pk-total">{{ moneyCell(paper.total) }}</td><td></td></tr>
         </tbody>
       </table>
       <div class="pk-pay" data-testid="pk-pay">
-        <span>付款方式：<span data-testid="pk-box-transfer">{{ paper.pay.transfer ? "☑" : "□" }}</span>匯款　<span data-testid="pk-box-check">{{ paper.pay.check ? "☑" : "□" }}</span>支票　<span data-testid="pk-box-cash">{{ paper.pay.cash ? "☑" : "□" }}</span>零用金　<span data-testid="pk-box-other">{{ paper.pay.other ? "☑" : "□" }}</span>其他：<u class="pk-other" data-testid="pk-other-text">{{ paper.pay.otherText }}</u></span>
-        <span>到期日：<b data-testid="pk-due">{{ paper.dueDate }}</b></span>
-      </div>
-      <div class="pk-pay">
-        <span>付款對象：<b data-testid="pk-payee">{{ paper.payee }}</b></span>
-        <span>授款人簽收：</span>
+        <div class="pk-pay1">付款方式：<span data-testid="pk-box-transfer">{{ paper.pay.transfer ? "■" : "□" }}</span>匯款　<span data-testid="pk-box-check">{{ paper.pay.check ? "■" : "□" }}</span>支票　<span data-testid="pk-box-cash">{{ paper.pay.cash ? "■" : "□" }}</span>零用金　<span data-testid="pk-box-other">{{ paper.pay.other ? "■" : "□" }}</span>其他<span class="pk-other" data-testid="pk-other-text">{{ paper.pay.otherText || "＿＿＿" }}</span>　到期日：<span data-testid="pk-due">{{ paper.dueDate || "____年____月____日" }}</span></div>
+        <div class="pk-pay2"><span>付款對象：<span data-testid="pk-payee">{{ paper.payee }}</span></span><span>受款人簽收：</span></div>
       </div>
       <div class="pk-sign" data-testid="pk-sign">
-        <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row" :class="{ single: row.length === 1 }">
-          <span v-for="cell in row" :key="cell" class="pk-sign-cell">{{ cell }}：<u></u>{{ SIGN_CELL_SUFFIX[cell] || "" }}</span>
-        </div>
+        <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row">{{ row.map((cell) => `${cell}：__________`).join("　") }}<small v-for="cell in row.filter((c) => SIGN_CELL_SUFFIX[c])" :key="cell"> {{ SIGN_CELL_SUFFIX[cell] }}</small></div>
       </div>
       <p class="pk-note">{{ paper.signNote }}</p>
       <p class="pk-no" data-testid="pk-no">系統單號 {{ paper.prNo }}</p>
@@ -180,32 +174,34 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pp-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
 .pp-sign div { border: 1px solid #888; padding: 10px; min-height: 70px; display: grid; gap: 4px; align-content: start; }
 .pp-sign small { color: #555; }
-/* 紙本格式請款單：A4 直式，內容在上半頁（參考富康紙本請款單）。 */
-.pp-paper { min-height: 0; font-size: 13px; line-height: 1.5; padding: 10mm 8mm 8mm; overflow-x: visible; }
-.pk-title { text-align: center; font-size: 22px; letter-spacing: 3px; margin: 0; }
-.pk-sub { text-align: center; font-size: 16px; letter-spacing: 6px; margin: 2px 0 12px; font-weight: 600; }
-.pk-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-bottom: 6px; }
-.pk-meta b, .pk-pay b { font-weight: 600; }
-.pk-table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 2px solid #111; }
-.pk-table th, .pk-table td { border: 1px solid #111; padding: 3px 6px; height: 26px; overflow-wrap: anywhere; vertical-align: middle; }
-.pk-table th { font-weight: 600; text-align: center; }
+/* 紙本格式請款單：A4 直式、內容在上半頁。字型與相對字級照老闆提供的實際表單（標楷體、純黑、1px 黑框）；--k 是整體縮放，列印時縮小讓整張放進上半頁。 */
+.pp-paper { --k: 1; font-family: DFKai-SB, BiauKai, "Microsoft JhengHei", serif; color: #000; background: #fff; min-height: 0; font-size: calc(16px * var(--k)); line-height: 1.6; padding: 7.5mm; overflow-x: visible; }
+.pk-title { text-align: center; font-size: calc(26px * var(--k)); font-weight: 400; line-height: 1.3; margin: 0 0 calc(5px * var(--k)); }
+.pk-sub { text-align: center; font-size: calc(21px * var(--k)); line-height: 1.3; margin: 0 0 calc(15px * var(--k)); }
+.pk-meta { font-size: calc(16px * var(--k)); line-height: 1.6; margin-bottom: calc(10px * var(--k)); }
+.pk-meta > span + span { margin-left: calc(30px * var(--k)); }
+.pk-meta b { font-weight: 400; }
+.pk-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: calc(16px * var(--k)); margin: calc(10px * var(--k)) 0; }
+.pk-table th, .pk-table td { border: 1px solid #000; padding: calc(4px * var(--k)) calc(8px * var(--k)); line-height: 1.35; overflow-wrap: anywhere; vertical-align: middle; font-weight: 400; background: #fff; color: #000; }
+.pk-table th { text-align: center; }
 .pk-table .c-no { width: 7%; text-align: center; }
 .pk-table .c-unit { width: 30%; }
-.pk-table .c-reason { width: 31%; }
-.pk-table .c-amt { width: 15%; }
-.pk-table .c-order { width: 17%; }
+.pk-table .c-reason { width: 34%; }
+.pk-table .c-amt { width: 14%; }
+.pk-table .c-order { width: 15%; }
+.pk-table td.u { white-space: nowrap; overflow: hidden; }
 .pk-table td.amt { white-space: nowrap; text-align: right; }
-.pk-table td.amt .cur { float: left; }
-.pk-table td.mid { text-align: center; letter-spacing: 2px; }
-.pk-pay { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; margin-top: 12px; }
-.pk-other { display: inline-block; min-width: 90px; text-align: center; }
-.pk-sign { display: grid; gap: 10px; margin-top: 16px; }
-.pk-sign-row { display: flex; gap: var(--g, 18px); }
-.pk-sign-cell { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; white-space: nowrap; }
-.pk-sign-row.single .pk-sign-cell { flex: 0 0 calc((100% - 2 * var(--g, 18px)) / 3); }
-.pk-sign-cell u { flex: 1; min-width: 40px; border-bottom: 1px solid #111; text-decoration: none; height: 1.3em; }
-.pk-note { font-size: 11px; margin: 10px 0 0; }
-.pk-no { text-align: right; font-size: 10px; color: #555; margin: 14px 0 0; }
+.pk-table td.mid { text-align: center; }
+.pk-table tbody tr { height: calc(30px * var(--k)); }
+.pk-pay { font-size: calc(18px * var(--k)); margin: calc(15px * var(--k)) 0; }
+.pk-pay1 { margin-bottom: calc(8px * var(--k)); }
+.pk-pay2 { display: flex; justify-content: space-between; gap: 16px; padding-right: 8%; }
+.pk-other { display: inline-block; min-width: 3em; border-bottom: 1px solid #000; text-align: center; line-height: 1.2; }
+.pk-sign { font-size: calc(16px * var(--k)); margin-top: calc(20px * var(--k)); line-height: 2.5; }
+.pk-sign-row { margin-bottom: calc(5px * var(--k)); white-space: nowrap; }
+.pk-sign-row small { font-size: calc(13px * var(--k)); }
+.pk-note { font-size: calc(13px * var(--k)); margin: calc(5px * var(--k)) 0 0; }
+.pk-no { text-align: right; font-size: 10px; color: #000; margin: calc(8px * var(--k)) 0 0; }
 @media print {
   @page { size: A4 portrait; margin: 10mm; }
   :global(body.printing-payment *) { visibility: hidden; }
@@ -213,19 +209,9 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
   .pp-sheet { position: fixed; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
   :global(body.printing-payment) { background: #fff !important; }
   .no-print { display: none !important; }
-  /* 紙本格式壓縮到 A4 上半頁（含 7 列）：字級約 10.5pt，列高約 6mm。 */
-  .pp-paper { font-size: 10.5pt; line-height: 1.3; }
-  .pk-title { font-size: 16pt; letter-spacing: 2px; }
-  .pk-sub { font-size: 12pt; margin: 0 0 4px; }
-  .pk-meta { margin-bottom: 3px; gap: 2px 10px; }
-  .pk-table th, .pk-table td { padding: 1px 4px; height: 6mm; }
-  .pk-pay { margin-top: 4px; gap: 2px 12px; }
-  .pk-sign { gap: 5px; margin-top: 7px; }
-  .pk-sign-row { --g: 12px; }
-  .pk-sign-row.single .pk-sign-cell { flex: 0 0 calc((100% - 2 * var(--g, 18px)) / 3); }
-.pk-sign-cell u { height: 1.1em; }
-  .pk-note { font-size: 9pt; margin: 4px 0 0; }
-  .pk-no { margin: 4px 0 0; font-size: 8pt; }
+  /* 實際表單的字級放大到整張 A4 太高；統一縮小，整張仍放進 A4 上半頁。 */
+  .pp-paper { --k: 0.8; padding: 0; line-height: 1.4; }
+  .pk-sign { line-height: 2; }
 }
 @media (max-width: 700px) { .head-actions button { min-height: 44px; } .pp-sheet { padding: 8mm 4mm; } }
 </style>
