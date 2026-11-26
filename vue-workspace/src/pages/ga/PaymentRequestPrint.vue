@@ -6,7 +6,7 @@ import { openGaPage, useGaGuard } from "../../lib/ga";
 import { PAY_METHOD_LABELS, PR_STATUS_LABELS, UTILITY_PRINT_HEADERS, bankText, dateText, errorText, isUtilityRequest, money, payeeBankText, payeeName, timeText, utilityPrintRow, type PaymentRequest } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS } from "../../lib/ga-invoices";
 import { useWorkspace, type WorkTab } from "../../stores";
-import { buildPaperPrint, moneyCell } from "../../../../lib/workspace/general-affairs/payment-print-rules";
+import { SIGN_CELL_SUFFIX, buildPaperPrint, moneyCell } from "../../../../lib/workspace/general-affairs/payment-print-rules";
 
 // 第 4.5 批 請款單 A4 列印頁（/general-affairs/payment-requests/:id/print）：抬頭用請款設定的買受人；
 // 廠商統編與銀行帳號沒有廠商查看權限時整區省略；簽章區顯示總務請款與會計付款的人與時間。列印只輸出紙張那一塊。
@@ -34,8 +34,10 @@ const employee = computed(() => pr.value?.payee_type === "EMPLOYEE");
 const payeeAccount = computed(() => (pr.value?.payee_account_snapshot || {}) as Record<string, string | null>);
 const billRows = computed(() => (pr.value?.bill_lines || []).map((l) => ({ id: l.id, no: l.line_no, cells: utilityPrintRow(l) })));
 
-onMounted(async () => {
+async function load() {
   if (!allowed.value) { loading.value = false; return; }
+  loading.value = true;
+  error.value = "";
   try {
     const res = await api<{ data: PaymentRequest; buyer: { title: string | null; tax_id: string | null }; print_extra?: PrintExtra }>(`general-affairs/payment-requests/${prId.value}`);
     pr.value = res.data;
@@ -47,7 +49,11 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+onMounted(load);
+// 既有列印頁籤會被重用（openGaPage 只更新 payload）：再次開啟或切回這一頁時重新取資料，避免印出舊的申請人、事由。
+watch(() => props.tab.payload, () => { void load(); });
+watch(() => work.active === props.tab.id, (on, was) => { if (on && !was && !loading.value) void load(); });
 // 只有這一頁在前景時才套用「只印紙張」的全域列印樣式（頁籤用 v-show 保留，不能影響其他頁的列印）。
 const active = computed(() => work.active === props.tab.id);
 watchEffect(() => document.body.classList.toggle("printing-payment", active.value));
@@ -104,7 +110,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
       </div>
       <div class="pk-sign" data-testid="pk-sign">
         <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row">
-          <span v-for="cell in row" :key="cell" class="pk-sign-cell">{{ cell }}：<u></u></span>
+          <span v-for="cell in row" :key="cell" class="pk-sign-cell">{{ cell }}：<u></u>{{ SIGN_CELL_SUFFIX[cell] || "" }}</span>
         </div>
       </div>
       <p class="pk-note">{{ paper.signNote }}</p>

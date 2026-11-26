@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_COMPANY_TITLE, MIN_ROWS, SIGN_NOTE, SIGN_ROWS, buildPaperPrint, dayOf, dueDateOf, moneyCell, payMethodBoxes, payeeLabel, rocDate, rocDateCn, rocMonthLabel, validatePrintFieldsPayload,
+  DEFAULT_COMPANY_TITLE, MIN_ROWS, SIGN_CELL_SUFFIX, SIGN_NOTE, SIGN_ROWS, buildPaperPrint, dayOf, dueDateOf, moneyCell, payMethodBoxes, payeeLabel, rocDate, rocDateCn, rocMonthLabel, validatePrintFieldsPayload,
 } from '@/lib/workspace/general-affairs/payment-print-rules';
 
 // 請款單紙本格式列印：純函式對應（多門市合併列與電號數、民國日期、付款方式打勾、到期日回退、補空白列到 7 列、營業稅列、抬頭預設、可編輯欄位驗證）。
@@ -196,6 +196,7 @@ describe('表頭預設值', () => {
     expect(SIGN_ROWS.flat()).toEqual(['董事長', '副董事長', '總經理/長級高階主管', '事業群主管', '部門主管', '直屬主管', '財會部']);
     expect(p.signNote).toBe(SIGN_NOTE);
     expect(SIGN_NOTE).toBe('註：依核決權限簽核完成再交由財會部入帳。');
+    expect(SIGN_CELL_SUFFIX['財會部']).toBe('(註)');
     expect(p.prNo).toBe('PY-1');
   });
   it('付款方式帶進紙面（平台名稱優先用 pay_platform）', () => {

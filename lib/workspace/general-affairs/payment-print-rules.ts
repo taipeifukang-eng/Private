@@ -19,6 +19,8 @@ export const SIGN_ROWS: ReadonlyArray<ReadonlyArray<string>> = [
   ["事業群主管"],
   ["部門主管", "直屬主管", "財會部"],
 ];
+// 紙本在「財會部：＿＿」後面印「(註)」，對應下方附註。
+export const SIGN_CELL_SUFFIX: Readonly<Record<string, string>> = { 財會部: "(註)" };
 export const SIGN_NOTE = "註：依核決權限簽核完成再交由財會部入帳。";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
