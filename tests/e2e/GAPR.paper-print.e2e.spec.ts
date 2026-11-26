@@ -61,13 +61,21 @@ async function printCheck(page: any, name: string) {
     if (!sheet) return null;
     const r = sheet.getBoundingClientRect();
     const wide = Array.from(sheet.querySelectorAll('*')).filter((n) => (n as HTMLElement).scrollWidth > (n as HTMLElement).clientWidth + 1 && getComputedStyle(n as Element).display !== 'inline').map((n) => (n as HTMLElement).className || n.tagName);
-    return { heightPx: r.height, widthPx: r.width, wide, top: r.top };
+    const wrapped = (Array.from(sheet.querySelectorAll('[data-testid="pk-row"] td:nth-child(2)')) as HTMLElement[]).filter((td) => {
+      const rg = document.createRange(); rg.selectNodeContents(td);
+      return new Set(Array.from(rg.getClientRects()).map((q) => Math.round(q.top))).size > 1;
+    }).map((td) => td.textContent);
+    const sigW = Array.from(sheet.querySelectorAll('.pk-sign-row')).map((row) => Array.from(row.querySelectorAll('.pk-sign-cell')).map((u) => Math.round(u.getBoundingClientRect().width)));
+    return { heightPx: r.height, widthPx: r.width, wide, top: r.top, wrapped, sigW };
   });
   await page.setViewportSize(keep!);
   expect(m, '列印媒體下找得到紙張區塊').not.toBeNull();
-  // 硬性要求：一張 A4 放得下（PDF 只有 1 頁）；「只佔上半頁」是設計目標，超過時只記錄在 annotation 回報，不讓測試失敗。
+  // 硬性要求：一張 A4 放得下（PDF 只有 1 頁），且內容在上半頁（底端 ≤ 50%）。
   expect(m!.heightPx / MM, `紙張高度 ${(m!.heightPx / MM).toFixed(1)}mm 要在一張 A4 可印範圍（277mm）內`).toBeLessThanOrEqual(277);
+  expect(m!.wrapped, '使用單位欄不換行').toEqual([]);
+  expect(m!.sigW[1][0], '事業群主管格與董事長格同寬').toBe(m!.sigW[0][0]);
   expect(m!.wide, '列印時紙張內沒有橫向被截斷的區塊').toEqual([]);
+  expect((m!.top + m!.heightPx) / MM, `紙張底端 ${((m!.top + m!.heightPx) / MM).toFixed(1)}mm（含上方偏移 ${(m!.top / MM).toFixed(1)}mm）要在 A4 上半頁（${HALF_PAGE_MM}mm）內`).toBeLessThanOrEqual(HALF_PAGE_MM);
   const pdf = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true });
   const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
   expect(pages, 'PDF 只有 1 頁').toBe(1);

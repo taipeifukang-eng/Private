@@ -109,7 +109,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
         <span>授款人簽收：</span>
       </div>
       <div class="pk-sign" data-testid="pk-sign">
-        <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row">
+        <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row" :class="{ single: row.length === 1 }">
           <span v-for="cell in row" :key="cell" class="pk-sign-cell">{{ cell }}：<u></u>{{ SIGN_CELL_SUFFIX[cell] || "" }}</span>
         </div>
       </div>
@@ -189,19 +189,20 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pk-table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 2px solid #111; }
 .pk-table th, .pk-table td { border: 1px solid #111; padding: 3px 6px; height: 26px; overflow-wrap: anywhere; vertical-align: middle; }
 .pk-table th { font-weight: 600; text-align: center; }
-.pk-table .c-no { width: 8%; text-align: center; }
-.pk-table .c-unit { width: 24%; }
-.pk-table .c-reason { width: 36%; }
-.pk-table .c-amt { width: 17%; }
-.pk-table .c-order { width: 15%; }
+.pk-table .c-no { width: 7%; text-align: center; }
+.pk-table .c-unit { width: 30%; }
+.pk-table .c-reason { width: 31%; }
+.pk-table .c-amt { width: 15%; }
+.pk-table .c-order { width: 17%; }
 .pk-table td.amt { white-space: nowrap; text-align: right; }
 .pk-table td.amt .cur { float: left; }
 .pk-table td.mid { text-align: center; letter-spacing: 2px; }
 .pk-pay { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; margin-top: 12px; }
 .pk-other { display: inline-block; min-width: 90px; text-align: center; }
 .pk-sign { display: grid; gap: 10px; margin-top: 16px; }
-.pk-sign-row { display: flex; gap: 18px; }
-.pk-sign-cell { flex: 1 1 0; display: flex; align-items: flex-end; white-space: nowrap; }
+.pk-sign-row { display: flex; gap: var(--g, 18px); }
+.pk-sign-cell { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; white-space: nowrap; }
+.pk-sign-row.single .pk-sign-cell { flex: 0 0 calc((100% - 2 * var(--g, 18px)) / 3); }
 .pk-sign-cell u { flex: 1; min-width: 40px; border-bottom: 1px solid #111; text-decoration: none; height: 1.3em; }
 .pk-note { font-size: 11px; margin: 10px 0 0; }
 .pk-no { text-align: right; font-size: 10px; color: #555; margin: 14px 0 0; }
@@ -209,8 +210,22 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
   @page { size: A4 portrait; margin: 10mm; }
   :global(body.printing-payment *) { visibility: hidden; }
   .pp-sheet, .pp-sheet * { visibility: visible; }
-  .pp-sheet { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
+  .pp-sheet { position: fixed; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
+  :global(body.printing-payment) { background: #fff !important; }
   .no-print { display: none !important; }
+  /* 紙本格式壓縮到 A4 上半頁（含 7 列）：字級約 10.5pt，列高約 6mm。 */
+  .pp-paper { font-size: 10.5pt; line-height: 1.3; }
+  .pk-title { font-size: 16pt; letter-spacing: 2px; }
+  .pk-sub { font-size: 12pt; margin: 0 0 4px; }
+  .pk-meta { margin-bottom: 3px; gap: 2px 10px; }
+  .pk-table th, .pk-table td { padding: 1px 4px; height: 6mm; }
+  .pk-pay { margin-top: 4px; gap: 2px 12px; }
+  .pk-sign { gap: 5px; margin-top: 7px; }
+  .pk-sign-row { --g: 12px; }
+  .pk-sign-row.single .pk-sign-cell { flex: 0 0 calc((100% - 2 * var(--g, 18px)) / 3); }
+.pk-sign-cell u { height: 1.1em; }
+  .pk-note { font-size: 9pt; margin: 4px 0 0; }
+  .pk-no { margin: 4px 0 0; font-size: 8pt; }
 }
 @media (max-width: 700px) { .head-actions button { min-height: 44px; } .pp-sheet { padding: 8mm 4mm; } }
 </style>
