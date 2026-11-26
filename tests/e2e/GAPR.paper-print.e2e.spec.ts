@@ -158,7 +158,7 @@ test('紙本格式列印 1 水電請款（老闆範例）：合併列、營業�
     for (const id of ['pk-box-check', 'pk-box-cash', 'pk-box-other']) await expect(vis(page, id)).toHaveText('□');
     await expect(vis(page, 'pk-due')).toHaveText('127年3月31日');
     await expect(vis(page, 'pk-payee')).toHaveText(payee.name);
-    await expect(vis(page, 'pk-pay')).toContainText('受款人簽收：');
+    await expect(vis(page, 'pk-pay')).toContainText('授款人簽收：');
     const sign = await vis(page, 'pk-sign').innerText();
     for (const x of ['董　事　長：__________', '副董事長：__________', '總經理/長級高階主管：__________', '事業群主管：__________', '部　門　主管：__________', '直屬主管：__________', '財會部：__________']) expect(sign).toContain(x);
     expect(sign).toContain('(註)');
@@ -166,6 +166,17 @@ test('紙本格式列印 1 水電請款（老闆範例）：合併列、營業�
     await expect(vis(page, 'pk-no')).toHaveText(`系統單號 ${pr.pr_no}`);
     // 螢幕版面：紙張不超出視窗
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    // 下載 PDF：檔名含「請款單」、%PDF 開頭、大於 10KB；列印媒體下按鈕不可見。
+    const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), vis(page, 'pk-download-pdf').click()]);
+    expect(dl.suggestedFilename()).toMatch(/\.pdf$/);
+    expect(dl.suggestedFilename()).toContain('請款單');
+    expect(dl.suggestedFilename()).toContain(pr.pr_no);
+    const buf = fs.readFileSync((await dl.path())!);
+    expect(buf.subarray(0, 4).toString('latin1')).toBe('%PDF');
+    expect(buf.length, 'PDF 大於 10KB').toBeGreaterThan(10 * 1024);
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.getByTestId('pk-download-pdf')).toBeHidden();
+    await page.emulateMedia({ media: 'screen' });
     await shotsFor(page, '01-水電請款單');
     const { heightMm } = await printCheck(page, '01-水電請款單-A4');
     testInfo.annotations.push({ type: '紙張高度', description: `${heightMm.toFixed(1)}mm（上半頁上限 ${HALF_PAGE_MM}mm，${heightMm <= HALF_PAGE_MM ? '符合' : '超出上半頁'}）` });
@@ -242,6 +253,30 @@ test('紙本格式列印 2 採購請款：稅額與採購單號（內部訂單�
     await expect(rowsOf(page).nth(0).locator('td').nth(4)).toHaveText(poNo);
     await shotsFor(page, '02-採購請款單');
     await printCheck(page, '02-採購請款單-A4');
+    // 多個請款單列印頁籤並存：在第二張的頁籤下載，PDF 轉圖的來源必須是第二張（不是先開的第一張）。
+    const d2 = await rpc('ga_ws_po_create', { p_header: { notes: m7Name('PRP2'), vendor_id: vendor.id }, p_items: [{ item_name: 'QA-PRP 採購品二', unit: '個', quantity: 5, unit_price: 100 }], p_create_key: key() });
+    const po2 = await rpc('ga_ws_po_action', { p_id: d2.id, p_action: 'place_order', p_expected_updated_at: d2.updated_at, p_note: null });
+    const rc2 = await rpc('ga_ws_po_receive', { p_po_id: po2.id, p_header: {}, p_lines: [{ po_item_id: po2.items.find((i: any) => i.line_no === 1).id, delivered_qty: 5 }], p_key: key() });
+    const cp2 = await apis.ga45_clerk.post(`${P}/payment-requests`, { data: { vendor_id: vendor.id, lines: [{ receipt_id: rc2.id, claim_untaxed: 500, claim_tax: 25 }], idempotency_key: key() } });
+    expect(cp2.status(), await cp2.text()).toBe(201);
+    const pr2 = (await cp2.json()).data;
+    // 不重新進服務中心首頁（會清掉已開的頁籤）：直接用側欄回請款單清單，再開第二張的列印頁。
+    await side(page, '請款單').click();
+    await vis(page, 'pr-search').fill(pr2.pr_no);
+    await expect(vis(page, 'pr-no')).toHaveText(pr2.pr_no);
+    await vis(page, 'open-pr').click();
+    await vis(page, 'pe-print').click();
+    await expect(vis(page, 'pk-no')).toContainText(pr2.pr_no);
+    expect(await page.locator('[data-testid="pp-paper"]').count(), '兩個請款單列印頁籤並存').toBe(2);
+    await page.evaluate(() => {
+      (window as any).__pdfText = '';
+      new MutationObserver((ms) => { for (const m of ms) m.addedNodes.forEach((n) => { if ((n as HTMLElement).dataset?.pdfHost !== undefined) (window as any).__pdfText = (n as HTMLElement).innerText || (n as HTMLElement).textContent || ''; }); }).observe(document.body, { childList: true });
+    });
+    const [dl2] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), vis(page, 'pk-download-pdf').click()]);
+    expect(dl2.suggestedFilename()).toContain(pr2.pr_no);
+    const pdfText = await page.evaluate(() => (window as any).__pdfText as string);
+    expect(pdfText, 'PDF 來源內容是第二張請款單').toContain(pr2.pr_no);
+    expect(pdfText, 'PDF 來源內容不是第一張請款單').not.toContain(pr.pr_no);
     expect(real(errors), errors.join('\n')).toEqual([]);
   } finally {
     await ctx.close();

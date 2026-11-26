@@ -59,6 +59,47 @@ const active = computed(() => work.active === props.tab.id);
 watchEffect(() => document.body.classList.toggle("printing-payment", active.value));
 onBeforeUnmount(() => document.body.classList.remove("printing-payment"));
 const printNow = () => window.print();
+// 下載 PDF：把頁面上已渲染好的紙本表單複製到畫面外（寬度、縮放、行高與 @media print 相同：A4 內容寬 190mm、--k 0.8），
+// 外面包一層 210mm 寬、四周 10mm 白邊，轉成圖片後依比例放在 A4 頂端（等同列印的上半頁）。
+const pdfBusy = ref(false);
+const paperEl = ref<HTMLElement | null>(null);
+const safeName = (s: string) => s.replace(/[\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim();
+function pdfFileName(): string {
+  const day = pr.value?.created_at ? new Date(pr.value.created_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }) : "";
+  return `${[buyer.value.title || "", day, "請款單", pr.value?.pr_no || ""].map(safeName).filter(Boolean).join("_")}.pdf`;
+}
+async function downloadPdf() {
+  const src = paperEl.value;
+  if (!src || !pr.value || pdfBusy.value) return;
+  pdfBusy.value = true;
+  let host: HTMLElement | null = null;
+  try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+    host = document.createElement("div");
+    host.setAttribute("aria-hidden", "true");
+    host.setAttribute("data-pdf-host", "");
+    host.style.cssText = "pointer-events:none;" + "position:fixed;left:-10000px;top:0;width:210mm;box-sizing:border-box;padding:10mm;background:#fff;";
+    const clone = src.cloneNode(true) as HTMLElement;
+    clone.classList.add("pp-pdf");
+    clone.removeAttribute("data-testid");
+    clone.querySelectorAll("[data-testid]").forEach((el) => el.removeAttribute("data-testid"));
+    host.appendChild(clone);
+    document.body.appendChild(host);
+    try { await document.fonts?.ready; } catch { /* 字型 API 不可用時直接繼續 */ }
+    const canvas = await html2canvas(host, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+    const pdf = new jsPDF("p", "mm", "a4");
+    const h0 = (canvas.height * 210) / canvas.width;
+    const sc = Math.min(1, 297 / h0);
+    const w = 210 * sc;
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", (210 - w) / 2, 0, w, h0 * sc);
+    pdf.save(pdfFileName());
+  } catch (e) {
+    alert(`產生 PDF 失敗：${e instanceof Error && e.message ? e.message : "請稍後再試"}`);
+  } finally {
+    host?.remove();
+    pdfBusy.value = false;
+  }
+}
 function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.id); work.remove([props.tab.id]); }
 </script>
 
@@ -73,13 +114,14 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
       <button type="button" data-testid="pp-back" @click="back">回請款單</button>
       <button v-if="layout === 'paper'" type="button" data-testid="pp-layout-detail" @click="layout = 'detail'">切換到明細版</button>
       <button v-else type="button" data-testid="pp-layout-paper" @click="layout = 'paper'">切換到紙本格式</button>
+      <button v-if="layout === 'paper'" type="button" :disabled="!pr || pdfBusy" data-testid="pk-download-pdf" @click="downloadPdf">{{ pdfBusy ? "產生中…" : "下載 PDF" }}</button>
       <button type="button" class="primary" :disabled="!pr" data-testid="pp-print" @click="printNow">列印</button>
     </div>
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', '作業管理', '請款單列印']">
     <p v-if="loading" role="status" class="no-print">載入中…</p>
     <p v-if="error" class="notice error no-print" role="alert" data-testid="pp-error">{{ error }}</p>
-    <article v-if="pr && paper && layout === 'paper'" class="pp-sheet pp-paper" data-testid="pp-paper">
+    <article v-if="pr && paper && layout === 'paper'" ref="paperEl" class="pp-sheet pp-paper" data-testid="pp-paper">
       <h2 class="pk-title" data-testid="pk-title">{{ paper.title }}</h2>
       <p class="pk-sub" data-testid="pk-subtitle">{{ paper.subtitle }}</p>
       <div class="pk-meta" data-testid="pk-meta">
@@ -102,7 +144,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
       </table>
       <div class="pk-pay" data-testid="pk-pay">
         <div class="pk-pay1">付款方式：<span data-testid="pk-box-transfer">{{ paper.pay.transfer ? "■" : "□" }}</span>匯款　<span data-testid="pk-box-check">{{ paper.pay.check ? "■" : "□" }}</span>支票　<span data-testid="pk-box-cash">{{ paper.pay.cash ? "■" : "□" }}</span>零用金　<span data-testid="pk-box-other">{{ paper.pay.other ? "■" : "□" }}</span>其他<span class="pk-other" data-testid="pk-other-text">{{ paper.pay.otherText || "＿＿＿" }}</span>　到期日：<span data-testid="pk-due">{{ paper.dueDate || "____年____月____日" }}</span></div>
-        <div class="pk-pay2"><span>付款對象：<span data-testid="pk-payee">{{ paper.payee }}</span></span><span>受款人簽收：</span></div>
+        <div class="pk-pay2"><span>付款對象：<span data-testid="pk-payee">{{ paper.payee }}</span></span><span>授款人簽收：</span></div>
       </div>
       <div class="pk-sign" data-testid="pk-sign">
         <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row">{{ row.map((cell) => `${cell}：__________`).join("　") }}<small v-for="cell in row.filter((c) => SIGN_CELL_SUFFIX[c])" :key="cell"> {{ SIGN_CELL_SUFFIX[cell] }}</small></div>
@@ -202,7 +244,11 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pk-sign-row small { font-size: calc(13px * var(--k)); }
 .pk-note { font-size: calc(13px * var(--k)); margin: calc(5px * var(--k)) 0 0; }
 .pk-no { text-align: right; font-size: 10px; color: #000; margin: calc(8px * var(--k)) 0 0; }
+/* 下載 PDF 用的複本：與列印版相同的縮放與行高，置於 210mm 寬、10mm 白邊的外框內（見 downloadPdf）。 */
+.pp-paper.pp-pdf { --k: 0.8; width: 190mm; max-width: none; padding: 0; border: 0; margin: 0; line-height: 1.4; }
+.pp-paper.pp-pdf .pk-sign { line-height: 2; }
 @media print {
+  :global([data-pdf-host]) { display: none !important; }
   @page { size: A4 portrait; margin: 10mm; }
   :global(body.printing-payment *) { visibility: hidden; }
   .pp-sheet, .pp-sheet * { visibility: visible; }
