@@ -10,6 +10,7 @@
 順序規則（資料庫相依，不能換）：
 
 - 55 → 90 → 50：55 與 90 都會替換 `update_inspection_bonus_total`，要先 55、再 90（評級改讀 snapshot）；50 的儲存函式會讀 90 建立的設定版本表。檔名序號是依 DEV 時間編的，**實際順序以本表為準**。
+- `docs/inspection-gps-exemption-prod.sql` → 50 → 96：96 替換 50 的 `workspace_save_inspection` 讓新版能寫 `gps_exempt`（巡店定位例外）；前置檢查會確認舊版的欄位、函式與兩個 trigger 已在。**96 之後不要重跑 50。**
 - 20 → 60：60 要改寫 20 建立的 `workspace_save_task_template`。
 - m2 步驟 A → 15：15 開頭檢查 `store_employees.newbie_level` 必須已存在。
 - 06（步驟 18）→ 07（步驟 38）→ 督導日誌軟刪除（步驟 39）→ 語音 AI（步驟 40）：07 的前置檢查要求 7 個督導日誌權限碼已由 06 建立；39 與 40 依賴 07 建的資料表（語音 AI 有外鍵參照 supervisor_management_records，所以還原時要先還原語音 AI 再還原 07）。
@@ -322,3 +323,10 @@
 - 老闆決定（勾選頁＋對話確認）：**總務服務中心整組先只給管理員**，總務角色與店長角色 12/8 都不授權 `general_affairs.*`，之後要開放再另做授權；請款查看／管理給管理員；`cross_dept.maintenance.update` 只給管理員。
 - `store.store.*` 5 碼不授權：選單與停用門市讀取都接受既有的 `store.manage`。
 - 2026-11-24 已在 DEV 實跑：授權、重跑（冪等）、檢查、撤回後 `role_permissions` 雜湊與筆數和執行前一致（DEV 只有 admin 角色，其他角色顯示「找不到角色」屬預期）。
+
+## 96 新版巡店定位例外寫入（2026-11-26，DEV 已實跑，正式區尚未套用）
+
+- 檔案：`96_inspection_gps_exempt_save.sql`（只替換一個函式、可重複執行）、`.verify.sql`（6 列 ok 全 true）、`.rollback.sql`（換回 50 的版本）。
+- 前置：`docs/inspection-gps-exemption-prod.sql`（舊版定位例外：欄位、`can_use_inspection_gps_exempt()`、兩個 trigger）與 50。順序：定位例外 SQL → 50 → 96。正式區的步驟 50 已在 2026-11-25 執行，所以 96 是它之後的補丁；不要在 96 之後重跑 50。
+- 權限在 API 層檢查：新版用 service_role 寫入，`auth.uid()` 為 NULL，trigger 不會擋，所以 `inspection.gps_exempt` 或系統管理員的判斷在 `app/api/workspace/inspection-form`（`ctx.has`，與正式區 `has_permission` 相同、不檢查 `roles.is_active`）。
+- 已知差異：新版的「管理員」是 `ctx.isAdmin`（含 owner、full_admin 等管理員類角色）；舊版 DB 的 `can_use_inspection_gps_exempt()` 只看 `profiles.role = 'admin'` 或權限碼。所以 admin-like 角色在新版可用、在舊版不可用。

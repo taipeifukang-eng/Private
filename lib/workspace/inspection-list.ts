@@ -74,3 +74,19 @@ export function legacyRlsAllows(
     ((perms.viewStore || perms.viewOwn) && assignedStoreIds.includes(row.store_id))
   );
 }
+
+/** 巡店「定位例外」紀錄（gps_exempt = true）。 */
+export const isGpsExemptRecord = (r: { gps_exempt?: unknown } | null | undefined) =>
+  r?.gps_exempt === true;
+
+/** 當月定位例外筆數（不受篩選影響）。 */
+export const countGpsExempt = (records: { gps_exempt?: unknown }[]) =>
+  records.filter(isGpsExemptRecord).length;
+
+/** 「只看定位例外」篩選：只影響下方列表，不影響統計與月曆（呼叫端另用原陣列）。 */
+export function filterGpsExempt<T extends { gps_exempt?: unknown }>(
+  records: T[],
+  only: boolean,
+): T[] {
+  return only ? records.filter(isGpsExemptRecord) : records;
+}

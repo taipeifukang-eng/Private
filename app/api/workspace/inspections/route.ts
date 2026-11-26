@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     const [year, m] = month.split("-").map(Number);
     const end = new Date(Date.UTC(year, m, 1)).toISOString().slice(0, 10);
     let query: any = scoped(
-      "id,inspection_no,store_id,inspector_id,inspection_date,status,total_score,max_possible_score,score_percentage,inspection_type,grade,improvement_bonus",
+      "id,inspection_no,store_id,inspector_id,inspection_date,status,total_score,max_possible_score,score_percentage,inspection_type,grade,improvement_bonus,gps_exempt",
       { count: "exact" },
     )
       .gte("inspection_date", `${month}-01`)

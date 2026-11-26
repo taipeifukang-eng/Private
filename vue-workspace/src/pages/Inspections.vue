@@ -4,6 +4,7 @@ import { api, type Store } from "../api";
 import { useSession, useWorkspace, type WorkTab } from "../stores";
 import { formatTaipeiDate } from "../taipei-time";
 import InspectionOverview from "../components/InspectionOverview.vue";
+import { countGpsExempt, filterGpsExempt } from "../../../lib/workspace/inspection-list";
 const props = defineProps<{ tab: WorkTab }>();
 const session = useSession(),
   work = useWorkspace();
@@ -11,8 +12,17 @@ const allRecords = ref<any[]>([]),
   coverage = ref<any>(null),
   canExport = ref(false),
   exporting = ref(false),
+  // 「只看定位例外」：只影響下方列表，上方統計與月曆仍用全部紀錄。
+  gpsExemptOnly = ref(false),
+  gpsExemptCount = computed(() => countGpsExempt(allRecords.value)),
+  listRecords = computed(() =>
+    filterGpsExempt(allRecords.value, gpsExemptOnly.value),
+  ),
+  listTotal = computed(() =>
+    gpsExemptOnly.value ? listRecords.value.length : total.value,
+  ),
   records = computed(() =>
-    allRecords.value.slice((page.value - 1) * 20, page.value * 20),
+    listRecords.value.slice((page.value - 1) * 20, page.value * 20),
   ),
   stores = ref<Store[]>([]),
   loading = ref(true),
@@ -217,7 +227,23 @@ const status: Record<string, string> = {
       @detail="(row) => work.open('inspection-detail', row.store_id, row.id)"
     />
     <div class="list-meta">
-      <strong>{{ resultMonth }} 巡店紀錄</strong><span>{{ total }} 筆</span>
+      <strong>{{ resultMonth }} 巡店紀錄</strong
+      ><span
+        >{{ listTotal }} 筆<template v-if="gpsExemptOnly">（僅定位例外）</template></span
+      >
+      <button
+        v-if="gpsExemptCount > 0 || gpsExemptOnly"
+        type="button"
+        data-testid="gps-exempt-filter"
+        :aria-pressed="gpsExemptOnly"
+        :class="['gps-exempt-filter', { active: gpsExemptOnly }]"
+        @click="
+          gpsExemptOnly = !gpsExemptOnly;
+          page = 1;
+        "
+      >
+        只看定位例外（{{ gpsExemptCount }}）
+      </button>
     </div>
     <div class="table-scroll">
       <table>
@@ -266,6 +292,12 @@ const status: Record<string, string> = {
                     : '',
                 ]"
                 >{{ status[row.status] || row.status }}</span
+              ><span
+                v-if="row.gps_exempt"
+                class="gps-exempt-badge"
+                data-testid="gps-exempt-badge"
+                title="這筆巡店使用了「巡店定位例外」送出"
+                >定位例外</span
               >
             </td>
             <td>
@@ -290,13 +322,14 @@ const status: Record<string, string> = {
       </table>
     </div>
     <div v-if="!records.length" class="empty">
-      <h2>{{ resultMonth }} 沒有巡店紀錄</h2>
+      <h2 v-if="gpsExemptOnly">{{ resultMonth }} 沒有定位例外的巡店記錄</h2>
+      <h2 v-else>{{ resultMonth }} 沒有巡店紀錄</h2>
       <p>請調整門市或月份後重新查詢。</p>
     </div>
     <footer class="pagination">
-      <span>第 {{ page }} / {{ Math.max(1, Math.ceil(total / 20)) }} 頁</span
+      <span>第 {{ page }} / {{ Math.max(1, Math.ceil(listTotal / 20)) }} 頁</span
       ><button :disabled="page <= 1" @click="page--">上一頁</button
-      ><button :disabled="page * 20 >= total" @click="page++">下一頁</button>
+      ><button :disabled="page * 20 >= listTotal" @click="page++">下一頁</button>
     </footer>
   </template>
 </template>

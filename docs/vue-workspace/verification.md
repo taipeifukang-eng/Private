@@ -1093,7 +1093,7 @@ Vue build PASS；scripts/test-workspace-prescription-scroll.py 使用59店攔截
 
 1. `m9-f01-nav-clinic-selfpay-menu-visibility`：診所自費毛利選單只給「實際能用」的角色看（M6 D1 已核可，但導覽對等當時沒登記這個面向）。
 2. `m9-f01-admin-purchase-payment-codes-legacy-only`、`m9-f01-admin-purchase-payment-manage-legacy-only`：舊版管理員權限清單含請款兩個權限碼；新版依角色實際授權，這兩個碼不授權給任何角色（G45 設計），所以管理員在新版看不到請款入口。上線前需決定授權對象。
-3. `m9-f01-inspection-gps-exempt-not-ported`：舊版在新版 I01 移植之後加了「巡店定位例外」（按鈕、提示、gps_exempt 標籤與篩選），新版沒有。對等測試只抓到管理員提示文字，但缺的是整組功能。
+3. `m9-f01-inspection-gps-exempt-not-ported`：舊版在新版 I01 移植之後加了「巡店定位例外」（按鈕、提示、gps_exempt 標籤與篩選），新版沒有。對等測試只抓到管理員提示文字，但缺的是整組功能。**【已補做 2026-11-26，allowlist 該筆已移除，見下方「巡店定位例外補做」】**
 
 `nav-archived-feature-gate`（decision fix，W07）：在 `--enforce-fix all` 下重跑 navigation 對等 83 個帳號全過，沒有 must-fix，且 navigation 帳號的新版導覽已有 `/admin/archived`，確認已修正。
 
@@ -1106,3 +1106,18 @@ Vue build PASS；scripts/test-workspace-prescription-scroll.py 使用59店攔截
 ### 路由清單
 
 `route-inventory.json` 與 `full-migration-checklist.md` 的全站路由狀態已同步：95 個路由標「F01 全站回歸通過」，5 個為 exclude（3 個除錯頁，D13；2 個需求單頁已併入新流程）；既有「部分原生化」項目維持原敘述（測試全綠但功能範圍未補齊）。
+
+## 巡店定位例外補做（2026-11-26）
+
+背景：使用者開啟「巡店定位例外」權限後，新版新增巡店在「定位誤差過大（±25000 公尺）」時仍只有「重新定位」，無法送出。原因是新版 I01 移植時舊版還沒有這個功能（見上方 T2 第 3 項）。
+
+做了什麼（對齊舊版）：
+- 伺服器：`app/api/workspace/inspection-form` POST 新增 `gps_exempt === true` 分支，只限新增。規則在 `lib/workspace/inspection-gps-exempt.ts`（純函式 `planGpsExempt`）：資格 = `ctx.has("inspection.gps_exempt")`（系統管理員一律可用；語意同正式區 `has_permission`，不檢查 `roles.is_active`）；沒資格 403「【巡店定位】你沒有「巡店定位例外」權限」；有資格則不驗 1000 公尺與時間窗，座標合法就存（誤差缺值或負數存 null），沒定位則四個 gps 欄位全 null，座標超出範圍 400；巡店日期用伺服器端台北今天。編輯時忽略 `gps_exempt`。一般送出完全不變（誤差 > 1000 公尺仍被擋）。
+- 為什麼不能靠資料庫：新版用 service_role 寫入，`auth.uid()` 為 NULL，trigger 視為受信任寫入、不檢查例外權限，所以 API 層是唯一防線。
+- 資格旗標：`GET inspection-form` 回傳 `gpsExemptAllowed`（伺服器算出，只決定按鈕顯示）。
+- 資料庫：`supabase/workspace-dev/20261126100000_inspection_save_gps_exempt.sql`（`workspace_save_inspection` 新增分支多寫 `gps_exempt`；含 `.rollback.sql`），已套用 DEV（`mjpd`）；正式區草稿 `m9-sql/96_inspection_gps_exempt_save.*`（尚未套用，前置 `docs/inspection-gps-exemption-prod.sql`、50）。
+- 畫面：`InspectionEditor.vue`（`exempt` 狀態、「使用定位例外送出」、「⚠ 已使用巡店定位例外」、「改回重新定位」、被拒定位一併記錄、提示多一句權限說明）、`GpsGuideDialog.vue`（底部按鈕、傳誤差給提示）、`Inspections.vue`（「定位例外」標籤、「只看定位例外（N）」篩選，只影響下方列表）、`InspectionContent.vue`（標籤、無座標顯示「未記錄（定位例外）」）。`data-testid` 沿用舊版。
+- 登記：`tests/parity/allowlist.json` 的 `m9-f01-inspection-gps-exempt-not-ported` 與 `plain.json` 對應說明已移除。
+- 已知差異（接受）：新版「管理員」是 `ctx.isAdmin`（含 owner、full_admin 等管理員類角色），舊版 DB 的 `can_use_inspection_gps_exempt()` 只看 `profiles.role = 'admin'` 或權限碼；所以管理員類角色在新版可用、舊版不可。
+
+驗證：vue-tsc、tsc 0 錯誤；單元 `tests/unit/I01/gps-exempt-server.test.ts`（有權限、無權限、管理員、管理員類角色、`roles.is_active=false` 仍算、user_roles 停用／過期不算、權限被拒或停用不算、座標與日期規則、列表篩選計數、原始碼接線）與既有 I01／W14／PERM 單元全過。DEV `m9-sql/96` verify 6 列全 true。**尚未做**：瀏覽器 e2e／對等重跑與 DEV 整合測試（計畫中的 VW/ZT 2038 資料測試），上線前建議補跑。

@@ -123,7 +123,7 @@
 | `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸 |
 | `/inspection/improvements/[id]` | `app/inspection/improvements/[id]/page.tsx` | 已原生化；M4 W17 對等驗收完成（回補台灣日期 Q17、寫入資格 Q18、逾期補報 Q19）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
 | `/inspection/improvements` | `app/inspection/improvements/page.tsx` | 已原生化；M4 W17 對等驗收完成（查看範圍角色矩陣等價、急迫標示、連結）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
-| `/inspection/new` | `app/inspection/new/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；注意：舊版後來加入的「巡店定位例外」新版尚未移植（allowlist m9-f01-inspection-gps-exempt-not-ported，待使用者決定） |
+| `/inspection/new` | `app/inspection/new/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；巡店定位例外已補做（2026-11-26，見 verification.md「巡店定位例外補做」） |
 | `/inspection` | `app/inspection/page.tsx` | 部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上 |
 | `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸 |
 | `/inventory` | `app/inventory/page.tsx` | 部分原生化；結果分析可操作，但離線三模組、原因 Excel 匯入及完整分析／匯出未對等，見重查表；F01 回歸測試全綠，但未完成項目維持如上 |

@@ -1541,3 +1541,10 @@ tbody tr:hover {
   text-decoration: none;
   border-radius: 6px;
 }
+
+/* 巡店定位例外：列表／詳情標籤與篩選按鈕（沿用舊版琥珀色） */
+.gps-exempt-badge{display:inline-block;margin-left:6px;padding:1px 8px;border:1px solid #fcd34d;border-radius:999px;background:#fffbeb;color:#92400e;font-size:12px;font-weight:600;white-space:nowrap}
+.gps-exempt-filter{margin-left:auto}
+.gps-exempt-filter.active{background:#fffbeb;color:#92400e;border-color:#f59e0b}
+.gps-exempt-note{color:#b45309}
+.gps-exempt-btn{background:#fef3c7;color:#78350f;border:1px solid #fbbf24}

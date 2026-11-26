@@ -33,10 +33,10 @@ const status=computed(()=>({draft:'草稿',in_progress:'進行中',completed:'�
 <dl class="record-meta">
 <div><dt>巡店單號</dt><dd>{{data.record.inspection_no || '未提供'}}</dd></div>
 <div><dt>巡店門市</dt><dd>{{data.store?.short_name || data.store?.store_name || '未提供'}}<small v-if="data.store?.store_code">{{data.store.store_code}}</small></dd></div>
-<div><dt>巡店日期</dt><dd>{{formatTaipeiDate(data.record.gps_timestamp || data.record.inspection_date) || '未提供'}}<small v-if="data.record.gps_timestamp">{{formatTaipeiTime(data.record.gps_timestamp)}}</small></dd></div>
+<div><dt>巡店日期</dt><dd>{{formatTaipeiDate((data.record.gps_exempt ? null : data.record.gps_timestamp) || data.record.inspection_date) || '未提供'}}<small v-if="data.record.gps_timestamp && !data.record.gps_exempt">{{formatTaipeiTime(data.record.gps_timestamp)}}</small></dd></div>
 <div><dt>{{data.record.inspection_type==='manager'?'經理人員':'督導人員'}}</dt><dd>{{data.inspector || '未提供'}}</dd></div>
-<div><dt>狀態</dt><dd>{{status}}</dd></div>
-<div><dt>GPS 定位</dt><dd><a v-if="gpsLink" :href="gpsLink.url" target="_blank" rel="noopener noreferrer" :aria-label="`${gpsLink.label}，另開 Google Maps`">{{gpsLink.label}} ↗ Google Maps</a><span v-else>無有效定位座標</span><small v-if="data.record.gps_timestamp">定位時間：{{formatTaipeiDateTime(data.record.gps_timestamp)}}</small><small v-if="gpsLink && data.record.gps_accuracy">精度：±{{Number(data.record.gps_accuracy).toFixed(0)}}m</small></dd></div>
+<div><dt>狀態</dt><dd>{{status}}<span v-if="data.record.gps_exempt" class="gps-exempt-badge" data-testid="gps-exempt-badge" title="這筆巡店使用了「巡店定位例外」送出">定位例外</span></dd></div>
+<div><dt>GPS 定位</dt><dd><a v-if="gpsLink" :href="gpsLink.url" target="_blank" rel="noopener noreferrer" :aria-label="`${gpsLink.label}，另開 Google Maps`">{{gpsLink.label}} ↗ Google Maps</a><span v-else-if="data.record.gps_exempt" data-testid="gps-exempt-nocoord">未記錄（定位例外）</span><span v-else>無有效定位座標</span><small v-if="data.record.gps_timestamp">定位時間：{{formatTaipeiDateTime(data.record.gps_timestamp)}}</small><small v-if="gpsLink && data.record.gps_accuracy">精度：±{{Number(data.record.gps_accuracy).toFixed(0)}}m</small></dd></div>
 </dl>
 <div class="inspection-summary" data-testid="detail-score"><strong>最終得分 {{data.record.total_score ?? '—'}} / {{data.record.max_possible_score ?? '—'}}</strong><span>評級 {{data.record.grade || '—'}}</span><template v-if="data.improvements?.length"><span data-testid="score-original">原始得分 {{trio.original}}</span><span data-testid="score-bonus">改善回補 +{{trio.bonus}} 分</span><span class="muted">（回補已加進最終得分）</span></template></div>
 </section>

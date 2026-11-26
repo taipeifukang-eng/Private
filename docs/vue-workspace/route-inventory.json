@@ -996,7 +996,7 @@
   {
     "legacyRoute": "/inspection/new",
     "source": "app/inspection/new/page.tsx",
-    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；注意：舊版後來加入的「巡店定位例外」新版尚未移植（allowlist m9-f01-inspection-gps-exempt-not-ported，待使用者決定）",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；巡店定位例外已補做（2026-11-26，見 verification.md「巡店定位例外補做」）",
     "imports": [
       "@/components/SignaturePad",
       "@/lib/inspection/date",
