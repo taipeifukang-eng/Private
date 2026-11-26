@@ -302,13 +302,13 @@ const GA_EXPECT = {
   9: '每一列 status 都是 pass。',
   10: '每一列 status 都是 pass。這份改了累計請款與待請款的計算，做完整批後還要再跑一次黃金比對。',
   11: '每一列 status 都是 pass。這份和 01 至 04 互不相依，只換函式裡的白話訊息。',
-  12: '輸出第一列「總判斷」必須是 ok，其餘各列都是 true。不是 ok 就停下：96 不做，新版程式也先不要合併到 main（它的舊版巡店頁要讀 gps_exempt 欄位）。最後一列「參考」只說明函式現況，不影響判斷。',
+  12: '輸出第一列「總判斷」必須是 ok，其餘各列都是 true。不是 ok 就停下：96 不做，新版程式也先不要合併到 main（main 現有的舊版巡店頁本來就讀 gps_exempt 欄位，欄位不在代表正式區現況與預期不符，要先查清楚）。最後一列「參考」只說明函式現況，不影響判斷。',
   13: '檢查 6 列 ok 全部是 true。做完後不要再重跑 M9 步驟 50（會把函式蓋回不寫 gps_exempt 的版本）。',
 };
 const GA_STOPS = {
   1: [{ where: 'main', title: 'A 區有 MISSING 或 D 區有 SHAPE_MISMATCH 就停下', body: 'A 區有 MISSING 代表前面的批次還沒套用完（先去補）；D 區有 SHAPE_MISMATCH 代表正式區現行函式和 DEV 實測版本不同，不能硬套。兩者都不要往下做，截圖給 Claude。' }],
   6: [{ where: 'main', title: '第一列不是 ok 就停下', body: '第一列是先決條件檢查。不是 ok 代表 G46 沒做完或第 4.5 批請款單不在，不要套用 B1。' }],
-  12: [{ where: 'main', title: '第一列不是 ok 就停下：96 不做、新版程式也不要合併', body: '代表舊版「巡店定位例外」的 SQL（docs/inspection-gps-exemption-prod.sql）在正式區沒有套完整，或 M9 步驟 50 沒做。不要做 96，也不要合併 PR（新版的舊版巡店頁會讀 gps_exempt 欄位，欄位不在會整頁出錯）。截圖給 Claude，先補齊前置。' }],
+  12: [{ where: 'main', title: '第一列不是 ok 就停下：96 不做、新版程式也不要合併', body: '代表舊版「巡店定位例外」的 SQL（docs/inspection-gps-exemption-prod.sql）在正式區沒有套完整，或 M9 步驟 50 沒做。不要做 96，也不要合併 PR（main 現有的舊版巡店頁本來就讀 gps_exempt 欄位，欄位不在代表正式區現況與預期不符）。截圖給 Claude，先補齊前置。' }],
   8: [{ where: 'verify', title: '黃金比對只要有一個數字不同就停下', body: '用「做之前存下的黃金快照」和這次的結果逐列比對：各狀態張數與總額、各採購單累計請款、清單指紋。有任何差異，不要往下做，先問 Claude 要不要撤回 02。' }],
 };
 const GA_CAUTIONS = {

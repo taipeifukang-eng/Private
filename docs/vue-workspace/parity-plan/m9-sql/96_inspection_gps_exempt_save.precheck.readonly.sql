@@ -2,7 +2,7 @@
 -- 白話：確認正式區「舊版巡店定位例外」的 SQL（docs/inspection-gps-exemption-prod.sql）真的已經套用，
 --       以及 M9 步驟 50 已套用。96 只是在它們之上替換一個函式，前置缺一個就不能做。
 -- 看結果：第一列「總判斷」必須是 ok。不是 ok 就停下，不要做 96，也不要合併新版程式到 main
---       （新版程式的舊版巡店清單會直接讀 gps_exempt 欄位，欄位不在會整頁出錯）。
+--       （main 現有的舊版巡店頁本來就讀 gps_exempt 欄位，欄位不在代表正式區現況與預期不符，要先查清楚）。
 -- 其餘各列是逐項結果（ok = true 才算過）；最後一列是 workspace_save_inspection 現況（只供參考，不影響總判斷）。
 WITH items AS (
   SELECT 1 AS ord, 'inspection_masters.gps_exempt 欄位存在（boolean、NOT NULL、預設 false）' AS item,
