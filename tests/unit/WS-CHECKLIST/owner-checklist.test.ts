@@ -14,6 +14,14 @@ describe("老闆版上線檢查表", () => {
     expect(doc).toContain("一起上");
     expect(doc).not.toMatch(/12\/15/);
   });
+  it("順序：資料庫指令（G46、B1、96）在合併之前，並說明原因與 96 前置檢查閘門", () => {
+    const sqlAt = doc.indexOf("## 二、上線日 步驟 1：先跑資料庫指令");
+    const mergeAt = doc.indexOf("## 三、上線日 步驟 2：合併");
+    expect(sqlAt).toBeGreaterThan(0);
+    expect(mergeAt).toBeGreaterThan(sqlAt);
+    const sqlPart = doc.slice(sqlAt, mergeAt);
+    for (const k of ["G46", "B1", "96", "只加東西、不拆東西", "前置檢查", "不要再重跑 M9 步驟 50"]) expect(sqlPart).toContain(k);
+  });
   it("不含任何金鑰樣式內容", () => {
     expect(doc).not.toMatch(/eyJ[A-Za-z0-9_-]{20,}/);
     expect(doc).not.toMatch(/sk-[A-Za-z0-9]{20,}/);

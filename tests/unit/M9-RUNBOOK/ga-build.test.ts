@@ -64,26 +64,27 @@ function statements(sql: string): string[] {
 const onlySelect = (sql: string) => statements(sql).every((x) => /^(SELECT|WITH)\b/i.test(x));
 
 describe('GA 操作頁：總表與步驟', () => {
-  it('總表解析出 11 步，序號連續，合計與實際一致', () => {
+  it('總表解析出 13 步，序號連續，合計與實際一致', () => {
     const p = builder.parseReadme(readmeText);
-    expect(p.steps.length).toBe(11);
-    expect(p.claimed).toBe(11);
-    expect(p.steps.map((s: any) => s.no)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(p.steps.length).toBe(13);
+    expect(p.claimed).toBe(13);
+    expect(p.steps.map((s: any) => s.no)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   });
 
-  it('頁面步驟 = 總表 11 步 + 11 個額外步驟，每個總表步驟出現一次且順序不變', () => {
-    expect(ga.meta.readmeStepCount).toBe(11);
-    expect(ga.meta.readmeStepsIncluded).toBe(11);
-    expect(ga.meta.stepCount).toBe(22);
+  it('頁面步驟 = 總表 13 步 + 12 個額外步驟，每個總表步驟出現一次且順序不變', () => {
+    expect(ga.meta.readmeStepCount).toBe(13);
+    expect(ga.meta.readmeStepsIncluded).toBe(13);
+    expect(ga.meta.stepCount).toBe(25);
+    expect(ga.meta.estMinutes).toBe(184);
     expect(ga.meta.excludedReadmeSteps).toEqual([]);
     const nos = ga.steps.filter((s: any) => s.readmeNo).map((s: any) => s.readmeNo);
-    expect(nos).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
-    expect(ga.steps.map((s: any) => s.no)).toEqual(Array.from({ length: 22 }, (_, i) => i + 1));
+    expect(nos).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(ga.steps.map((s: any) => s.no)).toEqual(Array.from({ length: 25 }, (_, i) => i + 1));
   });
 
-  it('順序：前置確認 → G46（預覽、黃金快照、01-04）→ G46 後比對 → 廠商／補填／驗收／授權 → B1（預覽、01-05）→ 重跑預覽、黃金比對 → 收尾', () => {
+  it('順序：前置確認 → G46（預覽、黃金快照、01-04）→ G46 後比對 → 廠商／補填／驗收／授權 → B1（預覽、01-05）→ 重跑預覽、黃金比對 → 96（前置檢查、96）→ SQL 做完的下一步提醒 → 收尾', () => {
     const ids = ga.steps.map((s: any) => s.id);
-    const order = ['x-ga-gate', 's01', 'x-ga-golden-before', 's02', 's03', 's04', 's05', 'x-ga-golden-g46', 'x-ga-vendors', 'x-ga-payees', 'x-ga-acceptance', 'x-ga-grants', 's06', 's07', 's08', 's09', 's10', 's11', 'x-ga-b1-recheck', 'x-ga-golden-b1', 'x-ga-buyer', 'x-ga-closing'];
+    const order = ['x-ga-gate', 's01', 'x-ga-golden-before', 's02', 's03', 's04', 's05', 'x-ga-golden-g46', 'x-ga-vendors', 'x-ga-payees', 'x-ga-acceptance', 'x-ga-grants', 's06', 's07', 's08', 's09', 's10', 's11', 'x-ga-b1-recheck', 'x-ga-golden-b1', 'x-ga-buyer', 's12', 's13', 'x-ga-after-sql', 'x-ga-closing'];
     expect(ids).toEqual(order);
   });
 
@@ -91,7 +92,7 @@ describe('GA 操作頁：總表與步驟', () => {
     for (const s of ga.steps.filter((x: any) => x.readmeNo)) {
       for (const b of s.blocks.main as Block[]) {
         expect(fs.existsSync(path.join(planDir, b.file)), b.file).toBe(true);
-        expect(b.file).toMatch(/^(ga-utility-payment-sql|ga-improve-b1-sql)\//);
+        expect(b.file).toMatch(/^(ga-utility-payment-sql|ga-improve-b1-sql|m9-sql\/96_inspection_gps_exempt_save)/);
       }
     }
   });
@@ -104,7 +105,9 @@ describe('GA 操作頁：總表與步驟', () => {
       expect(s.blocks.verify[0].file).toMatch(/\.verify\.sql$/);
       expect(s.blocks.rollback[0].file).toMatch(/\.rollback\.sql$/);
     }
-    for (const n of [1, 6]) expect(byReadme(n).blocks.rollback.length).toBe(0);
+    for (const n of [1, 6, 12]) expect(byReadme(n).blocks.rollback.length).toBe(0);
+    expect(byReadme(13).blocks.verify[0].file).toBe('m9-sql/96_inspection_gps_exempt_save.verify.sql');
+    expect(byReadme(13).blocks.rollback[0].file).toBe('m9-sql/96_inspection_gps_exempt_save.rollback.sql');
   });
 
   it('不含 G46 選用的 05 補填（老闆決定不跑）', () => {
@@ -152,7 +155,16 @@ describe('GA 操作頁：SQL 逐字、備份、只讀', () => {
   });
 
   it('其他套用步驟不重複附備份（沿用第 2、7 步的備份）', () => {
-    for (const n of [3, 4, 5, 8, 9, 10, 11]) expect(byReadme(n).blocks.backup.length, String(n)).toBe(0);
+    for (const n of [3, 4, 5, 8, 9, 10, 11, 12]) expect(byReadme(n).blocks.backup.length, String(n)).toBe(0);
+  });
+
+  it('96（總表第 13 步）有函式全文備份（只有 SELECT）', () => {
+    const s = byReadme(13);
+    expect(s.blocks.backup.length).toBe(1);
+    expect(s.blocks.backup[0].sql).toContain("p.proname = 'workspace_save_inspection'");
+    expect(s.blocks.backup[0].sql).toContain('pg_get_functiondef');
+    expect(onlySelect(s.blocks.backup[0].sql)).toBe(true);
+    expect(s.backupText).toContain('備份 SQL');
   });
 
   it('預覽、黃金快照、重跑預覽、所有 verify 區塊都只有 SELECT／WITH', () => {
@@ -184,6 +196,34 @@ describe('GA 操作頁：SQL 逐字、備份、只讀', () => {
       const need = (s.blocks.main as Block[]).some((b) => /^\s*BEGIN\s*;/im.test(b.sql) && !/^\s*COMMIT\s*;/im.test(b.sql));
       if (need) expect(s.blocks.commit.length, s.id).toBe(2);
     }
+  });
+});
+
+describe('GA 操作頁：96 巡店定位例外寫入', () => {
+  it('前置檢查是唯讀，檢查欄位、權限碼、函式、兩個 trigger（含新版本）與步驟 50，且第一列是總判斷', () => {
+    const s = byReadme(12);
+    expect(s.kind).toBe('readonly');
+    const sql = s.blocks.main[0].sql as string;
+    expect(onlySelect(sql)).toBe(true);
+    for (const k of ['gps_exempt', 'inspection.gps_exempt', 'can_use_inspection_gps_exempt', 'trg_inspection_masters_require_gps', 'trg_inspection_masters_gps_exempt_guard', 'workspace_save_inspection', "'ok'"]) expect(sql).toContain(k);
+    expect(s.stops.some((x: any) => /ok/.test(x.title) && /合併/.test(x.title))).toBe(true);
+  });
+
+  it('96 主檔只替換 workspace_save_inspection，順序在 B1 之後，不碰 G46／B1 的檔', () => {
+    const s = byReadme(13);
+    expect(s.blocks.main.length).toBe(1);
+    expect(s.blocks.main[0].file).toBe('m9-sql/96_inspection_gps_exempt_save.sql');
+    expect(indexOf('s12')).toBeGreaterThan(indexOf('s11'));
+    expect(indexOf('s13')).toBe(indexOf('s12') + 1);
+    expect(s.cautions.join(' | ')).toMatch(/不要再重跑 M9 步驟 50/);
+  });
+
+  it('頁面與總表都寫明順序：先跑 SQL、再合併 PR；96 之後不重跑步驟 50', () => {
+    expect(ga.meta.intro).toMatch(/先跑這一頁的 SQL/);
+    expect(ga.meta.intro).toContain('合併');
+    expect(readmeText).toContain('先跑這份 SQL，再合併 PR');
+    expect(readmeText).toContain('不要再重跑 M9 步驟 50');
+    expect(byId('x-ga-gate').manualText).toMatch(/先做 SQL|SQL（G46、B1、96）全部做完/);
   });
 });
 

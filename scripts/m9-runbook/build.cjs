@@ -287,6 +287,8 @@ const GA_TITLES = {
   9: 'B1 第 3 份：付款方式與同仁代墊',
   10: 'B1 第 4 份：預付款',
   11: 'B1 第 5 份：權限顯示名稱',
+  12: '巡店定位例外寫入（96）：前置檢查（唯讀，也是合併閘門）',
+  13: '96：新版巡店定位例外寫入（替換 1 支函式）',
 };
 const GA_EXPECT = {
   1: '輸出一張表。A 區沒有任何 MISSING、D 區沒有任何 SHAPE_MISMATCH 才能繼續。B 區（金額有小數或 0 元的帳單）與 C 區（是否已有公用事業分類）請截圖給 Claude 看；E 區的 9 支函式全文請整份存檔（等同撤回的對照）。',
@@ -300,10 +302,13 @@ const GA_EXPECT = {
   9: '每一列 status 都是 pass。',
   10: '每一列 status 都是 pass。這份改了累計請款與待請款的計算，做完整批後還要再跑一次黃金比對。',
   11: '每一列 status 都是 pass。這份和 01 至 04 互不相依，只換函式裡的白話訊息。',
+  12: '輸出第一列「總判斷」必須是 ok，其餘各列都是 true。不是 ok 就停下：96 不做，新版程式也先不要合併到 main（它的舊版巡店頁要讀 gps_exempt 欄位）。最後一列「參考」只說明函式現況，不影響判斷。',
+  13: '檢查 6 列 ok 全部是 true。做完後不要再重跑 M9 步驟 50（會把函式蓋回不寫 gps_exempt 的版本）。',
 };
 const GA_STOPS = {
   1: [{ where: 'main', title: 'A 區有 MISSING 或 D 區有 SHAPE_MISMATCH 就停下', body: 'A 區有 MISSING 代表前面的批次還沒套用完（先去補）；D 區有 SHAPE_MISMATCH 代表正式區現行函式和 DEV 實測版本不同，不能硬套。兩者都不要往下做，截圖給 Claude。' }],
   6: [{ where: 'main', title: '第一列不是 ok 就停下', body: '第一列是先決條件檢查。不是 ok 代表 G46 沒做完或第 4.5 批請款單不在，不要套用 B1。' }],
+  12: [{ where: 'main', title: '第一列不是 ok 就停下：96 不做、新版程式也不要合併', body: '代表舊版「巡店定位例外」的 SQL（docs/inspection-gps-exemption-prod.sql）在正式區沒有套完整，或 M9 步驟 50 沒做。不要做 96，也不要合併 PR（新版的舊版巡店頁會讀 gps_exempt 欄位，欄位不在會整頁出錯）。截圖給 Claude，先補齊前置。' }],
   8: [{ where: 'verify', title: '黃金比對只要有一個數字不同就停下', body: '用「做之前存下的黃金快照」和這次的結果逐列比對：各狀態張數與總額、各採購單累計請款、清單指紋。有任何差異，不要往下做，先問 Claude 要不要撤回 02。' }],
 };
 const GA_CAUTIONS = {
@@ -315,6 +320,8 @@ const GA_CAUTIONS = {
   9: ['這份只把付款方式約束放寬成超集，風險低。'],
   10: ['這份改了累計請款與待請款計算，風險中等。'],
   11: ['05 可以在 B1 的任何時間點做，這裡排在最後。'],
+  12: ['這份只有 SELECT，可以放心跑。它同時是「合併 PR 之前」的閘門：結果不是 ok，SQL 與合併都先不做。'],
+  13: ['套用前先貼本步驟的「備份」區塊（唯讀，函式全文），整份存檔。', '這份只替換 workspace_save_inspection 一支函式、不改任何資料列，風險低。', '順序是舊版定位例外 SQL → M9 步驟 50 → 這份。這份做完後，絕對不要再重跑 M9 步驟 50。', '新版用 service_role 寫入，資料庫的定位 trigger 不會檢查例外權限；「有 inspection.gps_exempt 權限或系統管理員才可用」是新版 API 檢查的，這裡不需要另外授權。'],
 };
 const GA_PREVIEW_JUDGE = {};
 
@@ -390,6 +397,12 @@ SELECT x.sig AS fn, pg_get_functiondef(to_regprocedure(x.sig)) AS definition
  ORDER BY 1;
 `;
 }
+const GA_FUNC_BACKUP_96 = `-- 96 套用前備份：workspace_save_inspection 函式全文（唯讀）。結果整份複製存檔；撤回檔也會把函式換回步驟 50 的版本。
+SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS fn, pg_get_functiondef(p.oid) AS definition
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.proname = 'workspace_save_inspection'
+ ORDER BY 1;
+`;
 // README 步驟序號 -> 該步要附的備份區塊
 function gaBackupBlocks(no, planDir) {
   if (no === 2) return [
@@ -399,6 +412,9 @@ function gaBackupBlocks(no, planDir) {
   if (no === 7) return [
     { label: '備份 1／2：B1 會動到的表（本產生器內建）', file: '', sql: BACKUP_GAIB1_SQL },
     { label: '備份 2／2：函式全文（唯讀，名單取自 B1 預覽檔）', file: 'ga-improve-b1-sql/00-preview-before-apply.sql', sql: gaFuncBackupB1(planDir) },
+  ];
+  if (no === 13) return [
+    { label: '備份：workspace_save_inspection 函式全文（唯讀，整份複製存檔）', file: '', sql: GA_FUNC_BACKUP_96 },
   ];
   return [];
 }
@@ -412,8 +428,8 @@ function buildGaExtras(planDir) {
   const x = {};
   x.gate = manual({
     id: 'x-ga-gate', title: '前置確認：主流程已完成，才做水電與採購請款',
-    what: '水電話費請款（G46）與採購請款改善（B1）要在 m9 主流程之後做，且和新版部署一起上線（老闆 2026-11-25 決定，不再等 12/15）。',
-    manualText: '1. 確認老闆已同意今天做。\n2. 確認 m9 主流程（92 步總表）中，總務相關的第 44、45、48 步，第 50 至 61 步，第 68 至 75 步都已完成並驗收通過（那一頁的勾選與檢查都是通過）。\n3. 確認正式區 has_permission 的行為和預期一樣（不檢查 roles.is_active、資料庫端不放行 admin）；有疑慮先問 Claude。\n4. 確認開的是「正式區」專案，不是 DEV。\n5. 本頁每一份 SQL 都由人貼到正式區 SQL Editor；任何一步有疑慮就停下問 Claude。',
+    what: '水電話費請款（G46）、採購請款改善（B1）與巡店定位例外寫入（96）要在 m9 主流程之後做，且和新版部署一起上線（老闆 2026-11-25 決定，不再等 12/15）。先後順序是：先跑這一頁的 SQL，全部驗收通過後才合併 PR 到 main。',
+    manualText: '1. 確認老闆已同意今天做。\n2. 確認 m9 主流程（92 步總表）中，總務相關的第 44、45、48 步，第 50 至 61 步，第 68 至 75 步都已完成並驗收通過（那一頁的勾選與檢查都是通過）。\n3. 確認正式區 has_permission 的行為和預期一樣（不檢查 roles.is_active、資料庫端不放行 admin）；有疑慮先問 Claude。\n4. 確認開的是「正式區」專案，不是 DEV。\n5. 本頁每一份 SQL 都由人貼到正式區 SQL Editor；任何一步有疑慮就停下問 Claude。\n6. 上線當天順序：本頁 SQL（G46、B1、96）全部做完並驗收 → 才合併 PR（此時 WORKSPACE_ENABLED 不設）→ admin_only → 隔天早上 all。理由：這些 SQL 都只加不拆，對現在的舊版程式沒有影響；先做 SQL，失敗時沒有新版程式在線上，退回只要撤 SQL。\n7. 本頁的 96 前置檢查（階段 3 開頭）也是合併的閘門：它不是 ok，就連合併都不要做。',
     stops: [{ where: 'main', title: 'm9 主流程有任何一步沒完成，這一頁整份先不要做', body: '尤其是總務第 4.5 批請款單與第 6 批廠商、水電帳單（第 44、45、48、50 至 61、68 至 75 步）。缺任何一步，G46 預覽的 A 區就會出現 MISSING。' }],
     expect: '以上四點都確認了才開始下一步。', minutes: 5,
   });
@@ -474,6 +490,12 @@ function buildGaExtras(planDir) {
     what: '如果舊的 pay_buyer_title 與 pay_buyer_tax_id 只有其中一個有值，或統編不是 8 碼，B1 不會自動搬成預設公司。',
     manualText: '1. 打開請款設定的買受人公司清單，看有沒有預設公司。\n2. 沒有的話，請總務手動新增公司（抬頭、8 碼統編）並設為預設。\n3. 不要用 SQL 補。',
     expect: '買受人公司清單有一間預設公司，抬頭與統編正確。', minutes: 8,
+  });
+  x.afterSql = manual({
+    id: 'x-ga-after-sql', title: 'SQL 全部做完：接著合併 PR、再開新版（不在本頁）',
+    what: '本頁的 SQL（G46、B1、96）都完成並驗收後，才進行上線檢查表的下一段：合併 PR 到 main（WORKSPACE_ENABLED 不設，新版仍是關閉）、等 Production 部署 Ready。',
+    manualText: '1. 確認本頁每一步都已勾選、檢查全部通過，且黃金快照比對沒有差異。\n2. 回到 docs/vue-workspace/go-live/owner-checklist.md 的「上線日 步驟 2：合併」。\n3. 合併後新版是關閉的；之後才設 WORKSPACE_ENABLED=true（admin_only），隔天早上改成 all。\n4. 96 之後不要再重跑 M9 步驟 50。\n5. 管理員試用期請在新版巡店用「定位例外」新增一筆（需 inspection.gps_exempt 權限或系統管理員），確認清單與內容頁顯示「定位例外」；這一步要等新版開放後才做，不在今天的 SQL 流程內。',
+    expect: '知道下一步是合併 PR，而不是繼續貼 SQL；也知道新版開放後要試一次定位例外。', minutes: 3,
   });
   x.closing = manual({
     id: 'x-ga-closing', title: '收尾：回舊版備註與不可送上正式區的清單',
@@ -695,9 +717,9 @@ function buildModel(opts) {
 
 const GA_META = {
   title: '水電與採購請款上線操作',
-  heading: '水電話費請款與採購請款改善：正式區逐步操作',
-  intro: '這是第二份正式區操作頁（不併入 92 步的主流程）。老闆 2026-11-25 決定：水電話費請款（G46）與採購請款改善第一批（B1）和這次新版部署一起上線，不再等 12/15。照著從上做到下，每一步貼上執行、看結果、勾選。進度會自動記住。',
-  scheduleLabel: '預定執行', scheduleValue: '與新版部署同一次', scheduleNote: '主流程完成並驗收後再做',
+  heading: '水電話費請款、採購請款改善與巡店定位例外：正式區逐步操作',
+  intro: '這是第二份正式區操作頁（不併入 92 步的主流程）。老闆 2026-11-25 決定：水電話費請款（G46）與採購請款改善第一批（B1）和這次新版部署一起上線，不再等 12/15；另外加上巡店定位例外寫入（96）。上線當天的順序是「先跑這一頁的 SQL（G46、B1、96），全部驗收通過，才合併 PR 到 main」：這些 SQL 都只加不拆，對現在正式區的舊版程式沒有影響，先做不會有人察覺；若 SQL 失敗，因為還沒合併，線上沒有新版程式，退回只要撤 SQL。階段 3 開頭的 96 前置檢查同時是合併閘門：它不是 ok，連合併都先不要做。照著從上做到下，每一步貼上執行、看結果、勾選。進度會自動記住。',
+  scheduleLabel: '預定執行', scheduleValue: '與新版部署同一次，SQL 在合併 PR 之前', scheduleNote: '主流程完成並驗收後再做',
   docKey: 'ga-post-cutover',
   runDate: '', goLiveDate: '',
 };
@@ -711,7 +733,8 @@ function buildGaStages(planDir, readme, readmeSteps) {
     { id: 'g0', title: '階段 0　前置確認', short: '0 前置確認', intro: '主流程（92 步）完成並驗收，才做這一頁。', items: [x.gate] },
     { id: 'g1', title: t(0), short: '1 水電話費請款（G46）', intro: '先預覽、備份，再依序套用 4 份並各自檢查；做完要通過黃金快照比對。撤回順序：04、03、02、01。', items: [readmeSteps[1], x.goldenBefore, ...rs(2, 5), x.goldenAfterG46, x.vendors, x.payees, x.acceptance, x.grants] },
     { id: 'g2', title: t(1), short: '2 採購請款改善（B1）', intro: '在 G46 穩定之後才做。撤回順序：05、04、03、02、01；撤回前若已有測試資料，撤回會中止。', items: [readmeSteps[6], ...rs(7, 11), x.b1Recheck, x.b1Golden, x.buyer] },
-    { id: 'g3', title: '階段 3　收尾', short: '3 收尾', intro: '', items: [x.closing] },
+    { id: 'g3', title: t(2), short: '3 巡店定位例外（96）', intro: '前置檢查第一列必須是 ok（也是合併 PR 的閘門）；96 只替換一支函式，和 G46、B1 互不相依。做完後不要再重跑 M9 步驟 50。', items: [readmeSteps[12], readmeSteps[13], x.afterSql] },
+    { id: 'g4', title: '階段 4　收尾', short: '4 收尾', intro: '', items: [x.closing] },
   ];
 }
 
