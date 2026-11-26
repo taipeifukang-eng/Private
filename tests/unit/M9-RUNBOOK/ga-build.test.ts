@@ -154,6 +154,20 @@ describe('GA 操作頁：SQL 逐字、備份、只讀', () => {
     expect(onlySelect(s.blocks.backup[1].sql)).toBe(true);
   });
 
+  it('B1 函式備份 SQL：完整收進含 uuid[] 的簽名，單引號成對，不被第一個 ] 截斷', () => {
+    const sql: string = byReadme(7).blocks.backup[1].sql;
+    const m = sql.match(/unnest\(ARRAY\[([\s\S]*?)\]\) AS x\(sig\)/);
+    expect(m).not.toBeNull();
+    const list = m![1];
+    expect(list).toContain("'public.ga_pay_po_amounts(uuid[])'");
+    expect(list.length).toBeGreaterThan(list.indexOf("'public.ga_pay_po_amounts(uuid[])'") + "'public.ga_pay_po_amounts(uuid[])'".length);
+    expect(list.replace(/\s+/g, '')).toMatch(/'public\.ga_pay_po_amounts\(uuid\[\]\)','/);
+    expect((sql.match(/'/g) ?? []).length % 2).toBe(0);
+    const sigs = list.match(/'[^']*'/g) ?? [];
+    expect(sigs.length).toBeGreaterThan(1);
+    expect(list.replace(/'[^']*'/g, '').replace(/[\s,]/g, '')).toBe('');
+  });
+
   it('其他套用步驟不重複附備份（沿用第 2、7 步的備份）', () => {
     for (const n of [3, 4, 5, 8, 9, 10, 11, 12]) expect(byReadme(n).blocks.backup.length, String(n)).toBe(0);
   });

@@ -389,7 +389,8 @@ SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS f
 }
 function gaFuncBackupB1(planDir) {
   const text = readUtf8(must(planDir, 'ga-improve-b1-sql/00-preview-before-apply.sql'));
-  const m = text.match(/unnest\(ARRAY\[([^\]]*)\]\)/);
+  // 簽名裡可能含 ]（例如 uuid[]），所以不能用 [^\]]* 擷取；改成只吃連續的單引號字串與逗號，再接收尾的 ])
+  const m = text.match(/unnest\(ARRAY\[((?:\s*'[^']*'\s*,?)+)\s*\]\)/);
   if (!m) throw new Error('ga-improve-b1-sql/00-preview-before-apply.sql 找不到函式簽名清單');
   return `-- B1 套用前備份：會被加掛或改寫的函式全文（唯讀）。結果整份複製存檔；函式不存在的列 definition 會是空的。
 SELECT x.sig AS fn, pg_get_functiondef(to_regprocedure(x.sig)) AS definition
