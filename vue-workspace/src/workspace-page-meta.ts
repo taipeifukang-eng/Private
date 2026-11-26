@@ -95,7 +95,9 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "products-master": meta("商品主檔", ["productsMaster"]),
   merchandise: meta("商品部缺貨回報", ["stockout"]),
   "supervisor-log": meta("督導管理日誌", ["supervisorLog"]),
+  "clinic-selfpay": meta("診所自費藥毛利計算", ["clinicSelfpay"]),
   roles: meta("角色權限管理", ["roles"]),
+  "page-fallbacks": meta("頁面回舊版設定", ["pageFallbackAdmin"]), // M9 N2：只有系統管理員
   users: meta("使用者管理", ["users"]),
   // M7/M8 第 1 批（G01-G05）：總務服務中心外殼與資產主檔頁；進頁前先依 capability 擋下並說明。
   "ga-center": meta("總務服務中心", ["gaCenter"]),

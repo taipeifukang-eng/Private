@@ -249,6 +249,20 @@ async function del(db: any, table: string, col: string, values: string[], log: s
   }
 }
 
+/** G46 水電話費請款：清除請款單、明細、事件、帳單、附件紀錄與測試廠商（標記 QA-GAUP-），並刪除回傳的附件實體檔。函式還沒套用時略過。 */
+async function sweepGaup(db: any, log: string[]) {
+  const r = await db.rpc('ga_dev_cleanup_ga_utility_payment');
+  if (r.error) {
+    if (r.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_ga_utility_payment: ${r.error.message}`);
+    return;
+  }
+  const paths: string[] = (r.data && r.data.storage_paths) || [];
+  if (paths.length) {
+    const rm = await db.storage.from('general-affairs-attachments').remove(paths);
+    if (rm.error) log.push(`gaup storage: ${rm.error.message}`);
+  }
+}
+
 /** 呼叫第 4.5 批清除函式，並把回傳的附件實體檔一併刪除。 */
 async function sweepGa45(db: any, log: string[]) {
   const r = await db.rpc('ga_dev_cleanup_m7m8_b45');
@@ -342,6 +356,7 @@ export async function cleanupM7M8(): Promise<string[]> {
   // 第 4 批：採購單、進貨、配發、測試供應商（事件表有不可改刪觸發器，用 DEV 專用函式；函式還沒套用時略過）
   // 第 4.5 批（G45）：請款單與事件、發票與連結、發票與進貨單附件紀錄（事件表有不可改刪觸發器，用 DEV 專用函式）。要在刪採購單、進貨之前執行；函式還沒套用時略過。
   await sweepGa45(db, log);
+  await sweepGaup(db, log); // G46 水電請款單與帳單先清（它們引用的是水電廠商，與採購單無關）
   const sweptPo = await db.rpc('ga_dev_cleanup_m7m8_purchasing');
   if (sweptPo.error && sweptPo.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_purchasing: ${sweptPo.error.message}`);
   await sweepGa45(db, log); // 採購單清掉後，再清沒有採購單參照的 QA-GA45- 測試廠商

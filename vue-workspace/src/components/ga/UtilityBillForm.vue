@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { api } from "../../api";
 import Modal from "../Modal.vue";
 import {
@@ -21,6 +21,25 @@ const existing = ref<{ id: string; amount: number; billing_month: string; due_da
 const anomaly = ref<Anomaly | null>(null);
 const paidConfirm = ref<{ original: Record<string, any>; fields: string[] } | null>(null);
 const wasPaid = !!props.bill?.paid_at;
+// G46 繳費單位（公用事業分類且合作中的廠商）；帳單已在已送出或已付款的請款單內時，金額、繳費單位、月份、類型、據點、識別號碼鎖定（勾自動標記者繳費日期也鎖定）。
+const payees = ref<Array<{ id: string; name: string }>>([]);
+const payeeError = ref("");
+const locked = computed(() => props.bill?.locked ?? []);
+const isLocked = (k: string) => locked.value.includes(k);
+const anyLocked = computed(() => locked.value.length > 0);
+onMounted(async () => {
+  try { payees.value = (await api<{ data: Array<{ id: string; name: string }> }>("general-affairs/utility-bills/payees")).data; } catch (e) { payeeError.value = errorText(e); }
+});
+const payeeOptions = computed(() => {
+  const list = [...payees.value];
+  const own = props.bill;
+  if (own?.payee_vendor_id && !list.some((p) => p.id === own.payee_vendor_id)) list.unshift({ id: own.payee_vendor_id, name: own.payee_vendor_name || "（原繳費單位）" });
+  return list;
+});
+function pickPayee() {
+  const p = payees.value.find((x) => x.id === form.payee_vendor_id);
+  if (p && !form.provider_name.trim()) form.provider_name = p.name;
+}
 
 function keyOf(f: BillForm) {
   return [f.amount, f.store_id, f.location_name, f.expense_type, f.billing_month, f.service_identifier, f.equipment_serial, f.account_number];
@@ -83,28 +102,37 @@ async function save(ack = false, confirm = false) {
     <form class="uf" novalidate data-testid="utility-form" @submit.prevent="save()">
       <p v-if="error" class="notice error" role="alert" data-testid="uf-error">{{ error }}</p>
       <p v-if="existing" class="notice" data-testid="uf-existing">已有的那一筆：{{ monthText(existing.billing_month) }}、{{ money(existing.amount) }}。<button type="button" data-testid="uf-open-existing" @click="emit('open-existing', existing.id)">查看並編輯那一筆</button></p>
+      <p v-if="anyLocked" class="notice" role="status" data-testid="uf-locked-note">這筆帳單已在請款單 {{ bill?.payment_request?.pr_no || "" }} 內（{{ bill?.payment_request?.status === "PAID" ? "已付款" : "已送出" }}），金額、繳費單位、帳單月份、費用類型、據點與識別號碼已鎖定<template v-if="isLocked('paid_at')">，繳費狀態由請款單管理</template>；備註與繳費期限仍可修改。要改鎖定的欄位請先把請款單退回或作廢。</p>
       <p v-if="wasPaid" class="notice" data-testid="uf-paid-note">這筆帳單已在 {{ bill?.paid_at?.slice(0, 10) }} 繳費；改金額、據點、類型、月份、供應商或識別號碼時會再請你確認一次。</p>
 
       <div class="uf-grid">
         <label>據點
-          <select v-model="form.store_id" data-testid="uf-store" @change="pickStore">
+          <select v-model="form.store_id" :disabled="isLocked('location')" data-testid="uf-store" @change="pickStore">
             <option value="">其他據點（自行輸入名稱）</option>
             <option v-for="s in storeOptions" :key="s.id" :value="s.id">{{ storeLabel(s) }}</option>
           </select>
           <small v-if="ownInactive" class="muted">這間門市已停用，編輯時保留原門市。</small>
         </label>
-        <label>據點名稱<input v-model="form.location_name" maxlength="120" :readonly="!!form.store_id" data-testid="uf-location" /></label>
-        <label>費用類型<select v-model="form.expense_type" data-testid="uf-type"><option v-for="t in EXPENSE_TYPES" :key="t" :value="t">{{ EXPENSE_TYPE_LABELS[t] }}</option></select></label>
-        <label>帳單月份<input v-model="form.billing_month" type="month" data-testid="uf-month" /></label>
+        <label>據點名稱<input v-model="form.location_name" maxlength="120" :readonly="!!form.store_id || isLocked('location')" data-testid="uf-location" /></label>
+        <label>費用類型<select v-model="form.expense_type" :disabled="isLocked('expense_type')" data-testid="uf-type"><option v-for="t in EXPENSE_TYPES" :key="t" :value="t">{{ EXPENSE_TYPE_LABELS[t] }}</option></select></label>
+        <label>帳單月份<input v-model="form.billing_month" type="month" :disabled="isLocked('billing_month')" data-testid="uf-month" /></label>
         <label>供應商<input v-model="form.provider_name" maxlength="120" data-testid="uf-provider" /></label>
+        <label>繳費單位（請款對象，選填）
+          <select v-model="form.payee_vendor_id" :disabled="isLocked('payee_vendor_id')" data-testid="uf-payee" @change="pickPayee">
+            <option value="">未指定（請款前要補填）</option>
+            <option v-for="p in payeeOptions" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+          <small class="muted">只列「公用事業」分類且合作中的廠商。請款時帳單必須指定繳費單位。</small>
+          <small v-if="payeeError" class="field-error" role="alert">{{ payeeError }}</small>
+        </label>
         <label v-if="form.expense_type === 'INTERNET'">線路／數據機名稱<input v-model="form.service_label" maxlength="120" placeholder="例如：POS 主線、監視器網路" data-testid="uf-label" /></label>
-        <label>{{ identifierLabel(form.expense_type) }}<input v-model="form.service_identifier" maxlength="200" data-testid="uf-ident" /></label>
-        <label>客戶／帳單帳號（選填）<input v-model="form.account_number" maxlength="200" data-testid="uf-account" /></label>
-        <label v-if="form.expense_type === 'INTERNET'">網路設備序號<input v-model="form.equipment_serial" maxlength="200" data-testid="uf-serial" /><small class="muted">電路編號與設備序號至少填一項。</small></label>
-        <label>金額<input v-model="form.amount" type="number" min="0" step="0.01" inputmode="decimal" data-testid="uf-amount" /></label>
+        <label>{{ identifierLabel(form.expense_type) }}<input v-model="form.service_identifier" maxlength="200" :readonly="isLocked('identifier')" data-testid="uf-ident" /></label>
+        <label>客戶／帳單帳號（選填）<input v-model="form.account_number" maxlength="200" :readonly="isLocked('identifier')" data-testid="uf-account" /></label>
+        <label v-if="form.expense_type === 'INTERNET'">網路設備序號<input v-model="form.equipment_serial" maxlength="200" :readonly="isLocked('identifier')" data-testid="uf-serial" /><small class="muted">電路編號與設備序號至少填一項。</small></label>
+        <label>金額<input v-model="form.amount" type="number" min="0" step="0.01" inputmode="decimal" :readonly="isLocked('amount')" data-testid="uf-amount" /></label>
         <label v-if="form.expense_type === 'ELECTRICITY'">用電度數（kWh）<input v-model="form.electricity_kwh" type="number" min="0" step="0.01" data-testid="uf-kwh" /></label>
         <label>繳費期限<input v-model="form.due_date" type="date" data-testid="uf-due" /></label>
-        <label>繳費日期（已繳才填）<input v-model="form.paid_at" type="date" data-testid="uf-paid" /></label>
+        <label>繳費日期（已繳才填）<input v-model="form.paid_at" type="date" :disabled="isLocked('paid_at')" data-testid="uf-paid" /></label>
         <label>本期帳單／銷帳編號（選填）<input v-model="form.reference_no" maxlength="200" data-testid="uf-ref" /></label>
         <label class="wide">備註<textarea v-model="form.notes" rows="2" maxlength="1000" data-testid="uf-notes" /></label>
       </div>

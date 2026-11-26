@@ -18,3 +18,5 @@
 M6-W25 補充（2026-11-21）：`inventory-view-implies-import-delete` 已用舊 API 與 workspace API 對同樣請求實測，舊版 canImport／canDelete 對任一檢視權限同樣放行，新舊行為相同；因此新版不單獨收緊，白名單不再是 decision=fix，改為待使用者決定是否連舊版一起收緊（另案）。
 
 盤點權限問卷裁定（2026-11-22，docId `inv-perm-ai-cap`，approvedBy `user (2026-11-22 盤點權限問卷)`）：`inventory-view-implies-import-delete` 以 decision=fix 的方向執行完畢——P1 只有 `inventory.result_analysis.import` 能匯入、只有 `inventory.result_analysis.delete` 能刪除，檢視類權限只能看；P2 新版與舊版一起收緊（舊版只改 `canImportInventoryResultAnalysis`／`canDeleteInventoryResultAnalysis` 與按鈕顯示旗標）；P3 `inventory.manage` 不隱含；P4 沒權限者看不到按鈕（隱藏），伺服端回 403。白名單條目因為已執行完畢，記為已核可（approvedBy 填入，不再帶 `decision: fix`，因為驗證規則規定 fix 必須維持 null）。
+
+差異確認頁（M6，2026-11-23，docId `review-2026-11-23`）：M6 第一至第三批的 64 項待核可差異全部同意，approvedBy 為 `user (2026-11-23 差異確認頁)`，明細見 `allowlist-review/decisions-2026-11-23.md`。送出後白名單沒有待核可條目（只剩已排定修正的 `nav-archived-feature-gate`），T02 的 STILL_PENDING 清空。

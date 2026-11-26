@@ -10,6 +10,11 @@ export type PrStatus = (typeof PR_STATUSES)[number];
 export const PR_STATUS_LABELS: Record<PrStatus, string> = { DRAFT: "草稿", SUBMITTED: "已送出", PAID: "已付款", VOID: "已作廢" };
 export const isPrStatus = (v: unknown): v is PrStatus => (PR_STATUSES as readonly string[]).includes(String(v));
 
+// G46 請款單來源：採購（既有）或水電話費（水電網費帳單請款）。沒有來源的舊資料一律是採購。細節規則在 utility-payment-rules.ts。
+export const PR_SOURCES = ["PURCHASE", "UTILITY"] as const;
+export type PrSource = (typeof PR_SOURCES)[number];
+export const PR_SOURCE_LABELS: Record<PrSource, string> = { PURCHASE: "採購", UTILITY: "水電話費" };
+
 export const PR_ACTIONS = ["submit", "return", "mark_paid", "void", "note", "refresh_bank"] as const;
 export type PrAction = (typeof PR_ACTIONS)[number];
 export const isPrAction = (v: unknown): v is PrAction => (PR_ACTIONS as readonly string[]).includes(String(v));
@@ -73,10 +78,27 @@ export function checkClaimLimit(receivedTotal: number, claimedBefore: number, th
 export const lineDiffReasonRequired = (claimTotal: number, referenceTotal: number, tolerance: number = DEFAULT_TOLERANCE) => !withinTolerance(claimTotal - referenceTotal, tolerance);
 
 // ---------------------------------------------------------------- 輸入驗證
-export const PAY_METHODS = ["TRANSFER", "CASH", "CHECK"] as const;
+// G4：付款方式加信用卡（可填卡號末四碼）與網購平台／第三方支付（可填平台名稱）。同仁代墊只能用轉帳、現金、支票（公司還錢給同仁）。
+export const PAY_METHODS = ["TRANSFER", "CASH", "CHECK", "CREDIT_CARD", "ONLINE_PLATFORM"] as const;
 export type PayMethod = (typeof PAY_METHODS)[number];
-export const PAY_METHOD_LABELS: Record<PayMethod, string> = { TRANSFER: "轉帳", CASH: "現金", CHECK: "支票" };
+export const PAY_METHOD_LABELS: Record<PayMethod, string> = { TRANSFER: "轉帳", CASH: "現金", CHECK: "支票", CREDIT_CARD: "信用卡", ONLINE_PLATFORM: "網購平台／第三方支付" };
 export const isPayMethod = (v: unknown): v is PayMethod => (PAY_METHODS as readonly string[]).includes(String(v));
+export const PAYEE_PAY_METHODS = ["TRANSFER", "CASH", "CHECK"] as const;
+export const payMethodAllowed = (method: string, payeeType: string | null | undefined) => (payeeType === "EMPLOYEE" ? (PAYEE_PAY_METHODS as readonly string[]).includes(method) : isPayMethod(method));
+
+// G4：付款對象（廠商或同仁代墊）。廠商仍記在請款單與採購單上；代墊時付款對象是同仁，帳戶走同仁匯款帳戶。
+export const PAYEE_TYPES = ["VENDOR", "EMPLOYEE"] as const;
+export type PayeeType = (typeof PAYEE_TYPES)[number];
+export const PAYEE_TYPE_LABELS: Record<PayeeType, string> = { VENDOR: "廠商", EMPLOYEE: "同仁代墊" };
+export const isPayeeType = (v: unknown): v is PayeeType => (PAYEE_TYPES as readonly string[]).includes(String(v));
+/** 標已付款的人不可以就是代墊的付款對象本人（SELF_PAYEE，與資料庫觸發器一致）；一般請款單沒有這個限制（P4）。 */
+export const selfPayeeBlocked = (row: { payee_type?: string | null; payee_profile_id?: string | null }, userId: string) => row.payee_type === "EMPLOYEE" && !!row.payee_profile_id && row.payee_profile_id === userId;
+
+// G1：請款單類型。預付款對應一張已下訂的採購單，沒有進貨明細；餘額由預付餘額帳（核銷、退款）計算。
+export const PR_KINDS = ["NORMAL", "PREPAY"] as const;
+export type PrKind = (typeof PR_KINDS)[number];
+export const PR_KIND_LABELS: Record<PrKind, string> = { NORMAL: "一般請款", PREPAY: "預付款" };
+export const isPrKind = (v: unknown): v is PrKind => (PR_KINDS as readonly string[]).includes(String(v));
 
 const text = (v: unknown, max: number, label: string, required = false) => {
   const s = String(v ?? "").trim();
@@ -116,17 +138,44 @@ export function validateLines(raw: unknown): PrLineInput[] {
   });
 }
 
+/** G4／G11：付款對象與買受人公司欄位（採購、水電、預付請款單共用）。payee_type 沒帶但有 payee_profile_id 視為同仁代墊；改回廠商用 payee_type=VENDOR。 */
+export const PAYEE_BUYER_KEYS = ["payee_type", "payee_profile_id", "buyer_company_id"] as const;
+export function pickPayeeBuyer(raw: Record<string, any>) {
+  const out: Record<string, unknown> = {};
+  if ("payee_type" in raw || "payee_profile_id" in raw) {
+    const pid = String(raw.payee_profile_id ?? "").trim();
+    const type = String(raw.payee_type ?? (pid ? "EMPLOYEE" : "VENDOR")).trim().toUpperCase();
+    if (!isPayeeType(type)) throw new Error("付款對象只能是廠商或同仁代墊");
+    if (type === "EMPLOYEE") {
+      if (!isUuid(pid)) throw new Error("請選擇代墊的同仁");
+      out.payee_type = "EMPLOYEE";
+      out.payee_profile_id = pid;
+    } else {
+      if (pid) throw new Error("廠商付款不能指定同仁");
+      out.payee_type = "VENDOR";
+    }
+  }
+  if ("buyer_company_id" in raw) {
+    const b = String(raw.buyer_company_id ?? "").trim();
+    if (b && !isUuid(b)) throw new Error("買受人抬頭格式錯誤");
+    out.buyer_company_id = b || null;
+  }
+  return out;
+}
+
 export function validateCreatePayload(raw: Record<string, any>, now: Date = new Date()) {
-  for (const k of Object.keys(raw)) if (!["vendor_id", "expected_pay_date", "notes", "lines"].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  for (const k of Object.keys(raw)) if (!["vendor_id", "expected_pay_date", "notes", "lines", ...PAYEE_BUYER_KEYS].includes(k)) throw new Error(`不支援的欄位：${k}`);
   if (!isUuid(String(raw.vendor_id ?? ""))) throw new Error("請選擇廠商");
-  return { vendor_id: String(raw.vendor_id), expected_pay_date: expectedPayDate(raw.expected_pay_date, now), notes: text(raw.notes, 500, "備註"), lines: validateLines(raw.lines) };
+  return { vendor_id: String(raw.vendor_id), expected_pay_date: expectedPayDate(raw.expected_pay_date, now), notes: text(raw.notes, 500, "備註"), lines: validateLines(raw.lines), ...pickPayeeBuyer(raw) };
 }
 export function validateUpdatePayload(raw: Record<string, any>, now: Date = new Date()) {
   const out: Record<string, unknown> = {};
-  for (const k of Object.keys(raw)) if (!["expected_pay_date", "notes", "lines"].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  for (const k of Object.keys(raw)) if (!["expected_pay_date", "notes", "lines", "amount", ...PAYEE_BUYER_KEYS].includes(k)) throw new Error(`不支援的欄位：${k}`);
   if ("expected_pay_date" in raw) out.expected_pay_date = expectedPayDate(raw.expected_pay_date, now);
   if ("notes" in raw) out.notes = text(raw.notes, 500, "備註");
   if ("lines" in raw) out.lines = validateLines(raw.lines);
+  if ("amount" in raw) out.amount = prepayAmount(raw.amount);
+  Object.assign(out, pickPayeeBuyer(raw));
   if (!Object.keys(out).length) throw new Error("沒有要修改的內容");
   return out;
 }
@@ -138,7 +187,7 @@ function expectedPayDate(v: unknown, _now: Date) {
 }
 
 /** 動作 payload 驗證：return、void 原因；mark_paid 付款方式、日期（不可未來）、參考號；note 備註。 */
-export function validateActionPayload(action: PrAction, status: PrStatus | null, raw: Record<string, any>, now: Date = new Date()) {
+export function validateActionPayload(action: PrAction, status: PrStatus | null, raw: Record<string, any>, now: Date = new Date(), opts: { payeeType?: string | null } = {}) {
   switch (action) {
     case "return":
       return { reason: text(raw.reason, 200, "退回原因", true) };
@@ -148,13 +197,20 @@ export function validateActionPayload(action: PrAction, status: PrStatus | null,
     }
     case "mark_paid": {
       const method = String(raw.pay_method ?? "").trim().toUpperCase();
-      if (!isPayMethod(method)) throw new Error("付款方式只能是轉帳、現金或支票");
+      if (!isPayMethod(method)) throw new Error("付款方式只能是轉帳、現金或支票，或是信用卡、網購平台／第三方支付");
+      if (!payMethodAllowed(method, opts.payeeType)) throw new Error("同仁代墊的款項只能用轉帳、現金或支票還給同仁");
+      const card = String(raw.card_last4 ?? "").trim();
+      const platform = String(raw.platform ?? "").trim();
+      if (card && method !== "CREDIT_CARD") throw new Error("只有信用卡付款可以填卡號末四碼");
+      if (platform && method !== "ONLINE_PLATFORM") throw new Error("只有網購平台／第三方支付可以填平台名稱");
+      if (card && !/^[0-9]{4}$/.test(card)) throw new Error("卡號末四碼要是 4 位數字（不要填完整卡號）");
+      if (platform.length > 40) throw new Error("平台名稱不可超過 40 個字");
       const paid = String(raw.paid_date ?? "").trim();
       if (paid) {
         if (!isRealDate(paid)) throw new Error("付款日期格式錯誤（YYYY-MM-DD）");
         if (paid > taipeiToday(now)) throw new Error(`付款日期不能是未來的日期（今天是 ${taipeiToday(now)}）`);
       }
-      return { pay_method: method, paid_date: paid || null, paid_ref: text(raw.paid_ref, 60, "付款參考號") };
+      return { pay_method: method, paid_date: paid || null, paid_ref: text(raw.paid_ref, 60, "付款參考號"), ...(card ? { card_last4: card } : {}), ...(platform ? { platform } : {}) };
     }
     case "note":
       return { note: text(raw.note, 500, "備註內容", true) };
@@ -186,6 +242,22 @@ export function parseRequestFilters(p: URLSearchParams) {
     if (!MONTH_RE.test(month)) throw new Error("月份格式要是 YYYY-MM");
     f.month = month;
   }
+  const source = (p.get("source") || "").trim().toUpperCase();
+  if (source) {
+    if (!(PR_SOURCES as readonly string[]).includes(source)) throw new Error("來源篩選值錯誤（採購或水電話費）");
+    f.source = source;
+  }
+  const payee = (p.get("payeeType") || p.get("payee_type") || "").trim().toUpperCase();
+  if (payee) {
+    if (!isPayeeType(payee)) throw new Error("付款對象篩選值錯誤（廠商或同仁代墊）");
+    f.payee_type = payee;
+  }
+  const kind = (p.get("payKind") || p.get("pay_kind") || "").trim().toUpperCase();
+  if (kind) {
+    if (!isPrKind(kind)) throw new Error("類型篩選值錯誤（一般請款或預付款）");
+    f.pay_kind = kind;
+  }
+  if (["1", "true"].includes((p.get("prepayOverdue") || p.get("prepay_overdue") || "").trim())) f.prepay_overdue = true;
   if (["1", "true"].includes((p.get("mine") || "").trim())) f.mine = true;
   if (["1", "true"].includes((p.get("stale_draft") || p.get("staleDraft") || "").trim())) f.stale_draft = true;
   const q = (p.get("q") || "").trim().slice(0, 100);
@@ -302,7 +374,7 @@ const taipeiTime = (iso: unknown) => {
 };
 export type ExportRow = Record<string, any>;
 /** 對帳欄位：廠商統編與銀行欄位只有 includeVendorSecret 才輸出（沒有廠商檢視權限者整欄省略，而不是留空欄）。 */
-export function exportColumns(includeVendorSecret: boolean): CsvColumn<ExportRow>[] {
+export function exportColumns(includeVendorSecret: boolean, extended = false): CsvColumn<ExportRow>[] {
   const cols: CsvColumn<ExportRow>[] = [
     { header: "請款單號", value: (r) => r.pr_no },
     { header: "狀態", value: (r) => PR_STATUS_LABELS[r.status as PrStatus] ?? r.status },
@@ -325,15 +397,120 @@ export function exportColumns(includeVendorSecret: boolean): CsvColumn<ExportRow
     { header: "付款人", value: (r) => r.paid_by_name },
     { header: "付款時間", value: (r) => taipeiTime(r.paid_at) },
   );
+  // G1／G4／G11：extended（匯出按鈕帶 extended=1）才追加欄位；預設欄位與順序完全不動。同仁帳戶欄位沒有廠商帳務檢視權限整欄省略。
+  if (extended) {
+    cols.push(
+      { header: "類型", value: (r) => PR_KIND_LABELS[r.pay_kind as PrKind] ?? "一般請款" },
+      { header: "付款對象類型", value: (r) => PAYEE_TYPE_LABELS[r.payee_type as PayeeType] ?? "廠商" },
+      { header: "付款對象", value: (r) => r.payee_name ?? r.vendor_name },
+      { header: "抬頭", value: (r) => r.buyer_title },
+      { header: "信用卡末四碼", value: (r) => r.card_last4, asText: true },
+      { header: "平台", value: (r) => r.platform },
+    );
+    if (includeVendorSecret) cols.push({ header: "同仁銀行", value: (r) => r.payee_bank_name }, { header: "同仁帳號", value: (r) => r.payee_bank_account, asText: true });
+  }
   return cols;
 }
-export function buildExportCsv(rows: ExportRow[], includeVendorSecret: boolean) {
-  return buildCsv(rows, exportColumns(includeVendorSecret));
+export function buildExportCsv(rows: ExportRow[], includeVendorSecret: boolean, extended = false) {
+  return buildCsv(rows, exportColumns(includeVendorSecret, extended));
 }
 export const exportFileName = (month: string) => `請款對帳-${month}.csv`;
 
 // ---------------------------------------------------------------- 機密遮蔽（第二道保險；資料庫函式已遮蔽）
-export function maskRequest<T extends Record<string, any>>(row: T, vendorVisible: boolean): T {
+export function maskRequest<T extends Record<string, any>>(row: T, vendorVisible: boolean, viewerId?: string | null): T {
   if (vendorVisible) return row;
-  return { ...row, vendor_tax_id_snapshot: null, bank_snapshot: {}, vendor_masked: true };
+  // G4：同仁帳戶只有廠商帳務檢視者與同仁本人看得到；其餘只露末四碼（資料庫已遮蔽，這裡是第二道保險）。
+  const ownAccount = !!viewerId && row.payee_type === "EMPLOYEE" && row.payee_profile_id === viewerId;
+  const base = { ...row, vendor_tax_id_snapshot: null, bank_snapshot: {}, vendor_masked: true } as Record<string, any>;
+  if (row.payee_type === "EMPLOYEE" && !ownAccount) {
+    const last4 = row.payee_account_last4 ?? lastDigits(row.payee_account_snapshot?.bank_account, 4);
+    return { ...base, payee_account_snapshot: {}, payee_account_masked: true, payee_account_last4: last4 } as unknown as T;
+  }
+  return base as T;
+}
+const lastDigits = (v: unknown, n: number): string | null => {
+  const d = String(v ?? "").replace(/[^0-9]/g, "");
+  return d ? d.slice(-n) : null;
+};
+
+// ---------------------------------------------------------------- G1 預付款（純函式，與資料庫 ga_pay_prepay_*、ga_ib1_prepay_* 逐條對齊）
+/** 預付金額：大於 0 的整數元（含稅額）。 */
+export function prepayAmount(v: unknown): number {
+  const s = String(v ?? "").trim().replace(/,/g, "");
+  if (!/^[0-9]{1,9}$/.test(s) || Number(s) <= 0) throw new Error("預付金額必須是大於 0 的整數元");
+  return Number(s);
+}
+/** 預付款拆稅：未稅＝round(含稅額÷(1＋稅率))，稅額＝含稅額－未稅（含稅額永遠等於輸入）。 */
+export function prepaySplit(total: number, taxRate = 0.05) {
+  const untaxed = roundHalfUp(total / (1 + taxRate));
+  return { untaxed, tax: total - untaxed, total };
+}
+/** 上限：這張採購單的預付（不含作廢）＋一般請款（不含核銷）＋這次金額 ≤ 採購單含稅總額＋尾差，超過回 OVER_PO_TOTAL。 */
+export function prepayCap(poTotal: number, claimedNormal: number, prepaid: number, add: number, tolerance: number = DEFAULT_TOLERANCE) {
+  const used = claimedNormal + prepaid;
+  return { ok: used + add <= poTotal + tolerance, remaining: Math.max(poTotal + tolerance - used, 0), overBy: Math.max(used + add - (poTotal + tolerance), 0) };
+}
+/** 預付單餘額＝送出或已付款的金額 − 未回復的核銷與退款（草稿、作廢為 0）。 */
+export function prepayBalance(status: string, amountTotal: number, offsets: number, refunds: number): number {
+  if (status !== "SUBMITTED" && status !== "PAID") return 0;
+  return amountTotal - offsets - refunds;
+}
+/** 單張進貨單可核銷額＝min(進貨單含稅額 − 有效請款 − 已核銷, 預付餘額)，不為負。 */
+export function prepayOffsetFor(receiptTotal: number, claimedAndOffset: number, balance: number): number {
+  return Math.max(Math.min(receiptTotal - claimedAndOffset, balance), 0);
+}
+export type PrepayReceipt = { id: string; total: number; claimed: number; offset: number };
+export type PrepaySource = { id: string; balance: number };
+/** 核銷順序（與資料庫 ga_pay_prepay_apply 相同）：進貨單依順序、預付單依建立先後逐張核銷；回傳要新增的核銷列。 */
+export function prepayApply(receipts: PrepayReceipt[], prepays: PrepaySource[]): { receipt_id: string; prepay_id: string; amount: number }[] {
+  const bal = new Map(prepays.map((p) => [p.id, p.balance]));
+  const out: { receipt_id: string; prepay_id: string; amount: number }[] = [];
+  for (const r of receipts) {
+    let remain = r.total - r.claimed - r.offset;
+    if (remain <= 0) continue;
+    for (const p of prepays) {
+      if (remain <= 0) break;
+      const b = bal.get(p.id) ?? 0;
+      if (b <= 0) continue;
+      const take = Math.min(remain, b);
+      out.push({ receipt_id: r.id, prepay_id: p.id, amount: take });
+      bal.set(p.id, b - take);
+      remain -= take;
+    }
+  }
+  return out;
+}
+/** 一般請款預設金額扣核銷：含稅額＝進貨單含稅額 − 核銷；稅額＝含稅額 − round(含稅額÷(1＋稅率))。扣完為 0 以下代表已由預付款核銷、免再請款（PREPAY_COVERED）。 */
+export function claimAfterOffset(receiptTotal: number, offset: number, taxRate = 0.05) {
+  const total = receiptTotal - offset;
+  if (offset <= 0) return null;
+  const untaxed = Math.max(roundHalfUp(total / (1 + taxRate)), 0);
+  return { covered: total <= 0, untaxed, tax: Math.max(total, 0) - untaxed, total: Math.max(total, 0) };
+}
+/** 逾期：採購單已下訂（ORDERED／PARTIALLY_RECEIVED）、預計到貨日早於今天（台北）、預付餘額大於 0。 */
+export function prepayOverdue(po: { status: string; expected_delivery_date?: string | null }, balance: number, today: string = taipeiToday()): { overdue: boolean; days: number } {
+  const open = po.status === "ORDERED" || po.status === "PARTIALLY_RECEIVED";
+  const d = po.expected_delivery_date;
+  if (!open || !d || !(d < today) || !(balance > 0)) return { overdue: false, days: 0 };
+  return { overdue: true, days: Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${d}T00:00:00Z`)) / 86_400_000) };
+}
+/** 結案守門：採購單取消、短收結案、結案時預付餘額大於尾差就擋（PREPAY_BALANCE_OPEN）。 */
+export const prepayBlocksClose = (balance: number, tolerance: number = DEFAULT_TOLERANCE) => balance > tolerance;
+const roundHalfUp = (n: number) => {
+  const v = Math.round((Math.abs(n) + Number.EPSILON) * 1e6) / 1e6;
+  const r = Math.floor(v + 0.5);
+  return n < 0 ? -r : r;
+};
+
+export function validatePrepayCreatePayload(raw: Record<string, any>) {
+  for (const k of Object.keys(raw)) if (!["po_id", "amount", "expected_pay_date", "notes", ...PAYEE_BUYER_KEYS].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  if (!isUuid(String(raw.po_id ?? ""))) throw new Error("請選擇採購單");
+  return { po_id: String(raw.po_id), amount: prepayAmount(raw.amount), expected_pay_date: expectedPayDate(raw.expected_pay_date, new Date()), notes: text(raw.notes, 500, "備註"), ...pickPayeeBuyer(raw) };
+}
+/** 登記退款或轉抵：金額為大於 0 的整數元，原因必填（≤ 200 字）。 */
+export function validatePrepaySettlePayload(raw: Record<string, any>) {
+  for (const k of Object.keys(raw)) if (!["amount", "reason", "expected_updated_at", "idempotency_key"].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  const s = String(raw.amount ?? "").trim().replace(/,/g, "");
+  if (!/^[0-9]{1,9}$/.test(s) || Number(s) <= 0) throw new Error("退款金額必須是大於 0 的整數元");
+  return { amount: Number(s), reason: text(raw.reason, 200, "退款或轉抵的說明", true) as string };
 }

@@ -16,6 +16,9 @@ export type Bill = {
   reference_no: string | null; notes: string | null; created_at: string; updated_at: string; created_by_name: string | null; updated_by_name: string | null;
   deleted_at: string | null; deleted_by_name: string | null; deletion_reason: string | null; status: "paid" | "unpaid" | "overdue" | "deleted"; overdue: boolean;
   store: { id: string; store_code: string; store_name: string; short_name: string | null; is_active: boolean } | null;
+  // G46 水電話費請款：繳費單位、是否在請款單內、由哪張請款單自動標記、鎖定的欄位（沒有請款檢視權限者 payment_request 只有 in_request）
+  payee_vendor_id?: string | null; payee_vendor_name?: string | null; paid_by_pr_id?: string | null; paid_by_pr_no?: string | null; attachment_count?: number;
+  payment_request?: { in_request: boolean; id?: string; pr_no?: string; status?: string; auto_mark_paid?: boolean } | null; locked?: string[];
 };
 export type Abilities = { canView: boolean; canManage: boolean };
 export type GlobalStats = { today: string; pending_count: number; pending_amount: number; overdue_count: number; overdue_amount: number; no_due_count: number; no_due_amount: number };
@@ -45,18 +48,18 @@ export const errorDataOf = (e: unknown) => (e instanceof ApiError ? e.data || {}
 
 export type BillForm = {
   store_id: string; location_name: string; expense_type: ExpenseType; billing_month: string; provider_name: string; service_label: string; service_identifier: string; account_number: string;
-  equipment_serial: string; amount: string; electricity_kwh: string; due_date: string; paid_at: string; reference_no: string; notes: string;
+  equipment_serial: string; amount: string; electricity_kwh: string; due_date: string; paid_at: string; reference_no: string; notes: string; payee_vendor_id: string;
 };
 export const emptyBillForm = (): BillForm => ({
   store_id: "", location_name: "", expense_type: "WATER", billing_month: taipeiToday().slice(0, 7), provider_name: "", service_label: "", service_identifier: "", account_number: "",
-  equipment_serial: "", amount: "", electricity_kwh: "", due_date: "", paid_at: "", reference_no: "", notes: "",
+  equipment_serial: "", amount: "", electricity_kwh: "", due_date: "", paid_at: "", reference_no: "", notes: "", payee_vendor_id: "",
 });
 export function formFromBill(b: Bill): BillForm {
   const t = (v: unknown) => (v == null ? "" : String(v));
   return {
     store_id: t(b.store_id), location_name: t(b.location_name), expense_type: b.expense_type, billing_month: monthText(b.billing_month), provider_name: t(b.provider_name), service_label: t(b.service_label),
     service_identifier: t(b.service_identifier), account_number: t(b.account_number), equipment_serial: t(b.equipment_serial), amount: t(b.amount), electricity_kwh: t(b.electricity_kwh),
-    due_date: dateText(b.due_date), paid_at: dateText(b.paid_at), reference_no: t(b.reference_no), notes: t(b.notes),
+    due_date: dateText(b.due_date), paid_at: dateText(b.paid_at), reference_no: t(b.reference_no), notes: t(b.notes), payee_vendor_id: t(b.payee_vendor_id),
   };
 }
 /** 送出欄位：全部欄位都帶（編輯時是完整表單的值）；空字串送成 null 讓資料庫清除。 */
@@ -67,7 +70,7 @@ export function payloadFromForm(f: BillForm): Record<string, unknown> {
     store_id: f.store_id || null, location_name: n(f.location_name), expense_type: f.expense_type, billing_month: f.billing_month, provider_name: n(f.provider_name), service_label: n(f.service_label),
     service_identifier: n(f.service_identifier), account_number: n(f.account_number), equipment_serial: f.expense_type === "INTERNET" ? n(f.equipment_serial) : null,
     amount: n(f.amount), electricity_kwh: f.expense_type === "ELECTRICITY" ? n(f.electricity_kwh) : null, due_date: n(f.due_date), paid_at: n(f.paid_at),
-    reference_no: n(f.reference_no), notes: n(f.notes),
+    reference_no: n(f.reference_no), notes: n(f.notes), payee_vendor_id: f.payee_vendor_id || null,
   };
 }
 /** 送出前的欄位檢查（回白話說明；空字串＝可送出）。資料庫仍是最後一道防線。 */

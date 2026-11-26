@@ -5,12 +5,13 @@ import Modal from "../Modal.vue";
 import PoDispatchDialog from "./PoDispatchDialog.vue";
 import PoPaymentPanel from "./PoPaymentPanel.vue";
 import PoReceiptDialog from "./PoReceiptDialog.vue";
+import PrepayCreateDialog from "./PrepayCreateDialog.vue";
 import { useSession } from "../../stores";
 import { openGaPage } from "../../lib/ga";
 import { fmtTime } from "../../lib/ga-inventory-stock";
 import { FULFIL_TEXT, PO_STATUS_LABEL, dateText, eventText, money, newKey, num, visibleActions, type DispatchView, type PoDetail, type Receiving } from "../../lib/ga-purchase";
 import { receiptVoidBlock } from "../../../../lib/workspace/general-affairs/purchase-receipt-rules";
-import { PO_ACTION_LABEL, reasonRequired, type PoAction } from "../../../../lib/workspace/general-affairs/purchase-order-rules";
+import { ADJ_KIND_LABELS, PO_ACTION_LABEL, PRICE_MODE_LABELS, reasonRequired, type PoAction } from "../../../../lib/workspace/general-affairs/purchase-order-rules";
 
 // 採購單詳情與處理（清單頁與待簽核頁共用）：品項、金額、核准資訊、時間軸（每步操作人與時間，D11）、進貨紀錄、配發紀錄，
 // 以及送核准、撤回、核准、駁回（須原因）、撤回核准、下訂、取消、短收結案、結案、登錄到貨、配發。按鈕依伺服端算好的 abilities 顯示；缺權限會說清楚缺哪個。
@@ -36,7 +37,13 @@ const error = ref("");
 const notice = ref("");
 const busy = ref(false);
 const stale = ref(false);
-const panel = ref<"" | "action" | "receipt" | "dispatch" | "voidReceipt">("");
+const panel = ref<"" | "action" | "receipt" | "dispatch" | "voidReceipt" | "prepay">("");
+// ga-improve-b1：登錄憑證連結只給「還沒連發票、還沒被已付款請款（含預付核銷）使用」的進貨單，口徑與「發票與請款」分頁一致。
+const voucherOpen = (r: Receiving["receipts"][number]) => !!canPayManage.value && showPay.value && !r.voided_at && r.voucher_status !== "LINKED" && !r.has_paid_claim;
+// G1：已下訂（已下訂或部分到貨）且有請款管理權限者可新增預付請款。
+const canPrepay = computed(() => !!po.value && canPayManage.value && showPay.value && ["ORDERED", "PARTIALLY_RECEIVED"].includes(po.value.status));
+function onPrepayCreated(pr: { id: string }) { panel.value = ""; openGaPage("ga-payment-request-edit", pr.id); emit("changed"); emit("close"); }
+const signed = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "") + money(Math.abs(n));
 // 第 4.5 批 P6：作廢進貨（原因必填；沖回庫存、扣回驗入量、重算採購單狀態；已請款、已配發、連有效發票、已結案者由伺服端擋下並說明）。
 const voidTarget = ref<Receiving["receipts"][number] | null>(null);
 const voidReason = ref("");
@@ -150,6 +157,8 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
           <span v-if="po.vendor_current_status && po.vendor_current_status !== 'active'" class="muted" data-testid="pd-vendor-status" :title="'廠商目前狀態：' + po.vendor_current_status">{{ po.vendor_current_status === "paused" ? "（暫停）" : "（已停用）" }}</span></p>
         <dl class="pd-meta">
           <div><dt>含稅總額</dt><dd data-testid="pd-total">{{ money(po.total_amount) }}<small class="muted">（未稅 {{ money(po.subtotal) }}＋稅 {{ money(po.tax_amount) }}）</small></dd></div>
+          <div><dt>單價計價方式</dt><dd data-testid="pd-price-mode">{{ PRICE_MODE_LABELS[po.price_mode || "EXCL"] }}</dd></div>
+          <div v-if="po.buyer_company_name"><dt>買受人抬頭</dt><dd data-testid="pd-buyer">{{ po.buyer_company_name }}<small class="muted">（{{ po.buyer_company_tax_id }}）</small></dd></div>
           <div><dt>開單人</dt><dd>{{ po.created_by_name || "" }}　{{ fmtTime(po.created_at) }}</dd></div>
           <div><dt>預計到貨日</dt><dd>{{ dateText(po.expected_delivery_date) || "未填" }}</dd></div>
           <div><dt>收貨位置</dt><dd>{{ po.receiving_location_name || "未選" }}</dd></div>
@@ -186,6 +195,24 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
           </div>
         </section>
 
+        <section v-if="po.prepay || canPrepay" class="pd-prepay" data-testid="pd-prepay">
+          <h3>預付款</h3>
+          <template v-if="po.prepay">
+            <ul class="pd-stats" aria-label="預付摘要">
+              <li><span>已預付</span><strong data-testid="pd-prepaid">{{ money(po.prepay.prepaid) }}</strong></li>
+              <li><span>已核銷到進貨</span><strong data-testid="pd-prepay-offset">{{ money(po.prepay.offset) }}</strong></li>
+              <li><span>已退款或轉抵</span><strong data-testid="pd-prepay-refunded">{{ money(po.prepay.refunded) }}</strong></li>
+              <li><span>預付餘額</span><strong data-testid="pd-prepay-balance">{{ money(po.prepay.balance) }}</strong></li>
+            </ul>
+            <p v-if="po.prepay.overdue" class="notice error" role="alert" data-testid="pd-prepay-overdue">已預付 {{ money(po.prepay.balance) }}，超過預計到貨日 {{ po.prepay.overdue_days }} 天仍未到貨，請向廠商催貨或登記退款。</p>
+            <p v-if="po.prepay.unsettled" class="notice error" role="alert" data-testid="pd-prepay-unsettled">這張採購單已全部到貨，但預付款還有餘額 {{ money(po.prepay.balance) }} 沒有核銷，請向廠商要求退款，並在預付請款單登記退款或轉抵。</p>
+            <ul class="pd-list" data-testid="pd-prepay-requests">
+              <li v-for="q in po.prepay.requests" :key="q.id" data-testid="pd-prepay-req"><button type="button" class="link" @click="openGaPage('ga-payment-request-edit', q.id)">{{ q.pr_no }}</button>　{{ money(q.amount_total) }}　<span class="muted">{{ ({ DRAFT: "草稿", SUBMITTED: "已送出", PAID: "已付款" } as Record<string, string>)[q.status] || q.status }}，餘額 {{ money(q.balance) }}</span></li>
+            </ul>
+          </template>
+          <p v-else class="muted">還沒有預付款。下訂後可以先付訂金或貨款，不必等到貨。</p>
+          <div><button v-if="canPrepay" type="button" data-testid="act-prepay" @click="panel = 'prepay'">新增預付請款</button></div>
+        </section>
         <div v-if="showPay" class="pd-tabs" role="tablist" aria-label="採購單內容">
           <button type="button" role="tab" :aria-selected="tab === 'detail'" :class="{ on: tab === 'detail' }" data-testid="pd-tab-detail" @click="tab = 'detail'">明細與進貨</button>
           <button type="button" role="tab" :aria-selected="tab === 'pay'" :class="{ on: tab === 'pay' }" data-testid="pd-tab-pay" @click="tab = 'pay'">發票與請款</button>
@@ -194,22 +221,33 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         <div v-show="tab === 'detail'" class="pd-detail">
         <h3>品項</h3>
         <div class="table-scroll"><table data-testid="pd-items">
-          <thead><tr><th>#</th><th>品名</th><th>數量</th><th>單價（未稅）</th><th>小計</th><th>處理方式</th><th>已驗入</th><th>已配發</th></tr></thead>
+          <thead><tr><th>#</th><th>品名</th><th>數量</th><th>{{ po.price_mode === "INCL" ? "單價（含稅）" : "單價（未稅）" }}</th><th>小計</th><th>處理方式</th><th>已驗入</th><th>已配發</th></tr></thead>
           <tbody>
             <tr v-for="i in po.items" :key="i.id" data-testid="pd-item">
               <td>{{ i.line_no }}</td>
               <td>{{ i.item_name }}<small v-if="i.spec" class="muted"> {{ i.spec }}</small><small v-if="i.request_no" class="muted">　需求單 {{ i.request_no }}</small><small v-if="i.over_request_reason" class="muted">　超量原因：{{ i.over_request_reason }}</small></td>
-              <td>{{ num(i.quantity) }} {{ i.unit }}</td><td>{{ money(i.unit_price) }}</td><td>{{ money(i.line_amount) }}</td>
+              <td>{{ num(i.quantity) }} {{ i.unit }}</td><td>{{ po.price_mode === "INCL" && i.unit_price_gross != null ? money(i.unit_price_gross) : money(i.unit_price) }}<small v-if="po.price_mode === 'INCL'" class="muted" data-testid="pd-excl-price">　推算未稅 {{ money(i.unit_price) }}</small></td><td>{{ money(po.price_mode === "INCL" && i.line_gross != null ? i.line_gross : i.line_amount) }}</td>
               <td>{{ FULFIL_TEXT[i.fulfil_mode] }}<small v-if="i.target_store_name" class="muted">　送 {{ i.target_store_name }}</small></td>
               <td data-testid="pd-received">{{ num(i.received_qty) }}</td><td>{{ i.fulfil_mode === "STOCK" ? num(i.dispatched_qty) : "-" }}</td>
             </tr>
           </tbody>
         </table></div>
+        <template v-if="po.adjustments?.length">
+          <h3>調整列</h3>
+          <p v-if="['PARTIALLY_RECEIVED', 'RECEIVED'].includes(po.status) && po.adjustments.some((x) => !x.receipt_no)" class="notice" role="status" data-testid="pd-adj-unassigned">還有調整列沒有併入任何進貨單（要有一張進貨單的品項金額大於折扣金額才會承接）。若已全部到貨仍沒有併入，這筆折扣不會進到請款金額，請總務確認。</p>
+          <ul class="pd-list" data-testid="pd-adjustments">
+            <li v-for="a in po.adjustments" :key="a.id" data-testid="pd-adj">
+              <strong>{{ ADJ_KIND_LABELS[a.kind] }}</strong><span v-if="a.label && a.label !== ADJ_KIND_LABELS[a.kind]">　{{ a.label }}</span>　<span data-testid="pd-adj-amount">{{ signed(a.amount) }}</span>
+              <small v-if="a.original_price != null" class="muted">　原價 {{ money(a.original_price) }}</small><small v-if="a.campaign_name" class="muted">　活動：{{ a.campaign_name }}</small><small v-if="a.note" class="muted">　{{ a.note }}</small>
+              <small class="muted" data-testid="pd-adj-carry">　{{ a.receipt_no ? `已併入進貨單 ${a.receipt_no}` : "尚未併入進貨單（第一張有效進貨單會承接）" }}</small>
+            </li>
+          </ul>
+        </template>
 
         <h3>進貨紀錄</h3>
         <ul class="pd-list" data-testid="pd-receipts">
           <li v-for="r in receiving?.receipts || []" :key="r.id" data-testid="pd-receipt">
-            <strong :class="{ voided: r.voided_at }">{{ r.receipt_no }}</strong><span v-if="r.voided_at" class="st voided-tag" data-testid="receipt-voided">已作廢</span>　到貨日 {{ dateText(r.received_date) }}<span v-if="r.delivery_note_no">　送貨單 {{ r.delivery_note_no }}</span><button v-if="canPayManage && showPay && !r.voided_at" type="button" class="link" :data-testid="'reg-voucher-' + r.receipt_no" @click="registerVoucher(r.id)">登錄憑證</button><button v-if="voidable(r)" type="button" class="link" :data-testid="'void-receipt-' + r.receipt_no" @click="startVoid(r)">作廢進貨</button><span class="muted">　{{ r.created_by_name }} {{ fmtTime(r.created_at) }}</span>
+            <strong :class="{ voided: r.voided_at }">{{ r.receipt_no }}</strong><span v-if="r.voided_at" class="st voided-tag" data-testid="receipt-voided">已作廢</span>　到貨日 {{ dateText(r.received_date) }}<span v-if="r.delivery_note_no">　送貨單 {{ r.delivery_note_no }}</span><span v-if="showPay && r.amount_total != null" class="muted" data-testid="pd-receipt-total">　含稅 {{ money(r.amount_total) }}</span><span v-if="r.adjustments?.length" class="muted" data-testid="pd-receipt-adj">（含調整列：{{ r.adjustments.map((a) => `${a.label} ${signed(a.amount)}`).join("、") }}）</span><span v-if="Number(r.prepay_offset) > 0" class="muted" data-testid="pd-receipt-offset">（已由預付款核銷 {{ money(r.prepay_offset) }}）</span><button v-if="voucherOpen(r)" type="button" class="link" :data-testid="'reg-voucher-' + r.receipt_no" @click="registerVoucher(r.id)">登錄憑證</button><button v-if="voidable(r)" type="button" class="link" :data-testid="'void-receipt-' + r.receipt_no" @click="startVoid(r)">作廢進貨</button><span class="muted">　{{ r.created_by_name }} {{ fmtTime(r.created_at) }}</span>
             <p v-if="r.voided_at" class="muted" data-testid="receipt-void-reason">作廢原因：{{ r.void_reason }}（{{ fmtTime(r.voided_at) }}；已不計入累計驗入與請款額度）</p>
             <ul><li v-for="it in r.items" :key="it.id">{{ nameOf(it.po_item_id) || it.item_name }}：到貨 {{ num(it.delivered_qty) }}、驗入 {{ num(it.accepted_qty) }}<template v-if="Number(it.rejected_qty) > 0">、拒收 {{ num(it.rejected_qty) }}</template><template v-if="it.reason">（{{ it.reason }}）</template><template v-if="it.change_reason">　變更：{{ it.change_reason }}</template><template v-if="it.equipment?.length">　建立設備 {{ it.equipment.length }} 台</template></li></ul>
           </li>
@@ -245,6 +283,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         </div>
       </div>
     </Modal>
+    <PrepayCreateDialog v-if="panel === 'prepay' && po" :po-id="po.id" :po-no="po.po_no" :total="Number(po.total_amount)" :tax-rate="Number(po.tax_rate)" :buyer-company-id="po.buyer_company_id" :expected-delivery-date="po.expected_delivery_date" @close="panel = ''" @created="onPrepayCreated" />
     <PoDispatchDialog v-if="panel === 'dispatch' && po && receiving" :order="po" :receiving="receiving" @close="panel = ''" @done="onDispatch" />
   </Modal>
 </template>
@@ -270,6 +309,11 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
 .pd-tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; min-height: 36px; padding: 0 12px; }
 .pd-tabs button.on { border-bottom-color: var(--primary); font-weight: 700; }
 .pd-detail { display: grid; gap: 10px; min-width: 0; }
+.pd-prepay { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.pd-prepay h3 { margin: 0; }
+.pd-stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.pd-stats li { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; display: grid; gap: 2px; background: var(--surface); }
+.pd-stats span { font-size: 12px; color: var(--muted); }
 button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
 strong.voided { text-decoration: line-through; color: var(--muted); }
 .voided-tag { margin-left: 6px; background: #fbeaea; color: #9b1c1c; border-color: #e7b3b3; }

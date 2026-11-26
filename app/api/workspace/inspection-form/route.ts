@@ -11,6 +11,7 @@ import {
   type Context,
 } from "@/lib/workspace/server";
 import { scoreInspection } from "@/lib/workspace/inspection-scoring";
+import { planGpsExempt, canUseGpsExempt, type ExemptPlan } from "@/lib/workspace/inspection-gps-exempt";
 import { completedSignatureError } from "@/lib/workspace/inspection-signature";
 import {
   formatTaipeiDate,
@@ -164,7 +165,15 @@ export async function GET(request: Request) {
             .order("position"),
         ) || [];
     }
-    return respond({ ...data, record, stores, staff, roster });
+    return respond({
+      ...data,
+      record,
+      stores,
+      staff,
+      roster,
+      // 伺服器端算出：inspection.gps_exempt 或系統管理員；前端只用來決定要不要顯示按鈕，POST 仍會再檢查。
+      gpsExemptAllowed: canUseGpsExempt(ctx.has),
+    });
   } catch (e) {
     return failed(e);
   }
@@ -293,9 +302,19 @@ export async function POST(request: Request) {
     });
     let gps: any = {};
     let date = body.date;
+    // 定位例外只適用「新增」；編輯時忽略 body.gps_exempt，不可被改。
+    const exemptPlan: ExemptPlan = record
+      ? { exempt: false }
+      : planGpsExempt(body, ctx.has);
+    if ("error" in exemptPlan)
+      throw new WorkspaceError(exemptPlan.error.status, exemptPlan.error.message);
     if (record) {
       // 編輯：保留第一次的定位與巡店日期，忽略 body.gps 與 body.date。
       date = record.inspection_date;
+    } else if (exemptPlan.exempt) {
+      // 定位例外：已在上方確認資格；定到什麼存什麼，不驗 1000 公尺與時間窗；日期用伺服器端台北今天。
+      gps = { ...exemptPlan.gps, gps_exempt: true };
+      date = exemptPlan.date;
     } else {
       const g = body.gps;
       const fix = g && typeof g === "object" ? g : null;

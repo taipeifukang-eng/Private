@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>店長新版上線說明</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1d2420;--mut:#4a544e;--card:#fff;--line:#d9ded8;--acc:#1f6f4a;--accbg:#e4f2ea;--warn:#fff4dc;--warnfg:#5a3d00}
+@media(prefers-color-scheme:dark){:root{--bg:#151a17;--fg:#eaf0ec;--mut:#b4bfb8;--card:#1f2622;--line:#34403a;--acc:#7fd1a4;--accbg:#22362b;--warn:#3a3018;--warnfg:#f3deaa}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.8 system-ui,-apple-system,"Noto Sans TC","Microsoft JhengHei",sans-serif;overflow-wrap:anywhere}
+main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.75rem;line-height:1.35;margin:8px 0 12px}
+h2{font-size:1.35rem;margin:36px 0 12px;padding-left:10px;border-left:5px solid var(--acc)}
+h3{font-size:1.15rem;margin:0 0 12px;display:flex;gap:10px;align-items:center}
+.n{flex:none;width:2rem;height:2rem;border-radius:50%;background:var(--acc);color:var(--bg);display:inline-flex;align-items:center;justify-content:center;font-size:1rem}
+p{margin:0 0 12px}
+.lead{font-size:1.1rem}
+.tag{display:inline-block;background:var(--accbg);color:var(--acc);border-radius:999px;padding:2px 14px;font-weight:700}
+.card,.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 18px}
+.card img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;margin:0 0 12px}
+.diff{background:var(--accbg);border-radius:8px;padding:10px 12px;margin:0}
+.warn{background:var(--warn);color:var(--warnfg);border-radius:10px;padding:12px 14px}
+ol,ul{padding-left:1.3rem;margin:0 0 12px} li{margin-bottom:8px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:0 0 12px}
+summary{font-weight:700;cursor:pointer}
+details p{margin:10px 0 0}
+footer{margin-top:32px;color:var(--mut);font-size:1rem}
+</style></head><body><main>
+<h1>店長新版上線說明</h1>
+<p><span class="tag">上線日：2026 年 12 月 8 日（星期一）</span></p>
+<p><b>更新提醒：</b>12 月 7 日（日）晚上系統會進行更新，請在當天營業結束前存好資料。</p>
+<p class="lead">為了讓大家在同一個地方就能找到所有功能，也能同時開好幾頁來回切換，我們把系統換成新版。常用的功能都還在，只是入口和幾個小地方不一樣。</p>
+
+<h2>新版怎麼進去</h2>
+<div class="box"><ol>
+<li>用平常的方式登入，登入後會先看到「歡迎回來」總覽。</li>
+<li>按左上角的「選單」按鈕，所有功能都在裡面。</li>
+<li>點選單裡的功能，就會在新版的分頁打開。可以一次開好幾頁，點上方頁籤就能來回切換。</li>
+</ol></div>
+
+<h2>你最常用的頁面</h2>
+<section class="card"><h3><span class="n">1</span>登入後首頁</h3>
+<img src="shots/store-manager-home.png" alt="登入後的首頁畫面" loading="lazy">
+<p>登入後先看到「歡迎回來」總覽，上面有每月版更內容、我的獎金、我的任務和常用功能捷徑。所有功能都從左上角「選單」按鈕展開。</p><p class="diff"><strong>跟舊版不同：</strong>舊版是直接從各功能入口進去；新版統一從「選單」找功能。</p></section>
+<section class="card"><h3><span class="n">2</span>我的任務</h3>
+<img src="shots/store-manager-my-tasks.png" alt="我的任務頁面" loading="lazy">
+<p>從選單的「派發任務」打開，會在新版的分頁裡開啟。你可以同時開著好幾頁，來回切換不用重開。</p><p class="diff"><strong>跟舊版不同：</strong>每一頁右上角都多了「回舊版」。</p></section>
+<section class="card"><h3><span class="n">3</span>儀表板</h3>
+<img src="shots/store-manager-dashboard.png" alt="儀表板頁面" loading="lazy">
+<p>同樣放在選單的「派發任務」底下，可以一眼看到目前任務的狀況。</p><p class="diff"><strong>跟舊版不同：</strong>內容每 60 秒自動更新，也可以按右上角「重新整理」馬上更新。</p></section>
+<section class="card"><h3><span class="n">4</span>年度行事曆</h3>
+<img src="shots/store-manager-calendar.png" alt="年度行事曆頁面" loading="lazy">
+<p>放在選單的「組織與門市」，所有同仁都能查看公司行事與政府假日。</p><p class="diff"><strong>跟舊版不同：</strong>上方可切換「月檢視」與「全年清單」兩種看法。</p></section>
+<section class="card"><h3><span class="n">5</span>盤點管理</h3>
+<img src="shots/store-manager-inventory.png" alt="盤點管理頁面" loading="lazy">
+<p>改在新版分頁內打開，可以查看盤點結果。</p><p class="diff"><strong>跟舊版不同：</strong>匯入、刪除盤點結果的權限已經分開，店長只能查看，盤點結果頁面上不會出現匯入、刪除盤點結果的按鈕。下載檔名的日期改成「2026-11-21」這種橫線寫法。</p></section>
+<section class="card"><h3><span class="n">6</span>診所自費藥毛利計算</h3>
+<img src="shots/store-manager-clinic-selfpay.png" alt="診所自費藥毛利計算頁面" loading="lazy">
+<p>截圖可以先用螢幕截圖，再直接按 Ctrl+V 貼上，不必先存成檔案。</p><p class="diff"><strong>跟舊版不同：</strong>一次最多貼 10 張，上傳前會自動縮小。檔案月份和你選的月份不同、或同一診所同一個月重複匯入時，會先跳出確認視窗。選單只有真的能用的人才看得到這一項。</p></section>
+<section class="card"><h3><span class="n">7</span>關係會員</h3>
+<img src="shots/store-manager-relationships.png" alt="關係會員頁面" loading="lazy">
+<p>多了搜尋功能，可以用姓名、電話、會員編號、申請人來找，結果會分頁顯示。</p><p class="diff"><strong>跟舊版不同：</strong>每頁 50 筆。姓名與電話改回兩個欄位，順序跟舊版一樣。重複匯入同一份銷售明細時會自動略過。畫面上的姓名電話是測試用的假資料。</p></section>
+<section class="card"><h3><span class="n">8</span>每月人員狀態</h3>
+<img src="shots/store-manager-monthly.png" alt="每月人員狀態頁面" loading="lazy">
+<p>放在選單的「每月人員狀態」，上方各門市以頁籤切換。</p><p class="diff"><strong>跟舊版不同：</strong>可以直接看到已確認、已提交、待填寫各有幾家。</p></section>
+<section class="card"><h3><span class="n">9</span>待改善追蹤</h3>
+<img src="shots/store-manager-improvements.png" alt="待改善追蹤頁面" loading="lazy">
+<p>放在選單的「督導巡店」底下，可以依門市與狀態篩選。</p><p class="diff"><strong>跟舊版不同：</strong>逾期了仍然可以補報，不會被鎖住。</p></section>
+<section class="card"><h3><span class="n">10</span>總務服務中心首頁</h3>
+<img src="shots/store-manager-ga-center.png" alt="總務服務中心首頁畫面" loading="lazy">
+<p>首頁左邊多了完整的功能清單，工單中心、設備清冊、庫存位置等新版頁面都能直接點進去。</p><p class="diff"><strong>跟舊版不同：</strong>選單上的數字徽章可以單獨點，點了只看待辦。還沒搬到新版的功能，保留「開啟舊版服務中心首頁」連結。</p></section>
+
+<h2>遇到問題怎麼辦</h2>
+<section class="card"><h3>隨時可以回舊版</h3>
+<img src="shots/store-manager-back-to-legacy.png" alt="頁籤列最右邊的「回舊版」按鈕特寫" loading="lazy">
+<p>每個頁籤列的最右邊都有一個小小的「回舊版」。點下去會在另一個瀏覽器分頁打開舊版的同一個功能，你目前的新版畫面和還沒存的內容都還在，不會不見。</p>
+<p class="diff"><strong>小提醒：</strong>如果你在明細頁按「回舊版」，會回到舊版的清單頁。</p></section>
+<div class="warn"><p><strong>看到「此頁已由系統管理員暫時切回舊版」的通知？</strong>請直接點通知裡的連結，就會帶你到舊版繼續做事。</p>
+<p style="margin:0">其他問題，請聯絡總部系統管理員。</p></div>
+
+<h2>常見問題</h2>
+<details><summary>我找不到以前的功能在哪裡？</summary><p>先按左上角「選單」，功能都在裡面。例如任務和儀表板在「派發任務」，行事曆在「組織與門市」，待改善追蹤在「督導巡店」。</p></details>
+<details><summary>我開了好幾頁，會不會搞混？</summary><p>不會。每一頁都是一個獨立的頁籤，點上方頁籤就能切換，已經打開的內容不用重做。</p></details>
+<details><summary>按「回舊版」之後，新版這邊填的東西會不見嗎？</summary><p>不會。舊版會在另一個瀏覽器分頁打開，新版畫面和沒存的內容都還留著。</p></details>
+<details><summary>盤點管理為什麼沒有匯入和刪除按鈕？</summary><p>新版把「查看」和「匯入、刪除」的權限分開了，店長只能查看，所以盤點結果頁面不會出現匯入、刪除盤點結果的按鈕。需要匯入或刪除時，請聯絡總部系統管理員。</p></details>
+<details><summary>選單裡沒看到某個功能？</summary><p>選單只會顯示你真的能用的功能，例如診所自費藥毛利計算。如果你覺得應該要有，請聯絡總部系統管理員。</p></details>
+
+<footer>上線日：2026 年 12 月 8 日（星期一）。有任何問題，請聯絡總部系統管理員。</footer>
+</main></body></html>

@@ -20,11 +20,17 @@ import {
   Sun,
   Moon,
   ExternalLink,
+  WalletCards,
 } from "lucide-vue-next";
 import { api, ApiError } from "./api";
+import { fallbackFor, legacyUrl, legacyUrlForKind } from "./legacy-link";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
+import { WORKSPACE_NAV_KINDS } from "../../lib/workspace/page-kinds";
 import { parsePrefill } from "../../lib/workspace/general-affairs/inventory-transfer-rules";
+import SiteNotice from "./components/SiteNotice.vue";
+import { SITE_NOTICE_EVENT, sessionNotOpen, showAdminOnlyBanner, type SiteNoticeKind } from "./site-state";
 import Modal from "./components/Modal.vue";
+import MyReimbursementsDialog from "./components/ga/MyReimbursementsDialog.vue";
 import HomeView from "./components/HomeView.vue";
 import LoginForm from "./components/LoginForm.vue";
 import PendingActivation from "./components/PendingActivation.vue";
@@ -38,6 +44,12 @@ const session = useSession(),
   work = useWorkspace(),
   router = useRouter(),
   route = useRoute();
+const siteNotice = ref<SiteNoticeKind | null>(null);
+function onSiteNotice(e: Event) {
+  siteNotice.value = (e as CustomEvent<SiteNoticeKind>).detail;
+}
+const notOpen = computed(() => siteNotice.value ?? (sessionNotOpen(session.data) ? "not-open" : null));
+const adminOnlyBanner = computed(() => showAdminOnlyBanner(session.data?.siteState, session.data?.isAdmin));
 const booting = ref(true),
   bootError = ref(""),
   pendingBusy = ref(false),
@@ -55,8 +67,11 @@ const closeTabs = computed(() =>
 const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
+// ga-improve-b1 G4：任何登入者都能開「我的代墊款」（匯款帳戶與同仁代墊的請款單），不要求總務權限。
+const showReimbursements = ref(false);
 // M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
-const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers", "ga-report-create", "ga-part-fulfillments"];
+const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers", "ga-report-create", "ga-part-fulfillments", ...WORKSPACE_NAV_KINDS];
+// WP5：舊版選單直接連到新版頁面（/workspace/index.html#/open/<kind>）。導覽 kind 全部接受；未知 kind 在 capturePendingOpen 被忽略（停在首頁）。open() 仍會套用逐頁回舊版的攔截。
 const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string }; date?: string; prefill?: Record<string, string>; assetToken?: string; fulfillmentId?: string } | null>(null);
 function capturePendingOpen() {
   if (!route.meta.open) return;
@@ -110,6 +125,7 @@ async function toggleNavigation() {
   if (menuOpen.value) { closeNavigation(); return; }
   navigationSearch.value = '';
   menuOpen.value = true;
+  void refreshSession(); // M9 N2：開選單時重新讀取 session，備援開關的變更不必等 60 秒輪詢
   await nextTick();
   menuPanel.value?.querySelector<HTMLInputElement>('input')?.focus();
 }
@@ -134,7 +150,13 @@ const navigation = computed(() =>
     .filter((group) => group.items.length),
 );
 function legacyHref(href: string) {
-  return session.data?.integrated ? href : "http://localhost:3002" + href;
+  return legacyUrl(session.data?.integrated, href);
+}
+// M9 C2：目前頁籤的「回舊版」連結（沒有舊版對應的頁面為 null，不顯示）。
+const currentLegacy = computed(() => (current.value ? legacyUrlForKind(current.value.kind, session.data?.integrated) : null));
+// M9 N2：已開啟的頁籤若其頁面被切回舊版，顯示通知與舊版連結。
+function tabFallback(tab: WorkTab) {
+  return fallbackFor(tab.kind, session.data?.pageFallbacks, session.data?.integrated);
 }
 let timer: ReturnType<typeof setInterval>;
 async function boot() {
@@ -317,6 +339,7 @@ async function init() {
   } catch {}
   window.addEventListener("beforeunload", beforeUnload);
   window.addEventListener("workspace-session-expired", expire);
+  window.addEventListener(SITE_NOTICE_EVENT, onSiteNotice);
   window.addEventListener("focus", refreshSession);
   timer = setInterval(refreshSession, 60000);
   capturePendingOpen();
@@ -346,6 +369,7 @@ onBeforeUnmount(() => {
   clearInterval(timer);
   window.removeEventListener("beforeunload", beforeUnload);
   window.removeEventListener("workspace-session-expired", expire);
+  window.removeEventListener(SITE_NOTICE_EVENT, onSiteNotice);
   window.removeEventListener("focus", refreshSession);
 });
 </script>
@@ -356,6 +380,7 @@ onBeforeUnmount(() => {
     :params="route.params"
   />
   <div v-else-if="booting" class="boot" role="status">正在開啟菁英作業台…</div>
+  <SiteNotice v-else-if="notOpen" :kind="notOpen" :integrated="session.data?.integrated" :name="session.data?.user.name" />
   <LoginForm v-else-if="!session.data" :boot-error="bootError" @success="loggedIn" @retry="boot" />
   <PendingActivation
     v-else-if="session.data.pendingActivation"
@@ -377,7 +402,7 @@ onBeforeUnmount(() => {
           router.push('/');
         "
         ><b>FK</b><span>菁英作業台</span></a
-      ><span class="environment">測試區</span>
+      ><span v-if="session.data.environment === 'DEV'" class="environment">測試區</span>
       <div class="topbar-spacer" />
       <label class="context-picker"
         ><span>新頁預設門市</span
@@ -393,6 +418,14 @@ onBeforeUnmount(() => {
         @click="toggleTheme"
       >
         <Sun v-if="dark" :size="18" /><Moon v-else :size="18" /></button
+      ><button
+        class="icon-button"
+        aria-label="我的代墊款"
+        title="我的代墊款"
+        data-testid="open-my-reimbursements"
+        @click="showReimbursements = true"
+      >
+        <WalletCards :size="18" /></button
       ><span class="user-name">{{ session.data.user.name }}</span
       ><button
         class="icon-button"
@@ -415,7 +448,7 @@ onBeforeUnmount(() => {
           <h2>{{ group.label }}</h2>
           <ul><li v-for="item in group.items" :key="item.href">
             <button v-if="item.kind" class="catalog-item" :class="{selected: current?.kind === item.kind || (item.kind === 'campaigns' && current?.kind === 'campaign-edit')}" :aria-current="current?.kind === item.kind ? 'page' : undefined" :disabled="session.expired" :title="item.label" @click="open(item.kind)"><span>{{item.label}}</span></button>
-            <a v-else class="catalog-item" :href="legacyHref(item.href)" target="_blank" rel="noopener" :title="item.label + '（原測試頁，另開分頁）'" @click="closeNavigation()"><span>{{item.label}}</span><ExternalLink :size="13" /><span class="sr-only">（原測試頁，另開分頁）</span></a>
+            <a v-else class="catalog-item" :href="legacyHref(item.href)" target="_blank" rel="noopener" :title="item.label + (item.fallback ? '（暫時使用舊版，另開分頁）' : '（原測試頁，另開分頁）')" :data-fallback="item.fallback ? 'true' : undefined" @click="closeNavigation()"><span>{{item.label}}</span><ExternalLink :size="13" /><span class="sr-only">{{ item.fallback ? '（暫時使用舊版，另開分頁）' : '（原測試頁，另開分頁）' }}</span></a>
           </li></ul>
         </section>
       </div>
@@ -458,6 +491,16 @@ onBeforeUnmount(() => {
             >尚未開啟工作頁</span
           >
         </div>
+        <a
+          v-if="currentLegacy"
+          class="legacy-link"
+          data-testid="back-to-legacy"
+          :href="currentLegacy"
+          target="_blank"
+          rel="noopener"
+          title="在新分頁開啟這一頁的舊版（目前的新版頁籤與未存內容會保留）"
+          ><span>回舊版</span><ExternalLink :size="12" /><span class="sr-only">（另開分頁）</span></a
+        >
         <details v-if="work.tabs.length" class="tab-tools">
           <summary aria-label="頁籤管理"><PanelLeftClose :size="18" /></summary>
           <div>
@@ -492,6 +535,11 @@ onBeforeUnmount(() => {
           離開並重新登入
         </button>
       </div>
+      <div v-if="adminOnlyBanner" class="session-notice" role="status" data-testid="admin-only-banner">目前僅管理員可用，其他同仁尚未開放。</div>
+      <div v-if="work.fallbackNotice" class="session-notice fallback-banner" role="status" data-testid="fallback-open-notice">
+        「{{ work.fallbackNotice.title }}」目前由系統管理員暫時切回舊版<template v-if="work.fallbackNotice.reason">（{{ work.fallbackNotice.reason }}）</template>，請改用舊版。<a :href="work.fallbackNotice.href" target="_blank" rel="noopener" @click="work.fallbackNotice = null">開啟舊版 <ExternalLink :size="12" /></a
+        ><button @click="work.fallbackNotice = null">知道了</button>
+      </div>
       <main v-if="!current" class="welcome">
         <HomeView />
       </main>
@@ -507,11 +555,16 @@ onBeforeUnmount(() => {
         <div v-if="!allowed(tab)" class="notice error" role="alert">
           {{ deniedMessage(tab) }}
         </div>
-        <div v-show="allowed(tab)">
+        <div v-if="tabFallback(tab)" class="notice" role="status" data-testid="tab-fallback-notice">
+          此頁已由系統管理員暫時切回舊版<template v-if="tabFallback(tab)?.reason">（{{ tabFallback(tab)?.reason }}）</template>，請改用舊版。<a v-if="tabFallback(tab)?.href" :href="tabFallback(tab)?.href || undefined" target="_blank" rel="noopener">開啟舊版 <ExternalLink :size="12" /></a>
+          <span v-if="tab.dirty">　這個頁籤有尚未儲存的內容，已為你保留，儲存或關閉後請改用舊版。</span>
+        </div>
+        <div v-show="allowed(tab) && (!tabFallback(tab) || tab.dirty)">
           <component :is="WORKSPACE_PAGES[tab.kind].component" :tab="tab" />
         </div>
       </section>
     </section>
+    <MyReimbursementsDialog v-if="showReimbursements" @close="showReimbursements = false" />
     <Modal
       v-if="closing"
       :title="logoutPending ? '離開工作台前確認' : '關閉工作頁前確認'"

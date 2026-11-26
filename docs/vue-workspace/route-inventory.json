@@ -2,18 +2,19 @@
   {
     "legacyRoute": "/activity-management",
     "source": "app/activity-management/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/types/workflow"
     ],
     "apis": [
       "/api/campaigns/published"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/activity-view/[id]",
     "source": "app/activity-view/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/CampaignStoreDetailModal",
       "@/components/ChecklistOverviewModal",
@@ -31,35 +32,38 @@
       "/api/campaigns/",
       "/api/event-dates",
       "/api/stores-with-supervisors"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/activity-management/events",
     "source": "app/admin/activity-management/events/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/types/workflow"
     ],
     "apis": [
       "/api/event-dates"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/activity-management",
     "source": "app/admin/activity-management/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/lib/supabase/client",
       "@/types/workflow"
     ],
     "apis": [
       "/api/campaigns"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/activity-management/schedule/[id]",
     "source": "app/admin/activity-management/schedule/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/CampaignDetailPreviewTable",
       "@/components/CampaignStoreDetailModal",
@@ -79,96 +83,105 @@
       "/api/event-dates",
       "/api/store-activity-settings",
       "/api/stores-with-supervisors"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/activity-management/settings",
     "source": "app/admin/activity-management/settings/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/types/workflow"
     ],
     "apis": [
       "/api/store-activity-settings",
       "/api/supervisors/stores"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/archived",
     "source": "app/admin/archived/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/components/admin/ArchivedTasksList",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/assign/[id]",
     "source": "app/admin/assign/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/components/admin/AssignTemplateForm"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/create",
     "source": "app/admin/create/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/admin/WorkflowBuilderV2"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/departments",
     "source": "app/admin/departments/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/admin/OrganizationManagementClient",
       "@/lib/admin/organization-management",
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/edit/[id]",
     "source": "app/admin/edit/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/components/admin/WorkflowBuilderV2"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/employee-management",
     "source": "app/admin/employee-management/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/employee-purchases",
     "source": "app/admin/employee-purchases/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/employee-purchases",
       "/api/employee-purchases/employee-details",
       "/api/employee-purchases/import"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/export-monthly-status",
     "source": "app/admin/export-monthly-status/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/export-monthly-status/actual-staff-points",
@@ -181,21 +194,23 @@
       "/api/export-monthly-status/support-hours",
       "/api/export-monthly-status/talent-cultivation-bonus",
       "/api/export-monthly-status/transport"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/import-employees",
     "source": "app/admin/import-employees/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/import-employees"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/inspection-templates",
     "source": "app/admin/inspection-templates/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/client"
     ],
@@ -204,24 +219,26 @@
       "/api/inspection-templates",
       "/api/inspection-templates/",
       "/api/permissions/check"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/organization",
     "source": "app/admin/organization/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/admin/OrganizationManagementClient",
       "@/lib/admin/organization-management",
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/performance",
     "source": "app/admin/performance/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/components/performance/PrescriptionTab",
       "@/lib/performance/bonus-calc",
@@ -237,22 +254,24 @@
       "/api/performance-thresholds",
       "/api/permissions/check",
       "/api/stores-with-supervisors"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/pharmacist-management",
     "source": "app/admin/pharmacist-management/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/promotion-management",
     "source": "app/admin/promotion-management/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/monthly-staff/promotion-level",
       "@/lib/supabase/client",
@@ -263,164 +282,179 @@
       "/api/employee-movements/batch",
       "/api/store-transfer-requests",
       "/api/store-transfer-requests/"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/roles/[id]",
     "source": "app/admin/roles/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/permissions/check",
       "@/lib/permissions/rbac-management",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/roles",
     "source": "app/admin/roles/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/permissions/check",
       "@/lib/permissions/rbac-management",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/store-managers",
     "source": "app/admin/store-managers/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/store-managers/assign",
       "/api/store-managers/assignments",
       "/api/store-managers/stores",
       "/api/store-managers/users"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/[id]/clone",
     "source": "app/admin/stores/[id]/clone/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/store/actions",
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/[id]/edit",
     "source": "app/admin/stores/[id]/edit/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/store/actions",
       "@/components/admin/StoreGpsFields"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/[id]/employee-management",
     "source": "app/admin/stores/[id]/employee-management/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/monthly-staff/promotion-level",
       "@/lib/supabase/client",
       "@/types/workflow"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/[id]/employees",
     "source": "app/admin/stores/[id]/employees/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/[id]/promotion-management",
     "source": "app/admin/stores/[id]/promotion-management/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/client",
       "@/types/workflow"
     ],
     "apis": [
       "/api/promotions/batch"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/create",
     "source": "app/admin/stores/create/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/store/actions",
       "@/components/admin/StoreGpsFields"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores/map",
     "source": "app/admin/stores/map/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/admin/StoreGoogleMapClient",
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/stores",
     "source": "app/admin/stores/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/supervisors",
     "source": "app/admin/supervisors/page.tsx",
-    "status": "已原生化；P02 已完成對等驗收（2026-11）",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/supervisors/assign",
       "/api/supervisors/assignments",
       "/api/supervisors/stores",
       "/api/supervisors/users"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/template/[id]",
     "source": "app/admin/template/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/app/auth/actions",
       "@/components/admin/DeleteAssignmentButton",
       "@/types/workflow"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/templates",
     "source": "app/admin/templates/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/components/admin/TemplateCardWithStats",
       "@/types/workflow"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/admin/users",
     "source": "app/admin/users/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/auth/actions",
       "@/components/admin/UserManagementTable",
@@ -428,24 +462,26 @@
       "@/lib/permissions/rbac-management",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/assignment/[id]",
     "source": "app/assignment/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/app/auth/actions",
       "@/components/user/ChecklistRunner",
       "@/types/workflow"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/cross-dept/maintenance",
     "source": "app/cross-dept/maintenance/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/maintenance/status",
       "@/lib/supabase/client"
@@ -458,12 +494,13 @@
       "/api/maintenance-update-photos",
       "/api/maintenance-updates",
       "/api/permissions/check"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/cross-dept/merchandise",
     "source": "app/cross-dept/merchandise/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/client"
     ],
@@ -473,12 +510,13 @@
       "/api/products-master",
       "/api/stockout-reports",
       "/api/stockout-responses"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/cross-dept/products-master",
     "source": "app/cross-dept/products-master/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/products-master/AcquisitionProductsTab",
       "@/components/products-master/StandardProductsMasterTab",
@@ -486,12 +524,13 @@
     ],
     "apis": [
       "/api/permissions/check"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/dashboard",
     "source": "app/dashboard/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/types/workflow"
@@ -499,362 +538,401 @@
     "apis": [
       "/api/user/managed-stores",
       "/api/user/profile"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/forgot-password",
     "source": "app/forgot-password/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/auth/actions"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/assets/scan/[token]",
     "source": "app/general-affairs/assets/scan/[token]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/GeneralAffairsPageHeader",
       "@/lib/supabase/server"
     ],
     "apis": [
       "/api/general-affairs/assets/scan/"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment/categories",
     "source": "app/general-affairs/equipment/categories/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/assets/AssetCategoryManagementClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment/labels",
     "source": "app/general-affairs/equipment/labels/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/equipment/EquipmentQrLabelsClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment/maintenance-history",
     "source": "app/general-affairs/equipment/maintenance-history/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/assets/AssetMaintenanceHistoryClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment/new",
     "source": "app/general-affairs/equipment/new/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/equipment/EquipmentCreatePageClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment",
     "source": "app/general-affairs/equipment/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/equipment/EquipmentManagementClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment/templates",
     "source": "app/general-affairs/equipment/templates/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/equipment/EquipmentTemplatesClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/equipment/warranties",
     "source": "app/general-affairs/equipment/warranties/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/equipment/EquipmentWarrantyClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/facilities/categories",
     "source": "app/general-affairs/facilities/categories/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/assets/AssetCategoryManagementClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/facilities/maintenance-history",
     "source": "app/general-affairs/facilities/maintenance-history/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/assets/AssetMaintenanceHistoryClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/facilities/new",
     "source": "app/general-affairs/facilities/new/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/facilities/FacilityCreatePageClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/facilities",
     "source": "app/general-affairs/facilities/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/facilities/FacilitiesClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/facilities/templates",
     "source": "app/general-affairs/facilities/templates/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/facilities/FacilityTemplatesClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/facilities/warranties",
     "source": "app/general-affairs/facilities/warranties/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/facilities/FacilityWarrantyClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/inventory/locations",
     "source": "app/general-affairs/inventory/locations/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/inventory/InventoryLocationsClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/inventory",
     "source": "app/general-affairs/inventory/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/inventory/InventoryTransactionsClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/inventory/transfers",
     "source": "app/general-affairs/inventory/transfers/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/inventory/InventoryTransfersClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs",
     "source": "app/general-affairs/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/dashboard/GeneralAffairsHomeClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/part-fulfillments",
     "source": "app/general-affairs/part-fulfillments/page.tsx",
-    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/parts/PartFulfillmentCenterClient"
     ],
     "apis": [],
-    "vue": "PartFulfillments.vue（G17）"
+    "vue": "PartFulfillments.vue（G17）",
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/part-requests/new",
     "source": "app/general-affairs/part-requests/new/page.tsx",
-    "status": "待逐項盤點",
+    "status": "exclude：已併入新版「回報與需求單」流程（G24 登錄，M7/M8 規格）；F01 不列入回歸",
     "imports": [],
-    "apis": []
+    "apis": [],
+    "f01": "excluded"
   },
   {
     "legacyRoute": "/general-affairs/part-requests",
     "source": "app/general-affairs/part-requests/page.tsx",
-    "status": "待逐項盤點",
+    "status": "exclude：已併入新版「回報與需求單」流程（G24 登錄，M7/M8 規格）；F01 不列入回歸",
     "imports": [],
-    "apis": []
+    "apis": [],
+    "f01": "excluded"
   },
   {
     "legacyRoute": "/general-affairs/parts/categories",
     "source": "app/general-affairs/parts/categories/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/assets/AssetCategoryManagementClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/parts/compatibilities",
     "source": "app/general-affairs/parts/compatibilities/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/parts/PartCompatibilityManagementClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/parts/new",
     "source": "app/general-affairs/parts/new/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/parts/PartCreatePageClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/parts",
     "source": "app/general-affairs/parts/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/parts/PartsClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/reports/mine",
     "source": "app/general-affairs/reports/mine/page.tsx",
-    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/requests/ServiceRequestMyReportsClient"
     ],
     "apis": [],
-    "vue": "MyReports.vue（G15）"
+    "vue": "MyReports.vue（G15）",
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/reports/new",
     "source": "app/general-affairs/reports/new/page.tsx",
-    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/requests/ServiceRequestCreateClient"
     ],
     "apis": [],
-    "vue": "ReportCreate.vue（G14）"
+    "vue": "ReportCreate.vue（G14）",
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/requests",
     "source": "app/general-affairs/requests/page.tsx",
-    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/requests/ServiceRequestIntakeClient"
     ],
     "apis": [],
-    "vue": "Requests.vue（G16）"
+    "vue": "Requests.vue（G16）",
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/utility-bills",
     "source": "app/general-affairs/utility-bills/page.tsx",
-    "status": "已原生化；M7/M8 第 6 批 G23（2026-11-17，差異已登記 allowlist m7m8-b6-ub-*，待確認項見 m7m8-batch6-design.md 11.2）",
+    "status": "已原生化；M7/M8 第 6 批 G23（2026-11-17，差異已登記 allowlist m7m8-b6-ub-*，待確認項見 m7m8-batch6-design.md 11.2）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/expenses/UtilityBillsClient"
     ],
     "apis": [],
-    "vue": "UtilityBills.vue（G23）"
+    "vue": "UtilityBills.vue（G23）",
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/utility-bills/report",
     "source": "app/general-affairs/utility-bills/report/page.tsx",
-    "status": "已原生化；M7/M8 第 6 批 G23（2026-11-17，差異已登記 allowlist m7m8-b6-ub-*，待確認項見 m7m8-batch6-design.md 11.2）",
+    "status": "已原生化；M7/M8 第 6 批 G23（2026-11-17，差異已登記 allowlist m7m8-b6-ub-*，待確認項見 m7m8-batch6-design.md 11.2）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/expenses/UtilityBillsReportClient"
     ],
     "apis": [],
-    "vue": "UtilityBillsReport.vue（G23）"
+    "vue": "UtilityBillsReport.vue（G23）",
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/vendors/categories",
     "source": "app/general-affairs/vendors/categories/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/vendors",
     "source": "app/general-affairs/vendors/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/vendors/purchases",
     "source": "app/general-affairs/vendors/purchases/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/vendors/regions",
     "source": "app/general-affairs/vendors/regions/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/vendors/stats",
     "source": "app/general-affairs/vendors/stats/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/general-affairs/work-orders",
     "source": "app/general-affairs/work-orders/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/[id]/edit",
     "source": "app/inspection/[id]/edit/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/PrintInspectionReport",
       "@/components/SignaturePad",
       "@/lib/inspection/date",
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/[id]",
     "source": "app/inspection/[id]/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/components/DeleteInspectionButton",
       "@/components/InspectionPhotoViewer",
@@ -862,128 +940,141 @@
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/compare",
     "source": "app/inspection/compare/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/debug",
     "source": "app/inspection/debug/page.tsx",
-    "status": "待逐項盤點",
+    "status": "exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸",
     "imports": [
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "excluded"
   },
   {
     "legacyRoute": "/inspection/diagnostic",
     "source": "app/inspection/diagnostic/page.tsx",
-    "status": "待逐項盤點",
+    "status": "exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸",
     "imports": [
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "excluded"
   },
   {
     "legacyRoute": "/inspection/improvements/[id]",
     "source": "app/inspection/improvements/[id]/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/improvements",
     "source": "app/inspection/improvements/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/inspection/improvements"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/new",
     "source": "app/inspection/new/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；巡店定位例外已補做（2026-11-26，見 verification.md「巡店定位例外補做」）",
     "imports": [
       "@/components/SignaturePad",
       "@/lib/inspection/date",
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection",
     "source": "app/inspection/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/components/InspectionExportControls",
       "@/components/InspectionOverview",
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/inspection/test-debug",
     "source": "app/inspection/test-debug/page.tsx",
-    "status": "待逐項盤點",
+    "status": "exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸",
     "imports": [
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "excluded"
   },
   {
     "legacyRoute": "/inventory",
     "source": "app/inventory/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/lib/permissions/hooks"
     ],
     "apis": [
       "/api/inventory/result-analysis"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/login",
     "source": "app/login/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/auth/actions",
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/monthly-release",
     "source": "app/monthly-release/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/monthly-status/edit/[id]",
     "source": "app/monthly-status/edit/[id]/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/app/store/actions",
       "@/lib/supabase/client",
       "@/types/workflow"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/monthly-status",
     "source": "app/monthly-status/page.tsx",
-    "status": "部分原生化；未完成對等驗收",
+    "status": "部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上",
     "imports": [
       "@/app/store/actions",
       "@/components/ImportPerformanceModal",
@@ -1007,34 +1098,37 @@
       "/api/performance-data",
       "/api/performance-thresholds",
       "/api/staff-performance-details"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/my-tasks",
     "source": "app/my-tasks/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/app/auth/actions"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/organization/calendar",
     "source": "app/organization/calendar/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/components/organization/OrganizationCalendarClient",
       "@/lib/admin/organization-calendar",
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/",
     "source": "app/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/actions",
       "@/app/auth/actions",
@@ -1043,31 +1137,34 @@
     ],
     "apis": [
       "/api/store-transfer-requests"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/register",
     "source": "app/register/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/auth/actions"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/reset-password",
     "source": "app/reset-password/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/app/auth/actions",
       "@/lib/supabase/client"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/store/clinic-selfpay-margin",
     "source": "app/store/clinic-selfpay-margin/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；F01 補登導覽面差異：只有「實際能用」的角色看得到選單（allowlist m9-f01-nav-clinic-selfpay-menu-visibility，待核可）",
     "imports": [],
     "apis": [
       "/api/clinic-selfpay/batches",
@@ -1079,22 +1176,24 @@
       "/api/clinic-selfpay/permissions",
       "/api/clinic-selfpay/prices/import",
       "/api/clinic-selfpay/stores"
-    ]
+    ],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/store/relationship-members",
     "source": "app/store/relationship-members/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [
       "@/lib/permissions/check",
       "@/lib/supabase/server"
     ],
-    "apis": []
+    "apis": [],
+    "f01": "pass"
   },
   {
     "legacyRoute": "/supervisor-management-log",
     "source": "app/supervisor-management-log/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）",
     "imports": [],
     "apis": [
       "/api/supervisor-management-log/cases",
@@ -1105,6 +1204,7 @@
       "/api/supervisor-management-log/today",
       "/api/supervisor-management-log/voice/draft",
       "/api/supervisor-management-log/voice/transcribe"
-    ]
+    ],
+    "f01": "pass"
   }
 ]

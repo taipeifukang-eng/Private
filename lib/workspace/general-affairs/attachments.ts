@@ -125,7 +125,7 @@ async function upload(ctx: Context, request: NextRequest) {
     }
     if (useAdmin) {
       // 水電帳單附件：附件資料表的寫入觸發器用 auth.uid() 檢查附件管理權限（資料庫函式 ga_resource_attachment_can_manage 的 UTILITY_BILL 分支），管理者身分沒有 auth.uid() 會被擋，
-      // 所以寫入用使用者身分（上面已用水電網費管理權限與帳單存在檢查過）；使用者讀不到這類附件（讀取權限由伺服端水電權限判斷），所以寫完再用管理者身分讀回。
+      // 所以寫入用使用者身分（上面已用水電話網費管理權限與帳單存在檢查過）；使用者讀不到這類附件（讀取權限由伺服端水電權限判斷），所以寫完再用管理者身分讀回。
       const ins = await (ctx.auth as any).from("ga_resource_attachments").insert(records);
       if (ins.error) throw dbError(ins.error);
       const back = await admin.from("ga_resource_attachments").select(COLUMNS).in("storage_path", uploaded).order("uploaded_at");
@@ -170,7 +170,7 @@ async function remove(ctx: Context, request: NextRequest, id: string) {
   const att = (await must(admin.from("ga_resource_attachments").select("id,resource_type,resource_id,deleted_at").eq("id", id).maybeSingle())) as any;
   if (!att) throw new GaError(404, "找不到附件");
   if (att.deleted_at) throw new GaError(409, "附件已刪除");
-  // 水電帳單附件先用水電網費管理權限與帳單存在檢查（回白話 403／404），再和其他資源一樣走資料庫函式標記刪除（觸發器只認使用者身分，管理者身分直接更新會被擋）。
+  // 水電帳單附件先用水電話網費管理權限與帳單存在檢查（回白話 403／404），再和其他資源一樣走資料庫函式標記刪除（觸發器只認使用者身分，管理者身分直接更新會被擋）。
   await paymentGate(ctx, att.resource_type, att.resource_id, true);
   await utilityGate(ctx, att.resource_type, att.resource_id, true);
   // 一般資源沿用舊版資料庫函式（內含權限與原因檢查）；舊版 API 刪除後會順手移除實體檔，新版不做。

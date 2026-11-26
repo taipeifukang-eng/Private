@@ -15,8 +15,12 @@ import {
 const props = defineProps<{
   failureKind?: GpsFailureKind | null;
   failureMessage?: string;
+  /** 被拒定位的誤差（公尺）；達 5000 以上時提示改用手機或定位例外。 */
+  failureAccuracy?: number | null;
+  /** 有「巡店定位例外」權限（或管理員）且定位失敗時才為 true，底部才出現「使用定位例外送出」。 */
+  canUseExempt?: boolean;
 }>();
-const emit = defineEmits<{ close: []; retry: [] }>();
+const emit = defineEmits<{ close: []; retry: []; exempt: [] }>();
 const ua = navigator.userAgent,
   touch = { maxTouchPoints: navigator.maxTouchPoints };
 const tab = ref<GpsGuideTabId>(getDefaultGuideTab(ua, touch));
@@ -26,6 +30,7 @@ const note = computed(() =>
   getGpsFailureNote(
     props.failureKind,
     device === "ios" || device === "android",
+    props.failureAccuracy,
   ),
 );
 const current = computed(
@@ -74,6 +79,15 @@ const current = computed(
     </div>
     <div class="dialog-actions gps-guide-actions">
       <button type="button" @click="emit('close')">關閉</button
+      ><button
+        v-if="canUseExempt"
+        type="button"
+        class="gps-exempt-btn"
+        data-testid="gps-guide-exempt"
+        @click="emit('exempt')"
+      >
+        使用定位例外送出
+      </button
       ><button
         type="button"
         class="primary"

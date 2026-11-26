@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { api } from "../../api";
 import Modal from "../Modal.vue";
 import ResourceAttachmentPanel from "./ResourceAttachmentPanel.vue";
+import { openGaPage } from "../../lib/ga";
 import {
   BILL_STATUS_LABELS, EXPENSE_TYPE_LABELS, errorCodeOf, errorDataOf, errorText, identifierLabel, money, monthText, dateText, paidDateRange, siteOf, taipeiToday, timeText,
   type Bill,
@@ -24,6 +25,14 @@ const confirmPaid = ref(false);
 const live = computed(() => !!bill.value && !bill.value.deleted_at);
 const manageable = computed(() => props.canManage && live.value);
 const range = computed(() => (bill.value ? paidDateRange(bill.value.billing_month) : { min: "", max: "" }));
+// G46：這筆帳單在已送出或已付款的請款單內時，繳費狀態（勾自動標記者）、刪除由請款單管理。
+const req = computed(() => bill.value?.payment_request || null);
+const locked = computed(() => bill.value?.locked ?? []);
+const payLocked = computed(() => locked.value.includes("paid_at"));
+const deleteLocked = computed(() => locked.value.includes("delete"));
+const reqStatusText = computed(() => (req.value?.status === "PAID" ? "已付款" : req.value?.status === "SUBMITTED" ? "已送出" : req.value?.status === "DRAFT" ? "草稿" : ""));
+const autoMarked = computed(() => !!bill.value?.paid_by_pr_id);
+function openRequest() { if (req.value?.id) openGaPage("ga-payment-request-edit", req.value.id); }
 
 async function load() {
   loading.value = true;
@@ -85,9 +94,12 @@ function del() {
         <p class="bd-status"><span class="st" :data-status="bill.status" data-testid="bd-status">{{ BILL_STATUS_LABELS[bill.status] }}</span>
           <strong data-testid="bd-amount">{{ money(bill.amount) }}</strong></p>
         <p v-if="bill.deleted_at" class="notice" data-testid="bd-deleted-info">已刪除：{{ bill.deleted_by_name || "（未知）" }} 於 {{ timeText(bill.deleted_at) }} 刪除。原因：{{ bill.deletion_reason || "（未填）" }}</p>
+        <p v-if="autoMarked" class="notice" role="status" data-testid="bd-auto-marked">已繳（請款單 {{ bill.paid_by_pr_no || "" }} 自動標記）。請款單被退回或作廢時，這筆帳單會自動改回待繳。</p>
         <dl class="bd-grid">
           <div><dt>帳單月份</dt><dd>{{ monthText(bill.billing_month) }}</dd></div>
           <div><dt>供應商</dt><dd>{{ bill.provider_name || "—" }}</dd></div>
+          <div><dt>繳費單位</dt><dd data-testid="bd-payee"><template v-if="bill.payee_vendor_name">{{ bill.payee_vendor_name }}</template><span v-else class="warn">未指定（請款前要補填）</span></dd></div>
+          <div><dt>請款單</dt><dd data-testid="bd-request"><template v-if="req"><button v-if="req.pr_no" type="button" class="link" data-testid="bd-open-request" @click="openRequest">{{ req.pr_no }}</button><template v-else>已在請款單內</template><template v-if="reqStatusText">（{{ reqStatusText }}）</template></template><template v-else>—</template></dd></div>
           <div><dt>{{ identifierLabel(bill.expense_type) }}</dt><dd>{{ bill.service_identifier || "—" }}</dd></div>
           <div v-if="bill.account_number"><dt>客戶帳號</dt><dd>{{ bill.account_number }}</dd></div>
           <div v-if="bill.equipment_serial"><dt>設備序號</dt><dd>{{ bill.equipment_serial }}</dd></div>
@@ -100,11 +112,12 @@ function del() {
           <div><dt>最後修改</dt><dd data-testid="bd-updated-by">{{ bill.updated_by_name || "—" }}　{{ timeText(bill.updated_at) }}</dd></div>
         </dl>
 
+        <p v-if="locked.length" class="notice" role="status" data-testid="bd-locked-note">這筆帳單已在請款單內（{{ reqStatusText }}），金額、繳費單位、月份、類型、據點、識別號碼與刪除已鎖定<template v-if="payLocked">，繳費狀態由請款單管理</template>。要修改請先把請款單退回或作廢。</p>
         <div v-if="manageable && !panel" class="bd-actions">
           <button type="button" data-testid="bd-edit" @click="emit('edit', bill)">編輯</button>
-          <button v-if="!bill.paid_at" type="button" class="primary" data-testid="bd-pay" @click="open('pay')">標記已繳</button>
-          <button v-else type="button" data-testid="bd-unpay" @click="open('unpay')">改回待繳</button>
-          <button type="button" class="danger" data-testid="bd-delete" @click="open('delete')">刪除</button>
+          <button v-if="!bill.paid_at" type="button" class="primary" data-testid="bd-pay" :disabled="payLocked" @click="open('pay')">標記已繳</button>
+          <button v-else type="button" data-testid="bd-unpay" :disabled="payLocked" @click="open('unpay')">改回待繳</button>
+          <button type="button" class="danger" data-testid="bd-delete" :disabled="deleteLocked" @click="open('delete')">刪除</button>
         </div>
 
         <section v-if="panel === 'pay'" class="bd-panel" data-testid="bd-pay-panel">
@@ -143,6 +156,8 @@ function del() {
 .bd-grid dt { font-size: 12px; color: var(--muted); }
 .bd-grid dd { margin: 0; overflow-wrap: anywhere; }
 .bd-actions, .bd-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.warn { color: #b3261e; }
+button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
 .bd-row { justify-content: flex-end; }
 .bd-panel { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 8px; background: var(--soft); }
 .bd-panel p { margin: 0; }

@@ -1,3 +1,4 @@
+import { authMailMockFlag } from "@/lib/workspace/site-gate";
 import { createClient } from "@supabase/supabase-js";
 import {
   assertWorkspace,
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     const invalid = validateRegister(input);
     if (invalid) throw new WorkspaceError(400, invalid);
     let message: string | undefined;
-    if (mailMockActive(process.env.WORKSPACE_AUTH_MAIL_MOCK, input.email)) {
+    if (mailMockActive(authMailMockFlag(process.env), input.email)) {
       // 不寄驗證信：直接建立已驗證帳號（只限 example.test 且測試旗標開啟）。
       const { error } = await adminClient().auth.admin.createUser({
         email: input.email,

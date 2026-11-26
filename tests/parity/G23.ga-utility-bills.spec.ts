@@ -5,7 +5,7 @@ import { adminDb, assertGaBaseline, cleanupM7M8, stores } from '../support/m7m8-
 import { ga6Name, setupGa6Users, type Ga6User } from '../support/m7m8-ga6-fixtures';
 import { shiftMonth, taipeiToday } from '../../lib/workspace/general-affairs/utility-bill-rules';
 
-// M7/M8 第 6 批 G23.parity：同一個登入者（水電網費管理）、同一份輸入，舊版 /api/general-affairs/utility-bills*（列表、新增、PATCH 標記已繳、DELETE、報表）
+// M7/M8 第 6 批 G23.parity：同一個登入者（水電話網費管理）、同一份輸入，舊版 /api/general-affairs/utility-bills*（列表、新增、PATCH 標記已繳、DELETE、報表）
 // 與新版 /api/workspace/general-affairs/utility-bills* 逐項比對（讀取比對共同欄位與筆數；寫入以 service role 回讀資料列逐欄比對）。
 // 差異都登記在 tests/parity/allowlist.json（page: ga-utility-bills，id 以 m7m8-b6-ub- 開頭）；未登記的差異一律失敗。
 const map = loadMap('ga-utility-bills');

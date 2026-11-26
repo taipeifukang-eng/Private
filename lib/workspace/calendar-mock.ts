@@ -1,10 +1,16 @@
+import { DEV_REF, urlRefOf } from "./site-gate";
+
 // D17：Google 與政府辦公日曆（人事總處）的外部呼叫在測試站一律 mock。
 // 只有 WORKSPACE_CALENDAR_MOCK=true 且 WORKSPACE_DEV_ENABLED=true（測試站啟動腳本才會設定）時，
 // googleFetch／officialFetch 才會改走這裡的假回應；一般環境（含正式區）兩者都是原本的 fetch，不經過這個檔案的任何邏輯。
 // 狀態放在 globalThis，讓同一個 Node 程序內不同 route 共用；測試以 /api/workspace/calendar/mock 控制與讀取。
 
 export function calendarMockEnabled(): boolean {
-  return process.env.WORKSPACE_CALENDAR_MOCK === "true" && process.env.WORKSPACE_DEV_ENABLED === "true";
+  if (process.env.WORKSPACE_CALENDAR_MOCK !== "true" || process.env.WORKSPACE_DEV_ENABLED !== "true") return false;
+  // 正式部署或連到非 DEV 資料庫時，永遠不啟用（不論旗標）
+  if (process.env.VERCEL_ENV === "production") return false;
+  const ref = urlRefOf(process.env);
+  return !ref || ref === DEV_REF;
 }
 
 export type MockGoogleEvent = { id: string; calendarId: string; summary?: string; description?: string; start?: unknown; end?: unknown; location?: string };

@@ -45,6 +45,7 @@ import Pharmacists from "./pages/Pharmacists.vue";
 import ProductsMaster from "./pages/ProductsMaster.vue";
 import Merchandise from "./pages/Merchandise.vue";
 import SupervisorLog from "./pages/SupervisorLog.vue";
+import ClinicSelfpay from "./pages/ClinicSelfpay.vue";
 import Relationships from "./pages/Relationships.vue";
 import RoleManagement from "./pages/Roles.vue";
 import StoreEditor from "./pages/StoreEditor.vue";
@@ -110,6 +111,7 @@ import Requests from "./pages/ga/Requests.vue";
 import WorkOrderCenter from "./pages/ga/WorkOrderCenter.vue";
 import CrossDeptMaintenance from "./pages/CrossDeptMaintenance.vue";
 import UserManagement from "./pages/Users.vue";
+import PageFallbacks from "./pages/PageFallbacks.vue";
 import PublicDemo from "./pages/PublicDemo.vue";
 import Login from "./pages/Login.vue";
 import Register from "./pages/Register.vue";
@@ -196,6 +198,7 @@ const components: Record<WorkTabKind, Component> = {
   "products-master": ProductsMaster,
   merchandise: Merchandise,
   "supervisor-log": SupervisorLog,
+  "clinic-selfpay": ClinicSelfpay,
   roles: RoleManagement,
   "ga-center": GaCenter,
   "ga-equipment-categories": AssetCategories,
@@ -247,6 +250,7 @@ const components: Record<WorkTabKind, Component> = {
   "ga-equipment-templates": AssetTemplates,
   "ga-facility-templates": AssetTemplates,
   users: UserManagement,
+  "page-fallbacks": PageFallbacks,
 };
 
 /** kind -> 元件、標題、所需權限。App.vue 以此渲染與判斷權限，不再使用三元式。 */

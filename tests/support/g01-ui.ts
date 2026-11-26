@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { applyProjectViewport, noPageOverflow } from './w04-ui';
 import { openFromMenu } from './m3-fixtures';
-import { loginAs } from './auth';
+import { loginAs, TEST_ORIGIN, BYPASS_HEADERS } from './auth';
 
 export { applyProjectViewport, noPageOverflow, openFromMenu };
 
@@ -17,7 +17,7 @@ export async function pageFor(browser: any, role: string, testInfo: TestInfo) {
 }
 
 export async function pageForUser(browser: any, state: any, testInfo: TestInfo) {
-  const ctx = await browser.newContext({ baseURL: 'http://localhost:3002', storageState: state, serviceWorkers: 'block' });
+  const ctx = await browser.newContext({ baseURL: TEST_ORIGIN, storageState: state, serviceWorkers: 'block', extraHTTPHeaders: BYPASS_HEADERS });
   const page: Page = await ctx.newPage();
   await applyProjectViewport(page, testInfo);
   const errors: string[] = [];

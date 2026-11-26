@@ -31,6 +31,10 @@ export function workspaceNavigation(
     campaignView?: boolean;
     /** 門市名單任何身分（店長、督導、區經理）：總務服務中心入口（唯讀庫存總覽與調撥，2026-11-11 驗收決定 A）。 */
     gaRosterMember?: boolean;
+    /** M6 W30 D1：診所自費藥毛利入口（resolveAccess：能用計算器或能管理主檔）。 */
+    clinicSelfpay?: boolean;
+    /** M9 N2：系統管理員切回舊版的頁面種類；這些項目拿掉 kind，選單改開舊版網址（label、href 不變）。 */
+    fallbackKinds?: ReadonlySet<string>;
   } = {},
 ) {
   const has = (...codes: string[]) => ctx.has(...codes);
@@ -117,12 +121,13 @@ export function workspaceNavigation(
           "employee_purchase.view",
           "employee_purchase.import",
         ], "employee-purchases"),
-        item("診所自費藥毛利計算", "/store/clinic-selfpay-margin", [
-          "monthly.status.view_own",
-          "monthly.status.view_all",
-          "employee.movement.manage",
-          "store.manage",
-        ]),
+        // M6 W30 D1：選單可見 = 實際能用（專屬權限或職稱規則，見 lib/clinic-selfpay/access.ts），不再用舊 Navbar 的四個月報權限碼。
+        {
+          label: "診所自費藥毛利計算",
+          href: "/store/clinic-selfpay-margin",
+          kind: features.clinicSelfpay ? ("clinic-selfpay" as WorkspaceNavKind) : undefined,
+          allowed: !!features.clinicSelfpay,
+        },
         item("關係會員", "/store/relationship-members", [
           "relationship_member.view",
           "relationship_member.edit",
@@ -313,7 +318,9 @@ export function workspaceNavigation(
       label: g.label,
       items: g.items
         .filter((i) => i.allowed)
-        .map(({ allowed, ...rest }) => rest),
+        .map(({ allowed, ...rest }) =>
+          rest.kind && features.fallbackKinds?.has(rest.kind) ? { ...rest, kind: undefined, fallback: true as const } : rest,
+        ),
     }))
     .filter((g) => g.items.length);
 }

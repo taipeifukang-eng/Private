@@ -166,8 +166,8 @@ rows_out AS (
          CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND position('UTILITY_BILL' in pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure)) > 0 THEN 'ALREADY' ELSE 'INFO' END
   UNION ALL
   SELECT 10, '10 水電帳單先決', '附件函式結尾是否為預期的 RETURN false; END;（45 用這個結尾插入分支，不符會中止）',
-         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;s*END;s*$function$s*$' THEN '符合' ELSE '不符合，請人工處理' END,
-         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;s*END;s*$function$s*$' THEN 'OK' ELSE 'WARN' END
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;\s*END;\s*\$function\$\s*$' THEN '符合' ELSE '不符合，請人工處理' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;\s*END;\s*\$function\$\s*$' THEN 'OK' ELSE 'WARN' END
   -- 10 現況數字
   UNION ALL
   SELECT 10, '10 水電帳單現況', '未刪除筆數', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL), 'INFO'

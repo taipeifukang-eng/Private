@@ -5,6 +5,8 @@ import { isUuid } from "./rules";
 
 // ---------------------------------------------------------------- 權限碼（與資料庫 ga_ub_can_* 相同）
 export const UB = { view: "general_affairs.utility_bill.view", manage: "general_affairs.utility_bill.manage" } as const;
+/** G12：權限「general_affairs.utility_bill.manage」的顯示名稱（只改名稱，權限碼不變）。畫面、訊息與測試一律引用這個常數，避免再次散落。 */
+export const UTILITY_BILL_MANAGE_LABEL = "水電話網費管理";
 
 type Has = { has(code: string): boolean };
 export function utilityBillAbilities(p: Has) {

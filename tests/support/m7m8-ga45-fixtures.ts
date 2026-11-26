@@ -24,7 +24,7 @@ export const REAL_ROLES = {
   novendor: 'vue_workspace_ga45_novendor',
   /** 對照組：既有採購角色（沒有 purchase_payment.*）。 */
   purchaser: 'vue_workspace_ga_purchaser',
-  /** 水電網費管理（第 6 批 DEV 角色；附件既有資源類型回歸用）。 */
+  /** 水電話網費管理（第 6 批 DEV 角色；附件既有資源類型回歸用）。 */
   util_mgr: 'vue_workspace_ga6_util_mgr',
 } as const;
 

@@ -7,6 +7,7 @@ import RequestStockIssue from "./RequestStockIssue.vue";
 import RequestPurchaseReview from "./RequestPurchaseReview.vue";
 import WorkOrderSummary from "./WorkOrderSummary.vue";
 import { openGaPage } from "../../lib/ga";
+import { doneNotice } from "../../../../lib/workspace/general-affairs/notice-rules";
 import { fmtTime } from "../../lib/ga-inventory-stock";
 import { PO_STATUS_LABEL, money, num, storeText, targetText, type CommentView, type EventView, type LinkedOrder, type RequestAbilities, type RequestRow } from "../../lib/ga-requests";
 import {
@@ -102,7 +103,7 @@ async function submitAction() {
       await api(`general-affairs/requests/${props.requestId}`, { method: "PATCH", body: JSON.stringify(body) });
     }
     pending.value = "";
-    notice.value = `${ACTION_TITLE[a]}完成。`;
+    notice.value = doneNotice(ACTION_TITLE[a]);
     emit("changed"); // 先通知清單重新整理：使用者若在重新載入完成前關閉視窗，清單仍會更新
     await load(true);
   } catch (e) {

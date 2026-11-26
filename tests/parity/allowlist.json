@@ -9041,7 +9041,7 @@
     "page": "inventory-offline",
     "description": "預盤多檔上傳：與舊版相同，壞檔跳過、好檔照收；新版畫面改顯示「成功 N/M，失敗檔案：檔名（原因）」，已成功的檔案保留在畫面上，失敗的檔案可單獨重傳；同名檔案重傳以新的取代。舊版只跳出一次提示且每次上傳都整批重來。",
     "reason": "M6 規格問卷 A3 選「跳過壞檔，顯示成功與失敗清單」（與舊版主流程相同）；提示文字與保留成功檔的方式是實作取捨，不在問卷內，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "pre-multi-file",
       "kind": "changed"
@@ -9052,14 +9052,14 @@
     "page": "inventory-offline",
     "description": "盤點結果分析報表的 CSV 匯出（舊版沒有）保留：加上 BOM 避免中文亂碼，品號以文字格式寫入（Excel 開啟不會吃掉前導零，例如 00012345）。離線工具補回舊版提示：無盤差時顯示「沒有需要複盤的品項」且不下載、外盤檔重複品號列出清單並拒絕匯入、FKS0701 與 1F 商品檔缺欄位時顯示缺少的欄位與實際欄位。",
     "reason": "調查時採用的假設（保留 CSV、補回舊版提示），未在問卷詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w25-base-header-whitespace",
     "page": "inventory-offline",
     "description": "1F 商品檔標題文字前後有空白（例如「 品號」）時：舊版把標題去空白後比對所以可以匯入，新版不去空白，會因找不到「品號」等欄位而拒絕匯入。",
     "reason": "M6-W25 新舊 1F 商品檔欄位辨識對跑發現的不一致（單元與畫面對跑皆重現）。依規格不自行決定哪一邊是對的，待使用者決定新版是否要改成去空白。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "base-1f-variants",
       "kind": "changed",
@@ -9071,7 +9071,7 @@
     "page": "inventory-offline",
     "description": "1F 商品檔出現「品號空白、其他欄位有值」的列：舊版保留該列（品號為空字串，會影響未盤點清單的判斷），新版略過該列。",
     "reason": "M6-W25 新舊 1F 商品檔對跑發現的不一致；新版行為較合理，但仍與舊版不同，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "base-1f-variants",
       "kind": "changed",
@@ -9083,7 +9083,7 @@
     "page": "inventory-offline",
     "description": "1F 商品檔的庫存欄位出現非數字（例如「待確認」）：舊版把它變成 NaN 仍匯入，新版直接拒絕並指出「數量不是有效數字」。",
     "reason": "M6-W25 新舊 1F 商品檔對跑發現的不一致，待使用者確認新版是否維持較嚴格的檢查。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "base-1f-variants",
       "kind": "changed",
@@ -9095,7 +9095,7 @@
     "page": "inventory-offline",
     "description": "預盤、外盤等檔案的盤點數量出現非數字：舊版變成 NaN 仍收下，新版拒絕並指出「數量不是有效數字」。",
     "reason": "M6-W25 新舊對跑發現的不一致（新版沿用先前移植時的嚴格檢查），待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "number-validation",
       "kind": "changed"
@@ -9106,7 +9106,7 @@
     "page": "inventory-offline",
     "description": "沒有盤點入口的帳號直接打新版盤點 API：新版外層先回 403「沒有此功能的操作權限」；舊版會依請求內容回「無…權限」的 403，或對格式不正確的請求先回 400。有入口的帳號，新舊回傳逐項相同。",
     "reason": "M6-W25 角色劇本發現的外層差異（先前移植的 moduleContext 行為），不影響有權限者；待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-p07-a6-search-paging",
@@ -9138,14 +9138,14 @@
     "page": "relationships",
     "description": "兩個人同時為同一位關係會員填不同的會員編號：舊版兩邊都回成功，後寫的蓋掉先寫的；新版第二個請求回 409「會員編號已建立，不可清空或再次修改」，先寫的編號保留。填同一個編號則兩邊都成功。",
     "reason": "M6 規格第一批驗收要求「並行填寫會員編號一個成功一個 409」；舊版先讀後寫沒有保護，新版 workspace 編輯改為單一條件更新。不在問卷內，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w27-search-login-only",
     "page": "products-master",
     "description": "商品搜尋（缺貨回報要用）：新版登入就能搜尋；舊版 API 雖然只檢查登入，但資料表本身只放行有「商品主檔管理」權限的人，所以沒有這個權限的店長等人實際查到的是空結果。",
     "reason": "M6 規格問卷 B1 選「登入就能搜尋（同舊版）」；新版改在 API 層判斷（只要登入），資料表權限問題因此消失。舊版非管理者實際查不到這件事問卷沒有涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "search-non-manager"
     }
@@ -9155,7 +9155,7 @@
     "page": "products-master",
     "description": "商品搜尋與清單搜尋遇到逗號、括號、百分比、底線等特殊字元：新版一律當一般文字比對；舊版把關鍵字直接組進查詢條件，逗號與括號會改寫條件，百分比與底線被當萬用字元。",
     "reason": "規格第二節 W27：舊版 q 直接組進 or() 字串，新版必須跳脫（修正，不在問卷內），待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "search-special-chars"
     }
@@ -9165,7 +9165,7 @@
     "page": "products-master",
     "description": "商品主檔清單新版每頁 50 筆並可搜尋，另有「顯示已停用」篩選；舊版一次回傳全部啟用商品，沒有分頁。所有頁合起來的商品與舊版相同。",
     "reason": "規格第三節 B 假設：清單加分頁（每頁 50）與搜尋，預設只顯示啟用商品；「顯示已停用」篩選來自 B2 的決定，但分頁與搜尋本身問卷未詢問，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "list-all"
     }
@@ -9185,7 +9185,7 @@
     "page": "products-master",
     "description": "匯入完成的數字：舊版回「處理了幾筆」（包含內容完全相同的商品）；新版把內容和現有商品完全相同的列算「略過」，不再寫入，結果訊息分別顯示新增、更新（含重新啟用）與略過筆數。",
     "reason": "規格 W28 假設：預覽要顯示略過與原因，內容相同不需更新所以不寫入；舊版相同內容仍會重寫一次（只改更新時間）。問卷未詢問，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "import-count-semantics"
     }
@@ -9195,7 +9195,7 @@
     "page": "products-master",
     "description": "Excel 內同一個商品編號出現多列：新版只採用最後一列，前面的列在預覽列為「檔案內編號重複」；舊版把整批一起寫入，同批重複編號會讓資料庫報錯，整個檔案都匯不進去。",
     "reason": "規格 W28：預覽要顯示略過原因；檔內重複的處理方式問卷未詢問，採「以最後一列為準」，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "import-duplicate-in-file"
     }
@@ -9205,7 +9205,7 @@
     "page": "products-master",
     "description": "Excel 匯入單次最多 5000 筆，超過請分檔；商品編號最多 64 字、名稱 200 字、單位 20 字，超過的列在預覽列為略過。舊版沒有這些上限。",
     "reason": "規格 W28：單次上限約 5000 筆、後端每批 500 筆；欄位長度上限為防呆，問卷未詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w27-deactivate-permission",
@@ -9249,7 +9249,7 @@
     "page": "products-master",
     "description": "商品主檔新版會寫操作紀錄（誰、何時、做什麼：匯入幾筆、停用、重新啟用、新增、編輯），存在新資料表 products_master_operation_logs；舊版不留紀錄。",
     "reason": "規格第三節 B 假設：匯入與停用都寫操作紀錄；問卷未詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w29-status-derived",
@@ -9276,7 +9276,7 @@
     "page": "merchandise",
     "description": "提交缺貨回報時，新版在伺服端檢查門市範圍：只有提交權限的人只能替自己管轄（店長指派）的門市回報，商品部（查看全部或回覆權限）不限；舊版只檢查有權限，直接用 API 可以替任何門市回報。",
     "reason": "M6 規格第二節 W29 b：屬漏洞修補，直接做（假設 C2，問卷未詢問），待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "post-store-scope"
     }
@@ -9286,7 +9286,7 @@
     "page": "merchandise",
     "description": "查看缺貨回報清單時，新版對只有提交權限的人限制只能看自己管轄的門市（指定其他門市回 403）；舊版任何有提交權限的人都能用 store_id 指定任一門市查看。商品部（查看全部或回覆）不受限。",
     "reason": "與 POST 門市範圍檢查（假設 C2）同一個漏洞的讀取面，一併修補；問卷未詢問，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "list-store-scope"
     }
@@ -9296,7 +9296,7 @@
     "page": "merchandise",
     "description": "日期一律用台北時間：歷史月份分組、近 30 天範圍、重複回報判斷與預計到貨日比較都以台北日期計算；舊版月份分組取資料時間的 UTC 前七碼（月初月底的回報會被分到錯的月份），近 30 天用「現在往前 30 天的瞬間」。",
     "reason": "M6 規格第二節 W29 e 與第三節：日期一律 Asia/Taipei，修正月份分組；問卷未詢問，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "month-bucket"
     }
@@ -9306,7 +9306,7 @@
     "page": "merchandise",
     "description": "缺貨回報清單的關鍵字搜尋遇到逗號、括號、百分比、底線等特殊字元：新版一律當一般文字比對；舊版把關鍵字直接組進查詢條件，逗號與括號會改寫條件、百分比與底線被當萬用字元。",
     "reason": "M6 規格第二節 W29 f：舊版 ilike 的 or 條件直接拼接，新版必須跳脫（修正，問卷未詢問），待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "search-escape"
     }
@@ -9316,7 +9316,7 @@
     "page": "merchandise",
     "description": "商品部回覆：目前回覆（以商品編號更新或新增）與回覆歷程在同一個資料庫交易內寫入（資料庫函式 workspace_stockout_respond）；刪除回報與「最後一筆時清掉目前回覆」也在同一交易（workspace_stockout_delete_report）。舊版是兩次獨立寫入，歷程寫入失敗會留下沒有歷程的回覆。最後的資料內容兩邊相同。",
     "reason": "M6 規格第二節 W29 i：回覆 upsert 與歷程寫入改為同一交易；刪除一併做（假設，問卷未詢問），待使用者確認。正式區上線前需先建立這兩個函式（m6-sql）。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "reply-write"
     }
@@ -9326,35 +9326,35 @@
     "page": "merchandise",
     "description": "清單的「待回覆／已回覆」篩選與上方三個統計，新版在伺服端對整個查詢範圍計算（跨頁一致、統計不受分頁影響）；舊版只對目前這一頁（最多 30 筆）的資料在畫面上篩選與計數。",
     "reason": "實作 C3 即時衍生狀態時的必然取捨（狀態由回覆即時算出，無法在資料庫層直接分頁篩選）；問卷未詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w29-qty-integer",
     "page": "merchandise",
     "description": "需求數量不是正整數（例如 2.5、負數）時，新版回 400「需求數量必須是大於 0 的整數」；舊版不檢查，小數會讓資料庫報錯回 500。",
     "reason": "輸入檢查補強（問卷未詢問；數量上限依 C6 選擇 warn 不設），待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w29-nav-merchandise-inpage",
     "page": "merchandise",
     "description": "導覽「商品部」新版改為在工作頁內開啟（舊版是開啟外部的舊頁面）；導覽所需權限不變（缺貨回報的提交、查看全部、回覆任一）。舊頁保留不動。",
     "reason": "M6 規格第三節 C：導覽「商品部」新增 kind 在工作頁內開啟；問卷未詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w29-ui-layout",
     "page": "merchandise",
     "description": "畫面版型差異：狀態篩選只留一組按鈕（舊版同時有下拉與按鈕兩組，綁同一個狀態）；刪除回報的確認改為工作頁內的確認視窗（文字「確定刪除這筆回報？」不變，舊版是瀏覽器 confirm）；商品建議清單顯示在輸入框下方（舊版浮動下拉）；回報與回覆者姓名欄位維持舊版（舊 API 不回傳姓名，顯示「－」或不顯示）。其餘功能（搜尋 80ms 延遲與舊請求不覆蓋、選定帶名稱與單位並聚焦數量、15 天提醒視窗、近 30 天與歷史月份、回覆歷程、刪除規則）一致。",
     "reason": "Vue 工作頁共用元件與版面慣例；舊版沒有刪除商品部回覆的按鈕（W29 g），新版同樣沒有。問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w29-store-name-visible",
     "page": "merchandise",
     "description": "回報清單的門市代號與名稱：舊版用呼叫者自己的身分讀門市資料表，商品部帳號（只有查看全部或回覆權限、不是該門市店長）讀不到，門市欄位是空白；新版由伺服端讀取，所有角色都看得到門市代號與名稱。",
     "reason": "DEV 對跑發現的舊版缺陷（資料表權限造成欄位空白）；新版顯示門市資訊是實作取捨，問卷未詢問，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "list-store-embed"
     }
@@ -9364,7 +9364,7 @@
     "page": "merchandise",
     "description": "回覆歷程：舊版只有查看全部或回覆權限的人讀得到（資料表權限只放行這兩種），只有提交權限的店長展開歷程永遠是空的；新版任何有缺貨權限的人（含只有提交權限的店長）都看得到歷程（每頁 10 筆、上限 50）。",
     "reason": "規格第三節 C：回覆歷程每頁 10（上限 50）、沒有另外限制誰能看；舊版店長實際看不到是資料表權限造成。問卷未詢問，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "history-visible-submit"
     }
@@ -9374,7 +9374,7 @@
     "page": "merchandise",
     "description": "只有「查看全部」權限（沒有「回覆」權限）的帳號：舊版畫面有回覆按鈕、API 也放行，但資料表只允許有「回覆」權限的人寫入，所以儲存時舊版回 500；新版照舊版 API 的判斷（回覆或查看全部都能回覆）放行並寫入。",
     "reason": "規格寫「權限維持三個、capabilities 由 API 回傳」，新版沿用舊版 API 與畫面的判斷；舊版資料表權限與其不一致。是否收緊為只有「回覆」權限，待使用者決定。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "viewall-reply"
     }
@@ -9384,21 +9384,21 @@
     "page": "products-master",
     "description": "範本與匯入文字：新版下載「商品主檔範本.xlsx」（工作表「商品主檔」，按鈕文字「下載範本」）；舊版下載「商品主檔範本.csv」（帶 BOM，按鈕「下載 CSV 範本」）。匯入成功訊息也改為「匯入完成：新增…更新…略過…」，舊版是「成功匯入 N 筆商品」。",
     "reason": "新版匯入統一用共用的 xlsx 函式庫，範本隨之改為 xlsx；訊息文字隨新增／更新／略過分開計數而改變。問卷未詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w27-ui-and-list-permission",
     "page": "products-master",
     "description": "商品主檔頁差異：(1) 清單 API 新版需要「商品主檔管理」權限，舊版 ?all=1 只要登入（搜尋仍是登入即可）；(2) 搜尋字串最多取前 100 字；(3) 停用商品的確認由瀏覽器 confirm 改為工作頁內的確認視窗，文字也略有不同。",
     "reason": "(1) 工作頁的清單是管理畫面，沿用管理權限；舊版非管理者實際被資料表權限擋成空結果。(2)(3) 輸入保護與工作頁共用元件慣例。問卷未詢問，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w29-input-validation",
     "page": "merchandise",
     "description": "缺貨回報 API 輸入檢查與空清單：(1) 回覆時預計到貨日格式不符回 400「預計到貨日格式不正確」，舊版不檢查；(2) 為不存在的門市回報回 400「找不到這間門市」，舊版是資料庫錯誤 500；(3) 查詢回覆的 product_codes 最多取前 100 個，舊版沒有上限；(4) 只有提交權限、沒有管轄門市的店長，「我的門市」分頁回空清單，舊版前端不帶門市參數，API 回 403；(5) 清單頁碼超過總頁數時收斂到最後一頁（舊版直接回空）；(6) 刪除回覆網址含不合法編碼回 400。",
     "reason": "輸入檢查與邊界行為補強（問卷未詢問），待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-e1-three-tier-visibility",
@@ -9459,7 +9459,7 @@
     "page": "supervisor-log",
     "description": "把案件狀態改成「已改善」或「已結案」：舊版 API 不會一併寫入 resolved_at／closed_at，資料表有檢查條件要求這兩個欄位，所以舊版會失敗（500）、狀態維持原樣；新版依新舊狀態自動寫入（改回其他狀態時清空），因此可以結案與重新開啟。",
     "reason": "舊版缺陷修正（結案功能在舊版實際上不能用），問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "close-case"
     }
@@ -9469,7 +9469,7 @@
     "page": "supervisor-log",
     "description": "今日工作台未指定日期時，新版用台北時間的今天；舊版後端用 UTC 日期（台北時間 00:00 到 08:00 之間會落在前一天）。畫面端舊版已用台北日期傳 date，所以只有直接呼叫 API 且不帶日期才會不同。",
     "reason": "本輪規定日期一律以 Asia/Taipei 計算（與缺貨回報相同做法），待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "today-default-date"
     }
@@ -9479,7 +9479,7 @@
     "page": "supervisor-log",
     "description": "新增案件與規劃時的員工候選：舊版固定回前 300 筆在職員工（沒有依門市，超過 300 位就被截斷，後面的人選不到）；新版只在指定門市（最多 100 筆）或輸入姓名／員編搜尋（最多 30 筆）時回傳。",
     "reason": "避免截斷造成選不到人，也不再一次送出全部員工名單；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "options-employees"
     }
@@ -9489,7 +9489,7 @@
     "page": "supervisor-log",
     "description": "門市選項：新版管理者看全部啟用門市、其他人只看自己管轄的門市（沒有管轄門市則為空）；舊版靠資料表政策（DEV 為管轄門市或有總務服務中心權限者），管理者若沒有門市權限在舊版反而看不到任何門市。",
     "reason": "把舊版隱含在資料表政策的範圍改成明確規則；DEV 的 stores 政策與正式區可能不同，上線前請核對。問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "options-stores"
     }
@@ -9499,7 +9499,7 @@
     "page": "supervisor-log",
     "description": "案件詳情裡的門市名稱與建立者姓名：舊版以使用者身分關聯讀取，受 stores、profiles 資料表政策影響，看不到別人的資料時欄位為空；新版由伺服端讀取，有權看該案件就顯示門市與建立者姓名。",
     "reason": "看得到案件卻看不到門市或建立者是舊版資料表政策的副作用；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "case-detail-embeds"
     }
@@ -9509,7 +9509,7 @@
     "page": "supervisor-log",
     "description": "案件與規劃的關鍵字搜尋：新版把 % _ 與逗號、括號、引號都當一般文字（值整個以雙引號包住）；舊版把關鍵字直接組進查詢條件字串，含逗號或括號會改寫條件、造成查詢錯誤（500）或誤配。",
     "reason": "漏洞與缺陷修補（與缺貨回報、商品主檔同一做法），問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "search-special-chars"
     }
@@ -9519,7 +9519,7 @@
     "page": "supervisor-log",
     "description": "案件與規劃清單：頁碼超出總頁數時，新版回最後一頁；舊版資料庫回範圍錯誤（500）。每頁筆數上限兩邊都是 100。",
     "reason": "體驗修正，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "pagination-beyond"
     }
@@ -9529,7 +9529,7 @@
     "page": "supervisor-log",
     "description": "管理紀錄的 AI 確認人：新版一律由伺服端記錄為送出的登入者（AI 草稿只能由人工確認後儲存），非 AI 紀錄一律不帶確認人；舊版接受前端傳入任意使用者 id 當確認人。",
     "reason": "規格第三節：AI 永遠不得略過人工確認直接寫入；確認人不可由前端指定。問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "record-ai-confirmed"
     }
@@ -9539,7 +9539,7 @@
     "page": "supervisor-log",
     "description": "修改看不到的案件：舊版對看不到的案件 PATCH 回 200，但資料表政策讓更新沒有套用到任何列（假成功）；新版回 404 找不到案件。",
     "reason": "舊版假成功會讓人以為已修改；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "status-patch-case"
     }
@@ -9549,42 +9549,42 @@
     "page": "supervisor-log",
     "description": "欄位驗證錯誤（缺標題、格式錯誤、列舉值不合等）：新版回 400 與同一段錯誤文字（驗證規則重用舊版 lib/supervisor-management-log/validation）；舊版 API 把驗證錯誤當一般錯誤回 500。",
     "reason": "狀態碼修正，錯誤文字不變；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-timeline-events",
     "page": "supervisor-log",
     "description": "案件時間線：新版 API 另提供 GET cases/:id/timeline，並在案件詳情回傳 timeline 欄位（建立案件、新增紀錄、新增追蹤、狀態變更、他人修改、紀錄修改、各種刪除事件，新到舊）。建立、紀錄、追蹤項目由既有資料合成，不另外寫入事件；新版另外寫入 STATUS_CHANGE、MANAGER_EDIT（他人修改案件）、RECORD_EDIT 事件。舊版詳情只回傳資料表內的事件（只有刪除事件），畫面沒有時間線。",
     "reason": "規格列出「事件時間線」，舊版沒有對應畫面；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-deleted-audit-view",
     "page": "supervisor-log",
     "description": "管理者事後追查：新版 GET cases/:id?deleted=1（只有管理權限者）可看已軟刪除的案件、刪除者與原因、被刪除的紀錄與追蹤、全部事件；舊版沒有查看已刪除資料的入口。",
     "reason": "E2 要求刪除可追查；問卷未涵蓋入口形式，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-ui-layout",
     "page": "supervisor-log",
     "description": "版面：舊版是兩個分頁（今日工作台、管理案件）加側邊或下方詳情；新版為同樣兩個分頁，案件詳情改在工作頁內的視窗開啟，刪除原因與新增紀錄、追蹤改用工作頁內的視窗（舊版刪除用瀏覽器 prompt 輸入原因），案件清單為卡片式。欄位、選項、狀態文字與舊版一致。語音錄音與 AI 摘要不在本頁（另案 W33）。",
     "reason": "配合新版共用的畫面風格；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-nav-inpage",
     "page": "supervisor-log",
     "description": "導覽「督導管理日誌」在新版改為工作頁內開啟（kind supervisor-log，需 capabilities.supervisorLog，六個權限碼任一）；舊版頁面 /supervisor-management-log 保留不動。",
     "reason": "Z2：新版上線後舊頁保留；Z3：可見角色沿用舊版實際權限。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-write-invisible-record-status",
     "page": "supervisor-log",
     "description": "對看不到的案件新增管理紀錄：舊版被資料表政策拒絕，API 回 500（系統錯誤）；新版先確認案件在可見範圍內，回 404 找不到案件。",
     "reason": "狀態碼修正（舊版把資料表政策拒絕當系統錯誤）；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "status-post-record"
     }
@@ -9594,7 +9594,7 @@
     "page": "supervisor-log",
     "description": "新增追蹤的失敗狀態碼：對看不到的案件、或只有管理權限卻沒有追蹤權限的帳號（舊版資料表政策要求同時有追蹤權限）新增追蹤，舊版回 500（系統錯誤）；新版分別回 404、403 並附說明。能不能新增追蹤的判斷本身新舊一致（需要追蹤權限且案件可修改）。",
     "reason": "狀態碼修正，判斷規則不變；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "status-post-followup"
     }
@@ -9672,7 +9672,7 @@
     "page": "supervisor-log",
     "description": "語音草稿存成紀錄時：新版走 OpenAI 的草稿標記 ai_generated 並把確認人記為送出者（AI 永遠不能略過人工確認），走本機規則或手動文字稿的不標 AI；舊版語音草稿套用後存成一般紀錄（ai_generated 為 false、沒有確認人）。紀錄頁的標記為「AI 草稿已人工確認」。",
     "reason": "新版為了追溯哪些紀錄是 AI 整理的而加的標記（規格第三節「AI 永遠不得略過人工確認」的落實），問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "voice-record-ai-flag",
       "key": "ai_generated"
@@ -9683,7 +9683,7 @@
     "page": "supervisor-log",
     "description": "語音流程儲存的紀錄，新版在紀錄的 metadata 記錄語音來源（source：AI 或 MANUAL、ai_provider），不含逐字稿；舊版紀錄的 metadata 為空物件。",
     "reason": "實作取捨：用既有的 metadata 欄位標記來源，不改舊版資料表，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "voice-record-metadata",
       "key": "metadata"
@@ -9694,21 +9694,21 @@
     "page": "supervisor-log",
     "description": "語音草稿的門市與員工比對候選，新版依登入者權限縮小：系統與管理權限者比對全部在職門市與員工，其他人只比對自己管轄門市與其在職員工；舊版以登入者身分讀取，範圍由資料表政策決定（DEV 結果與新版相同，正式區政策未驗證）。比對邏輯本身沿用舊版同一支函式（只把候選名單改為可傳入）。",
     "reason": "規格第三節假設「門市與員工比對候選依登入者權限縮小」，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w33-ui-voice-flow",
     "page": "supervisor-log",
     "description": "語音畫面：新版在案件詳情的「語音口述」開啟工作頁內視窗，依序為告知與同意、錄音（計時、試聽、重新錄音、上傳失敗重試；錄音只暫存在這台裝置，轉成文字或離開畫面就丟掉）、文字稿、草稿審核（缺發現、判斷、動作任一欄不能套用）、套用到「新增管理紀錄」表單（此時還沒有儲存，要人工按儲存）。舊版是頁面內的抽屜，套用後同樣帶入紀錄表單；沒有計時上限、沒有試聽與失敗重試。",
     "reason": "畫面取捨與 W33 規格第二節的錄音元件、上傳包裝、草稿審核畫面，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w33-draft-too-long-status",
     "page": "supervisor-log",
     "description": "語音草稿的文字稿超過 6000 字：舊版回 500（系統錯誤，因為它的錯誤訊息「口述文字稿不可超過 6000 字」不符合自己判斷 400 的關鍵字）；新版回 400 並附同一段原因。",
     "reason": "狀態碼修正（舊版把輸入檢查錯誤當成系統錯誤），問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-23 差異確認頁)",
     "match": {
       "entry": "voice-draft-validation",
       "key": "long:status"
@@ -9719,34 +9719,308 @@
     "page": "supervisor-log",
     "description": "建立案件、紀錄、追蹤、每日計畫的回應：新版回 {success:true,data:{id}}（語音紀錄多回 transcript_saved），舊版回 data:null（201）；新版方便畫面直接跳到新資料。",
     "reason": "回應多帶新資料的 id 是新版為了畫面串接的取捨，不改變資料內容，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-plan-link-filter",
     "page": "supervisor-log",
     "description": "今日規劃關聯的案件與紀錄：新版回傳前會過濾，已軟刪除、或不在登入者可見範圍的案件與紀錄不回標題與內容；舊版資料庫政策讓看不到的資料不出現，但新版改用伺服端連線查詢，必須自行過濾。",
     "reason": "落實 E1 三層可見範圍與軟刪除保證；問卷未涵蓋此細節，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w32-record-edit-ai-locked",
     "page": "supervisor-log",
     "description": "編輯管理紀錄：新版一律保留原本的 AI 旗標、人工確認人與語音來源 metadata，PATCH 內容不能更改這三項（管理者改別人的 AI 紀錄，確認人不變）；舊版允許前端改 ai_generated 與 metadata，且不限制確認人。",
     "reason": "規格第三節：AI 必須經人工確認且可追溯；問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w33-duration-required-min-bitrate",
     "page": "supervisor-log",
     "description": "語音轉文字：新版一律要求回報錄音秒數（缺少回 400），費用依「回報秒數」與「每秒最多 2KB（約 16kbps）反推的最短秒數」取較大者估算；伺服端不解析音檔長度也不保存音檔，因此 10 分鐘上限對低位元率音檔仍是以回報秒數為準（已知限制）；舊版沒有此限制。",
     "reason": "E7 長度上限與每月上限的保守估算；問卷未涵蓋此細節，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
   },
   {
     "id": "m6-w33-transcript-retention",
     "page": "supervisor-log",
     "description": "逐字稿保留：紀錄或案件被軟刪除後，逐字稿資料列仍保留在資料庫（只有硬刪除才一併清除），API 因紀錄已刪除而讀不到；非建立者且非管理者查詢逐字稿，與「沒有逐字稿」一樣回 404，無從探測有沒有。",
     "reason": "與軟刪除「資料保留、畫面不顯示」的整體原則一致；保存年限問卷未涵蓋，待使用者決定是否需要定期清除。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w30-d1-menu-visibility",
+    "page": "clinic-selfpay",
+    "description": "D1：診所自費藥毛利計算的選單可見性，舊 Navbar 用四個月報權限碼（monthly.status.view_own／view_all、employee.movement.manage、store.manage），與 API 實際權限（store.clinic_selfpay.* 專屬權限碼加職稱規則）不一致；新版選單可見 = 實際能用（resolveAccess：能用計算器或能管理主檔），看得到就一定能用。主檔管理與刪批次維持經理類職稱或專屬權限。",
+    "reason": "M6 規格問卷 D1：使用者選「以實際能用的規則為準」。有專屬權限或職稱符合者才看得到選單；只持有舊四碼的人不再看到選單（舊版他們點進去也只會得到 403）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "menu-visibility"
+    }
+  },
+  {
+    "id": "m6-w30-d3-period-confirm",
+    "page": "clinic-selfpay",
+    "description": "D3：診所檔內的結算期間推得的年月，與畫面選的年月不同時，舊版直接以檔案期間為準匯入；新版算法相同（以檔案期間為準），但先回 409 並顯示「檔案是 X 月，與你選的 Y 月不同，確定嗎？」，使用者確認後才寫入。",
+    "reason": "M6 規格問卷 D3：使用者選「以檔案期間為準，不一致時跳出確認提示」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-period-mismatch"
+    }
+  },
+  {
+    "id": "m6-w30-d4-duplicate-confirm",
+    "page": "clinic-selfpay",
+    "description": "D4：同門市、同月、同診所已經有匯入批次時，舊版直接再新增一個批次；新版先回 409 提示已有幾筆，使用者確認後仍新增，舊批次保留。",
+    "reason": "M6 規格問卷 D4：使用者選「跳出確認提示，確認後仍新增，舊批次保留」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-duplicate"
+    }
+  },
+  {
+    "id": "m6-w30-d6-screenshot-limits",
+    "page": "clinic-selfpay",
+    "description": "D6：健保系統截圖單次最多 10 張、至少 1 張，只接受 png／jpeg／webp，每張壓縮後約 5MB 內；舊版沒有張數、格式與大小限制。截圖仍永久保存到刪批次為止。違規時新版回 400 並說明，不建立批次也不留下截圖檔。",
+    "reason": "M6 規格問卷 D6：使用者選「維持永久保存直到刪批次；單次最多 10 張、每張壓縮後約 5MB 內」。上限只是防呆。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-screenshot-limits"
+    }
+  },
+  {
+    "id": "m6-w30-history-wildcard",
+    "page": "clinic-selfpay",
+    "description": "歷史會員價與成本查詢（mappings/history）：舊版把輸入的健保碼直接放進 ilike，輸入 % 或 _ 時會比對到其他健保碼；新版把這兩個字元當作字面，只比對該代碼（仍不分大小寫）。",
+    "reason": "屬於漏洞修補性質的行為差異；一般使用情境（輸入完整健保碼）結果相同，待使用者確認。",
+    "approvedBy": "user (2026-11-23 差異確認頁)",
+    "match": {
+      "entry": "history-wildcard"
+    }
+  },
+  {
+    "id": "m6-w30-delete-storage-failure",
+    "page": "clinic-selfpay",
+    "description": "刪除批次時截圖檔刪除失敗：舊版忽略錯誤、仍刪除資料列，可能留下沒人管的截圖檔；新版先刪截圖檔，失敗就回報錯誤（502）並保留批次，可重試；截圖檔刪除成功才刪資料列。",
+    "reason": "規格要求「刪批次先刪截圖再刪資料，不要默默略過刪檔失敗」；正常情況下新舊結果相同。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w30-import-failure-cleanup",
+    "page": "clinic-selfpay",
+    "description": "匯入中途失敗（截圖上傳到一半、明細寫入失敗）：舊版會留下已上傳的截圖檔或半套批次（只有批次沒有明細）；新版失敗時刪掉已建立的批次與已上傳的截圖，不留殘餘。",
+    "reason": "資料一致性修補；成功情境結果相同。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w30-screenshot-ext-by-type",
+    "page": "clinic-selfpay",
+    "description": "截圖在儲存桶內的副檔名：舊版取使用者檔名的副檔名；新版依檔案實際類型決定（png、webp、其他為 jpg），不採用使用者檔名。路徑其餘規則相同（門市/年月/時間_亂數.副檔名），單張存純路徑、多張存 JSON 陣列字串，舊頁讀得到。",
+    "reason": "配合 D6 只收三種圖片格式；避免檔名副檔名與內容不符。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w30-api-shape",
+    "page": "clinic-selfpay",
+    "description": "新版 workspace API 的回應格式與舊版不同（舊版 success 加 data，錯誤為 success:false 加 error；新版直接回資料，錯誤為 error 加 HTTP 狀態碼，另可含 code 供畫面辨識 D2、D3、D4）；批次明細與清單另附門市代號與名稱。權限判斷採正式區 has_permission 語意（不檢查 roles.is_active，只有 profiles.role 為 admin 的應用層後備）。",
+    "reason": "新舊並行期舊頁仍打舊 API；新頁只用新 API，使用者看不到格式差異。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w30-page-layout",
+    "page": "clinic-selfpay",
+    "description": "畫面差異：新版在測試工作台內以頁籤開啟（毛利計算、DPOS 對應主檔）；確認改用視窗（刪批次、關帳開帳、D3、D4 確認），不再使用瀏覽器原生 confirm；批次明細在清單旁顯示；手機寬度（390px）不橫向溢出；截圖縮圖可逐張移除、可清空。給診所的請款明細 PDF 與截圖回看視窗由 W31 提供（PDF 與舊版相同，見 m6-w31-lightbox-viewer）。",
+    "reason": "維持舊版功能與欄位，只改版面與確認方式。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w30-nav-in-workspace",
+    "page": "clinic-selfpay",
+    "description": "導覽：新版「診所自費藥毛利計算」在工作頁內開啟（kind clinic-selfpay），舊版頁面 /store/clinic-selfpay-margin 與舊 API 保留不動（依 Z2 穩定一個月後才下架）。",
+    "reason": "M6 規格 Z2：新版上線後舊頁保留。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m6-w31-lightbox-viewer",
+    "page": "clinic-selfpay",
+    "description": "截圖回看：新版圖片檢視器（ImageLightbox.vue）除了舊版的上一張、下一張與縮圖列，另加鍵盤操作（左右鍵換張、Esc 關閉、+ - 0 縮放、Home End）、按鈕與滾輪縮放、雙擊放大、手機左右滑動換張，並在圖片載入失敗（簽名網址過期）時顯示說明；簽名網址有效期與舊版相同（60 分鐘）。",
+    "reason": "規格 W31 要求檢視器支援鍵盤、手機滑動與縮放；只增加操作方式，不改資料與權限。",
+    "approvedBy": "user (2026-11-23 差異確認頁)"
+  },
+  {
+    "id": "m9-c2-back-to-legacy-link",
+    "page": "navigation",
+    "description": "新版頁籤列右側新增「回舊版」連結：目前頁面有舊版對應時，點了在新分頁開啟舊版的同一功能（舊版與舊 API 都不動）。沒有舊版對應的新功能頁（例如採購單、請款單、頁面回舊版設定）不顯示。",
+    "reason": "M9 上線準備問卷 C2：新版上線後每個頁面都要有看得到的「回舊版」連結。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-n2-page-fallback-switch",
+    "page": "navigation",
+    "description": "新增系統管理員專用的「頁面回舊版設定」（角色權限管理頁的按鈕開啟）：每個選單頁面一個開關，切回舊版必填原因，記錄誰、何時、為什麼（另有只新增的稽核紀錄）；非系統管理員一律 403。不需重新部署，最慢 60 秒內生效。",
+    "reason": "M9 上線準備問卷 N2：上線後某一頁出問題時，系統管理員要能單獨把它切回舊版，並能再切回新版。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-n2-fallback-menu-opens-legacy",
+    "page": "navigation",
+    "description": "某頁被切回舊版後，選單中該項目（名稱、位置不變）改為開啟舊版網址（另開分頁，提示「暫時使用舊版」），不再開新版頁籤；工作台內其他任何入口要開這一頁時，改顯示帶舊版連結的通知而不開新版頁籤。",
+    "reason": "M9 上線準備問卷 N2：切回舊版後，選單要直接開舊版路由。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-n2-open-tab-notice",
+    "page": "navigation",
+    "description": "被切回舊版時，已經開著的新版頁籤顯示「已暫時切回舊版」通知與舊版連結，並隱藏該頁內容；若該頁籤有尚未儲存的內容則保留內容讓使用者先儲存（不強制關閉、不丟資料）。",
+    "reason": "M9 N2：已開啟的頁籤要有說明與連結；不可因切換而讓使用者遺失未存內容。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-n2-roles-not-switchable",
+    "page": "navigation",
+    "description": "「角色權限管理」是「頁面回舊版設定」的唯一入口，系統不允許把它切回舊版（API 回 400、設定清單不列出），避免管理員把自己鎖在設定畫面之外；它仍有「回舊版」連結可手動前往舊版頁面。",
+    "reason": "M9 上線準備問卷 N2：備援開關必須隨時能改回新版，不能因為切換了入口頁而無法從畫面還原。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-n2-menu-refresh-session",
+    "page": "navigation",
+    "description": "工作台在開啟選單時會多讀一次登入狀態（session），讓備援開關的變更不必等輪詢；伺服端不做任何快取，前端原本每 60 秒與視窗取得焦點時也會更新，因此變更最慢 60 秒內生效。",
+    "reason": "M9 N2：備援開關不可延遲超過 60 秒生效，且不需重新部署。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-n2-admin-entry-in-roles",
+    "page": "navigation",
+    "description": "「頁面回舊版設定」的入口放在「角色權限管理」頁標題列（只有系統管理員看得到按鈕），它是新版專屬頁面（沒有舊版對應，不在選單、不能被切回舊版）。",
+    "reason": "M9 N2：系統管理員專用管理介面放在其他系統管理設定附近。",
+    "approvedBy": "user (2026-11-23 上線準備問卷)"
+  },
+  {
+    "id": "m9-c2-link-new-tab",
+    "page": "navigation",
+    "description": "「回舊版」連結一律另開新分頁（rel=noopener），不取代目前分頁。",
+    "reason": "與舊版選單中原本就連到舊頁面的項目一致（另開分頁）；另可保留新版頁籤與尚未儲存的內容。這是開發端的選擇，請使用者確認同分頁開啟是否更合適。",
+    "approvedBy": "user (2026-11-24 差異確認頁)"
+  },
+  {
+    "id": "m9-c2-link-detail-to-list",
+    "page": "navigation",
+    "description": "明細頁（巡店明細、任務內容、員工歷程、設定編輯頁等）的「回舊版」連到舊版對應的清單頁或入口頁，不是同一筆資料的舊版頁。",
+    "reason": "新版的紀錄編號與舊版不同，硬接會連到錯的資料；GA 掃描頁的舊版網址含一次性代碼，也無法還原。開發端的選擇，請使用者確認。",
+    "approvedBy": "user (2026-11-24 差異確認頁)"
+  },
+  {
+    "id": "m9-n2-switch-scope-menu-pages",
+    "page": "navigation",
+    "description": "備援開關只涵蓋「選單頁面」（有舊版對應的導覽頁面，共 40 頁，清單由系統產生）；明細頁、總務服務中心內側欄的子頁、新版專屬功能不能單獨切換（總務中心只能整體切「總務服務中心首頁」）。",
+    "reason": "明細頁由清單頁帶出，單獨切換會讓流程斷在一半；新版專屬功能沒有舊版可退。開發端的選擇，請使用者確認範圍是否足夠。",
+    "approvedBy": "user (2026-11-24 差異確認頁)"
+  },
+  {
+    "id": "m9-f01-nav-clinic-selfpay-menu-visibility",
+    "page": "navigation",
+    "description": "導覽：舊 Navbar 對有月報四碼（monthly.status.view_own／view_all、employee.movement.manage、store.manage）的角色顯示「診所自費藥毛利計算」（/store/clinic-selfpay-margin）；新版選單只在「實際能用」（有 store.clinic_selfpay.* 專屬權限或職稱符合）時才顯示，所以部分角色（營運、藥師、月報檢視與編輯、只有異動管理等）的新版選單看不到這個入口。",
+    "reason": "M6 規格 D1（2026-11-21）已裁定「選單可見 = 實際能用」，clinic-selfpay 頁對照表已核可該差異；但導覽對等測試（navigation）當時沒有登記對應條目，F01 全站回歸才發現。依 T2 先登記為待核可，請使用者確認這個導覽面的差異是否同樣接受。",
+    "approvedBy": "user (2026-11-24 差異確認頁)",
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "/store/clinic-selfpay-margin",
+      "entry": "nav-visibility"
+    }
+  },
+  {
+    "id": "m9-f01-admin-purchase-payment-codes-legacy-only",
+    "page": "navigation",
+    "description": "管理員（舊版 /api/permissions/user 回傳所有啟用權限碼）的有效權限含第 4.5 批新增的 general_affairs.purchase_payment.view、general_affairs.purchase_payment.manage；新版 session 的權限取自角色實際指派，這兩個碼依設計不授權給任何角色（含 admin 角色），所以新版清單沒有。連帶：管理員在新版看不到「進貨發票」「請款單」入口與請款管理動作（資料庫語意沒有管理員後備）。",
+    "reason": "第 4.5 批問卷 P4：請款權限碼不自動授權，由使用者在角色權限頁決定授權對象。F01 全站回歸發現導覽對等沒有登記這個差異（同類的 purchase_order.approve 已登記並核可）。依 T2 登記為待核可，請使用者決定要不要先把這兩個碼授權給管理員角色。",
+    "approvedBy": "user (2026-11-24 差異確認頁)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "entry": "effective-permissions",
+      "key": "general_affairs.purchase_payment.view",
+      "roles": [
+        "admin"
+      ]
+    }
+  },
+  {
+    "id": "m9-f01-admin-purchase-payment-manage-legacy-only",
+    "page": "navigation",
+    "description": "同 m9-f01-admin-purchase-payment-codes-legacy-only，針對 general_affairs.purchase_payment.manage。",
+    "reason": "同上；依 T2 登記為待核可。",
+    "approvedBy": "user (2026-11-24 差異確認頁)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "entry": "effective-permissions",
+      "key": "general_affairs.purchase_payment.manage",
+      "roles": [
+        "admin"
+      ]
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-locked",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「是否鎖定」：帳單已放進未作廢的水電請款單時鎖定（不能改金額、不能刪除）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#locked",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-paid-by-pr-no",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「由哪張請款單標記已繳」：帳單由哪一張請款單自動標記為已繳（請款單號）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#paid_by_pr_no",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-payment-request",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「所屬請款單」：帳單目前所屬的請款單（單號與狀態）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#payment_request",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-attachment-count",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「附件數量」：帳單的附件數量（帳單照片或 PDF）。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#attachment_count",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g46-ub-list-payee-vendor-name",
+    "page": "ga-utility-bills",
+    "description": "新版帳單列表每列多回「繳費單位名稱」：帳單的繳費單位（公用事業廠商，例如台電、台水、電信公司）名稱。（G46 水電話費請款新增）",
+    "reason": "G46 水電話費請款（2026-11-24）把帳單接進請款單，新版列表多回這個欄位；舊版沒有請款功能。對等測試在 F01 之後的回歸抓到，登記為待核可：請確認接受（建議）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#payee_vendor_name",
+      "kind": "only-native"
+    }
   }
 ]

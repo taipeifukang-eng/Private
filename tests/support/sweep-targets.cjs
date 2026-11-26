@@ -73,6 +73,9 @@ MARKER_TARGETS.push(
   { table: 'ga_utility_bills', column: 'provider_name', pattern: 'QA-GA6-%', action: 'report' },
   // 第 4.5 批（G45）：測試廠商名稱帶 QA-GA45- 標記；請款單、發票與附件走 DEV 專用函式 ga_dev_cleanup_m7m8_b45（請款事件有不可改刪觸發器），這裡只回報孤兒。
   { table: 'ga_vendors', column: 'name', pattern: 'QA-GA45-%', action: 'report' },
+  // G46 水電話費請款：測試繳費單位（廠商）名稱與測試帳單供應商名稱帶 QA-GAUP- 標記；請款單、明細、事件走 DEV 專用函式 ga_dev_cleanup_ga_utility_payment（事件有不可改刪觸發器），這裡只回報孤兒。
+  { table: 'ga_vendors', column: 'name', pattern: 'QA-GAUP-%', action: 'report' },
+  { table: 'ga_utility_bills', column: 'provider_name', pattern: 'QA-GAUP-%', action: 'report' },
 );
 
 // M6 第 1 批（P07 關係會員）：銷售明細匯入批次檔名 m6p07-<runId>-…（明細 ON DELETE CASCADE）；測試帳號 m6-test-*、臨時角色 m6_test_* 由 fixture 自行清除，這裡只回報孤兒。

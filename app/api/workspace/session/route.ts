@@ -19,17 +19,32 @@ import {
   WorkspaceError,
 } from "@/lib/workspace/server";
 import { isPendingAccount } from "@/lib/workspace/auth-public";
+import { clinicMenuVisible } from "@/lib/workspace/clinic-selfpay";
 import { workspaceNavigation } from "@/lib/workspace/navigation";
 import { loadExportAccess } from "@/lib/workspace/monthly-export-server";
 import { canEnterCampaignView } from "@/lib/campaign-access";
 import { canOpenMonthlyExport } from "@/lib/workspace/monthly-export";
 import { dbCan, gaFlags, isStoreManagerRole } from "@/lib/workspace/general-affairs/access";
 import { gaNavigation } from "@/lib/workspace/general-affairs/nav";
+import { activeFallbacks } from "@/lib/workspace/page-fallbacks";
+import { environmentName, evaluateGate } from "@/lib/workspace/site-gate";
 import { isRosterMember, isStoreMember } from "@/lib/workspace/general-affairs/members";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
-    const ctx = await context();
+    // 本路由自己處理「尚未開放」：非管理員不丟 403，回 open:false 讓畫面顯示說明頁（待開通帳號也一樣）。
+    const ctx = await context({ audienceCheck: false });
+    const gate = evaluateGate(process.env);
+    const siteState = { enabled: true, audience: gate.audience };
+    if (gate.audience === "admin_only" && !ctx.isAdmin)
+      return respond({
+        open: false,
+        siteState,
+        isAdmin: false,
+        user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
+        environment: environmentName(process.env),
+        integrated: process.env.WORKSPACE_USE_EXISTING_SESSION === "true",
+      });
     let transfers=false;try{await transferAccess(ctx);transfers=true;}catch(e){if(!(e instanceof WorkspaceError&&e.status===403))throw e;}
     const campaignView = await canEnterCampaignView(ctx.auth, ctx.user.id);
     const movementHistory=await canReadMovementHistory(ctx);
@@ -67,7 +82,13 @@ export async function GET() {
     const monthlyExport = canOpenMonthlyExport(await loadExportAccess(ctx));
     const gaStoreMember = await isStoreMember(ctx);
     const gaRosterMember = await isRosterMember(ctx);
+    const clinicSelfpay = await clinicMenuVisible(ctx);
+    // M9 N2：切回舊版的頁面（每次請求都讀資料庫，不快取；讀不到視為沒有）。
+    const pageFallbacks = await activeFallbacks(ctx.admin);
     return respond({
+      open: true,
+      siteState,
+      isAdmin: ctx.isAdmin,
       user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
       permissions: Array.from(ctx.permissions),
       // M5 Q15：沒有任何生效角色、也不是管理員 = 帳號待管理員開通（畫面顯示說明頁而不是空白）
@@ -75,9 +96,10 @@ export async function GET() {
       capabilities: {
         employeePurchases:ctx.has("employee_purchase.view") || ctx.has("employee_purchase.import"),
         pharmacists:ctx.has("pharmacist.management.view"),
-        productsMaster:ctx.has(...moduleCodes.productsMaster),stockout:ctx.has(...moduleCodes.stockout),supervisorLog:ctx.has(...moduleCodes.supervisorLog),
+        productsMaster:ctx.has(...moduleCodes.productsMaster),stockout:ctx.has(...moduleCodes.stockout),supervisorLog:ctx.has(...moduleCodes.supervisorLog),clinicSelfpay,
         relationships:ctx.has("relationship_member.view","relationship_member.edit","relationship_member.delete","relationship_member.approve"),
         roles:ctx.has(...ROLE_MANAGEMENT_NAV_PERMISSION_CODES),
+        pageFallbackAdmin: ctx.isAdmin, // M9 N2：頁面回舊版設定只有系統管理員
         users:ctx.has(...USER_MANAGEMENT_NAV_PERMISSION_CODES),
         transfers,
         movementDraft:ctx.has("employee.promotion.batch"),
@@ -122,7 +144,7 @@ export async function GET() {
       },
       gaNavigation: gaNavigation({ has: ctx.has, permissions: ctx.permissions as any, roleCodes: ctx.roleCodes, isAdmin: ctx.isAdmin, storeMember: gaStoreMember, rosterMember: gaRosterMember }),
       stores: Array.from(stores.values()),
-      environment: "DEV",
+      environment: environmentName(process.env),
       integrated: process.env.WORKSPACE_USE_EXISTING_SESSION === "true",
       navigation: workspaceNavigation(ctx, {
         transfers,
@@ -138,7 +160,10 @@ export async function GET() {
         monthlyExport,
         campaignView,
         gaRosterMember,
+        clinicSelfpay,
+        fallbackKinds: new Set(pageFallbacks.map((f) => f.kind)),
       }),
+      pageFallbacks,
     });
   } catch (error) {
     return failed(error);

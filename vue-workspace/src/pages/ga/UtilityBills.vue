@@ -5,6 +5,7 @@ import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import UtilityBillDetail from "../../components/ga/UtilityBillDetail.vue";
 import UtilityBillForm from "../../components/ga/UtilityBillForm.vue";
+import UtilityPayeeBackfill from "../../components/ga/UtilityPayeeBackfill.vue";
 import { openGaPage, useDebounced, useGaGuard, useLatest, useRefreshOnActivate } from "../../lib/ga";
 import {
   BILL_STATUS_LABELS, EXPENSE_TYPES, EXPENSE_TYPE_LABELS, dateText, errorText, identifierLabel, money, monthText, siteOf, storeLabel,
@@ -16,7 +17,7 @@ import type { WorkTab } from "../../stores";
 // 待繳與逾期兩張卡不受月份、類型、據點篩選影響（全部月份、完整計算，與首頁、導覽徽章同一支函式）；「篩選結果合計」照目前篩選。沒填繳費期限的未繳帳單永不逾期，另列提示。
 const props = defineProps<{ tab: WorkTab }>();
 const allowed = useGaGuard(props.tab);
-const payload = (props.tab.payload || {}) as { overdue?: boolean; status?: string; month?: string };
+const payload = (props.tab.payload || {}) as { overdue?: boolean; status?: string; month?: string; search?: string };
 const currentMonth = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit" }).format(new Date());
 const fromBadge = !!(payload.overdue || payload.status);
 const rows = ref<Bill[]>([]);
@@ -31,7 +32,12 @@ const month = ref(fromBadge ? "" : payload.month || currentMonth);
 const type = ref("");
 const storeId = ref("");
 const status = ref(payload.overdue ? "overdue" : payload.status || "");
-const search = ref("");
+const search = ref(payload.search || "");
+// G46 請款單相關篩選：請款狀態（未請款／已在請款單）、繳費單位（含「未指定」）。
+const requestFilter = ref("");
+const payeeFilter = ref("");
+const payeeOptions = ref<Array<{ id: string; name: string }>>([]);
+const showBackfill = ref(false);
 const debounced = useDebounced(search, 300);
 const deletedView = ref(false);
 const loading = ref(false);
@@ -44,7 +50,7 @@ const creating = ref(false);
 const saved = ref<{ label: string; anomaly: Anomaly | null } | null>(null);
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const canManage = computed(() => !!abilities.value?.canManage);
-const hasFilter = computed(() => !!(month.value || type.value || storeId.value || status.value || debounced.value.trim()));
+const hasFilter = computed(() => !!(month.value || type.value || storeId.value || status.value || requestFilter.value || payeeFilter.value || debounced.value.trim()));
 
 async function load() {
   if (!allowed.value) return;
@@ -58,6 +64,8 @@ async function load() {
     if (storeId.value) q.set("storeId", storeId.value);
     if (status.value) q.set("status", status.value);
     if (debounced.value.trim()) q.set("search", debounced.value.trim());
+    if (requestFilter.value) q.set("request", requestFilter.value);
+    if (payeeFilter.value) q.set("payee", payeeFilter.value);
     if (deletedView.value) q.set("deleted", "1");
     const res = await api<{ data: Bill[]; total: number; summary: FilterSummary; global: GlobalStats; permissions: Abilities }>("general-affairs/utility-bills?" + q);
     if (!latest.isLatest(n)) return;
@@ -81,16 +89,21 @@ async function loadStores() {
     error.value = "門市清單載入失敗：" + errorText(e);
   }
 }
-watch([month, type, storeId, status, debounced, deletedView], () => { page.value = 1; void load(); });
+watch([month, type, storeId, status, debounced, deletedView, requestFilter, payeeFilter], () => { page.value = 1; void load(); });
 watch(page, load);
-onMounted(() => { void load(); void loadStores(); });
+async function loadPayees() {
+  if (!allowed.value) return;
+  try { payeeOptions.value = (await api<{ data: Array<{ id: string; name: string }> }>("general-affairs/utility-bills/payees")).data; } catch { payeeOptions.value = []; }
+}
+onMounted(() => { void load(); void loadStores(); void loadPayees(); });
 useRefreshOnActivate(props.tab, () => { void load(); });
 
 const g = computed(() => globalStats.value);
 function pickOverdue() { month.value = ""; type.value = ""; storeId.value = ""; status.value = status.value === "overdue" ? "" : "overdue"; }
 function pickPending() { month.value = ""; type.value = ""; storeId.value = ""; status.value = status.value === "unpaid" ? "" : "unpaid"; }
 function showNoDue() { month.value = ""; type.value = ""; storeId.value = ""; status.value = "no_due"; }
-function clearFilters() { month.value = ""; type.value = ""; storeId.value = ""; status.value = ""; search.value = ""; }
+function clearFilters() { month.value = ""; type.value = ""; storeId.value = ""; status.value = ""; search.value = ""; requestFilter.value = ""; payeeFilter.value = ""; }
+function onBackfilled() { void load(); void loadPayees(); }
 
 async function onSaved(b: Bill, anomaly: Anomaly | null) {
   creating.value = false;
@@ -113,6 +126,7 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
     </div>
     <div class="head-actions">
       <button type="button" data-testid="open-report" @click="openGaPage('ga-utility-bills-report')"><BarChart3 :size="14" /> 費用報表</button>
+      <button v-if="canManage" type="button" data-testid="open-backfill" @click="showBackfill = true">補填繳費單位</button>
       <button v-if="canManage" type="button" class="primary" data-testid="new-bill" @click="openNew">新增費用</button>
     </div>
   </header>
@@ -137,6 +151,8 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
       <label>據點<select v-model="storeId" data-testid="filter-store"><option value="">全部據點</option><option v-for="s in stores" :key="s.id" :value="s.id">{{ storeLabel(s) }}</option></select></label>
       <label>費用類型<select v-model="type" data-testid="filter-type"><option value="">全部費用</option><option v-for="t in EXPENSE_TYPES" :key="t" :value="t">{{ EXPENSE_TYPE_LABELS[t] }}</option></select></label>
       <label>狀態<select v-model="status" data-testid="filter-status"><option value="">全部</option><option value="unpaid">待繳費（含逾期）</option><option value="overdue">已逾期</option><option value="paid">已繳費</option><option value="no_due">未填繳費期限</option></select></label>
+      <label>請款狀態<select v-model="requestFilter" data-testid="filter-request"><option value="">全部</option><option value="none">未請款</option><option value="in_request">已在請款單</option></select></label>
+      <label>繳費單位<select v-model="payeeFilter" data-testid="filter-payee"><option value="">全部</option><option value="none">未指定</option><option v-for="p in payeeOptions" :key="p.id" :value="p.id">{{ p.name }}</option></select></label>
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="據點、供應商、識別號碼、帳號、銷帳編號" data-testid="bill-search" /></label>
       <label class="check"><input v-model="deletedView" type="checkbox" data-testid="show-deleted" /> 顯示已刪除（唯讀）</label>
     </div>
@@ -150,6 +166,8 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
         <p class="card-line"><span class="chip">{{ EXPENSE_TYPE_LABELS[b.expense_type] }}</span>　{{ monthText(b.billing_month) }}　<strong data-testid="bill-amount">{{ money(b.amount) }}</strong></p>
         <p class="card-line muted">{{ b.provider_name || "（未填供應商）" }}｜{{ identifierLabel(b.expense_type) }}：{{ b.service_identifier || b.equipment_serial || "—" }}</p>
         <p class="card-line muted">繳費期限 {{ dateText(b.due_date) || "未填" }}<template v-if="b.paid_at">　已繳 {{ dateText(b.paid_at) }}</template></p>
+        <p class="card-line muted" data-testid="bill-payee">繳費單位：<template v-if="b.payee_vendor_name">{{ b.payee_vendor_name }}</template><span v-else class="warn" data-testid="bill-payee-none">未指定</span>　請款單：<template v-if="b.payment_request"><template v-if="b.payment_request.pr_no"><button type="button" class="link" data-testid="bill-request-link" @click="openGaPage('ga-payment-request-edit', b.payment_request.id)">{{ b.payment_request.pr_no }}</button></template><template v-else><span data-testid="bill-request-in">已在請款單內</span></template></template><template v-else>—</template></p>
+        <p v-if="b.paid_by_pr_id" class="card-line muted" data-testid="bill-auto-paid">已繳（請款單 {{ b.paid_by_pr_no || "" }} 自動標記）</p>
         <p v-if="b.deleted_at" class="card-line muted" data-testid="bill-deleted-line">{{ b.deleted_by_name || "—" }} 刪除：{{ b.deletion_reason }}</p>
         <button type="button" data-testid="open-bill" @click="detailId = b.id">查看詳情</button>
       </li>
@@ -160,6 +178,7 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
       <button type="button" :disabled="page <= 1 || loading" @click="page--">上一頁</button>
       <button type="button" :disabled="page >= pages || loading" @click="page++">下一頁</button>
     </footer>
+    <UtilityPayeeBackfill v-if="showBackfill" @close="showBackfill = false" @changed="onBackfilled" />
     <UtilityBillDetail v-if="detailId" :id="detailId" :can-manage="canManage" @close="detailId = ''" @edit="startEdit" @changed="load" />
     <UtilityBillForm v-if="creating" :bill="null" :stores="stores" @close="creating = false" @saved="onSaved" @open-existing="openExisting" />
     <UtilityBillForm v-if="editing" :key="editing.id + editing.updated_at" :bill="editing" :stores="stores" @close="editing = null" @saved="onSaved" @open-existing="openExisting" />
@@ -185,6 +204,8 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
 .card-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
 .card-line { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
 .card-empty { text-align: center; color: var(--muted); padding: 20px; grid-column: 1 / -1; }
+.warn { color: #b3261e; font-weight: 600; }
+button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
 .chip { display: inline-block; border-radius: 6px; padding: 0 8px; font-size: 12px; font-weight: 600; background: var(--soft); border: 1px solid var(--line); }
 .st { display: inline-block; border-radius: 10px; padding: 1px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: var(--soft); white-space: nowrap; }
 .st[data-status="overdue"] { color: #b3261e; border-color: #d9a3a0; }

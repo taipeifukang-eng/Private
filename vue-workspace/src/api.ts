@@ -1,3 +1,4 @@
+import { SITE_NOTICE_EVENT, siteNoticeFor } from "./site-state";
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -31,6 +32,8 @@ export async function api<T = any>(
   if (!response.ok) {
     if (response.status === 401 && path !== "login")
       window.dispatchEvent(new Event("workspace-session-expired"));
+    const notice = siteNoticeFor(response.status, data);
+    if (notice) window.dispatchEvent(new CustomEvent(SITE_NOTICE_EVENT, { detail: notice }));
     throw new ApiError(
       response.status,
       [data.error || "服務暫時無法使用，請重試", ...(Array.isArray(data.errors) ? data.errors : [])].join("\n"),

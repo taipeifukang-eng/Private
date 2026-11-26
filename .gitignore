@@ -105,3 +105,6 @@ __pycache__/
 *.py[cod]
 /test-results/
 /playwright-report/
+
+# 真實盤點／診所樣本（不得提交）
+盤點測試檔/

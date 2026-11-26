@@ -18,7 +18,13 @@ const { createRegistry, RUN_ID_RE } = nodeRequire('./registry.cjs') as {
   RUN_ID_RE: RegExp;
 };
 
-export const TEST_ORIGIN = 'http://localhost:3002';
+const { resolveBaseUrl: resolveBase, bypassHeaders: bypassHdrs } = nodeRequire('./env-refs.cjs') as {
+  resolveBaseUrl: () => string;
+  bypassHeaders: () => Record<string, string>;
+};
+// 預設本機 3002；設 E2E_BASE_URL 時改打 Vercel preview（帶繞過標頭）。
+export const TEST_ORIGIN = resolveBase();
+const BYPASS = bypassHdrs();
 export const EMAIL_PREFIX = 'cvp-test-';
 export const ROLE_PREFIX = 'cvp_test_';
 export const INV_DEPT = '營業部-盤點組';
@@ -306,7 +312,7 @@ export async function setupCv01(scenarioKeys: string[] = Object.keys(SCENARIOS))
 
 /** 以 workspace 登入路由登入（cookie 與舊站共用），回傳可呼叫舊 API 與 workspace API 的 request context。 */
 export async function apiForUser(user: CvUser): Promise<APIRequestContext> {
-  const ctx = await playwrightRequest.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: { Origin: TEST_ORIGIN } });
+  const ctx = await playwrightRequest.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: { Origin: TEST_ORIGIN, ...BYPASS } });
   const res = await ctx.post('/api/workspace/login', { data: { email: user.email, password: user.password } });
   if (!res.ok()) {
     await ctx.dispose();

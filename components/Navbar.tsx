@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -50,7 +50,10 @@ import {
 } from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
-  workspacePreviewEnabled?: boolean;
+  /** 新版工作台是否對此使用者開放（伺服端計算：閘門、開放對象）。false 時不顯示按鈕，所有連結維持舊版。 */
+  workspaceEnabled?: boolean;
+  /** 舊版選單路徑 -> 新版網址（伺服端計算，已排除逐頁回舊版的頁面）。沒有的路徑維持舊版連結。 */
+  workspaceLinks?: Record<string, string>;
   user: {
     id: string;
     email: string;
@@ -63,7 +66,17 @@ interface NavbarProps {
   } | null;
 }
 
-export default function Navbar({ user, workspacePreviewEnabled = false }: NavbarProps) {
+const WorkspaceLinksContext = createContext<Record<string, string>>({});
+
+// 對應到新版頁面的項目用一般 <a>（Link 會當成 Next 路由攔截，進不到 /workspace/ 靜態檔）；其餘照舊用 Link。
+function NavLink({ href, ...rest }: React.ComponentProps<typeof Link>) {
+  const links = useContext(WorkspaceLinksContext);
+  const target = typeof href === 'string' ? links[href] : undefined;
+  if (target) return <a href={target} {...(rest as React.AnchorHTMLAttributes<HTMLAnchorElement>)} />;
+  return <Link href={href} {...rest} />;
+}
+
+export default function Navbar({ user, workspaceEnabled = false, workspaceLinks = {} }: NavbarProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
@@ -234,12 +247,13 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
   };
 
   return (
+    <WorkspaceLinksContext.Provider value={workspaceLinks}>
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
       <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="flex justify-between items-center h-14 lg:h-16">
           {/* Logo and Desktop Navigation */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2 min-w-0 shrink-0 group">
+            <NavLink href="/" className="flex items-center space-x-2 min-w-0 shrink-0 group">
               <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center shrink-0 self-center border border-amber-500/30">
                 <ClipboardList className="w-5 h-5 lg:w-6 lg:h-6 text-amber-400" />
               </div>
@@ -255,12 +269,12 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                   富康菁英
                 </span>
               </div>
-            </Link>
+            </NavLink>
 
             {/* Desktop Menu */}
             <div className="hidden lg:flex lg:ml-10 lg:space-x-2">
               {/* 首頁 */}
-              <Link
+              <NavLink
                 href="/"
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   pathname === '/'
@@ -270,7 +284,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
               >
                 <Home size={18} />
                 首頁
-              </Link>
+              </NavLink>
 
               {/* 派發任務下拉選單 */}
               <div className="relative" ref={taskMenuRef}>
@@ -294,7 +308,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                       const Icon = item.icon;
                       const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                       return (
-                        <Link
+                        <NavLink
                           key={item.href}
                           href={item.href}
                           onClick={() => setIsTaskMenuOpen(false)}
@@ -306,7 +320,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         >
                           <Icon size={18} />
                           {item.label}
-                        </Link>
+                        </NavLink>
                       );
                     })}
                   </div>
@@ -336,7 +350,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
-                          <Link
+                          <NavLink
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsStoreMenuOpen(false)}
@@ -348,7 +362,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                           >
                             <Icon size={18} />
                             {item.label}
-                          </Link>
+                          </NavLink>
                         );
                       })}
                     </div>
@@ -379,7 +393,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
-                          <Link
+                          <NavLink
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsMonthlyStatusMenuOpen(false)}
@@ -391,7 +405,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                           >
                             <Icon size={18} />
                             {item.label}
-                          </Link>
+                          </NavLink>
                         );
                       })}
                     </div>
@@ -422,7 +436,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
-                          <Link
+                          <NavLink
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsInspectionMenuOpen(false)}
@@ -434,7 +448,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                           >
                             <Icon size={18} />
                             {item.label}
-                          </Link>
+                          </NavLink>
                         );
                       })}
                     </div>
@@ -451,10 +465,10 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <Link href="/general-affairs" className="flex items-center gap-2 py-2 pl-4 pr-2">
+                    <NavLink href="/general-affairs" className="flex items-center gap-2 py-2 pl-4 pr-2">
                       <Wrench size={18} />
                       總務服務中心
-                    </Link>
+                    </NavLink>
                     <button
                       type="button"
                       aria-label="展開總務服務中心選單"
@@ -471,7 +485,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
-                          <Link
+                          <NavLink
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsGeneralAffairsMenuOpen(false)}
@@ -483,7 +497,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                           >
                             <Icon size={18} />
                             {item.label}
-                          </Link>
+                          </NavLink>
                         );
                       })}
                     </div>
@@ -492,7 +506,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
               )}
 
               {permissions.canAccessSupervisorManagementLog && (
-                <Link
+                <NavLink
                   href="/supervisor-management-log"
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isInSupervisorManagementLogSection
@@ -502,7 +516,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                 >
                   <NotebookPen size={18} />
                   督導管理日誌
-                </Link>
+                </NavLink>
               )}
 
               {/* 跨部門管理下拉選單 */}
@@ -527,7 +541,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
-                          <Link
+                          <NavLink
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsCrossDeptMenuOpen(false)}
@@ -539,7 +553,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                           >
                             <Icon size={18} />
                             {item.label}
-                          </Link>
+                          </NavLink>
                         );
                       })}
                     </div>
@@ -552,7 +566,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                 const Icon = item.icon;
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -563,7 +577,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                   >
                     <Icon size={18} />
                     {item.label}
-                  </Link>
+                  </NavLink>
                 );
               })}
             </div>
@@ -571,8 +585,8 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
 
           {/* User Info and Sign Out */}
           <div className="flex items-center space-x-2 lg:space-x-4 shrink-0">
-            {workspacePreviewEnabled && (
-              <a href="/workspace/index.html" className="text-xs font-semibold whitespace-nowrap rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-2" title="以新版全站工作台開啟此測試環境">
+            {workspaceEnabled && (
+              <a href="/workspace/index.html" className="text-xs font-semibold whitespace-nowrap rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-2" title="以新版全站工作台開啟">
                 新版工作台
               </a>
             )}
@@ -634,7 +648,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
 
             {/* Nav Items */}
             {/* 首頁 */}
-            <Link
+            <NavLink
               href="/"
               onClick={() => setIsMobileMenuOpen(false)}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
@@ -645,7 +659,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
             >
               <Home size={18} />
               首頁
-            </Link>
+            </NavLink>
 
             {/* 派發任務區塊 */}
             <div className="mt-1">
@@ -658,7 +672,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                   const Icon = item.icon;
                   const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                   return (
-                    <Link
+                    <NavLink
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsMobileMenuOpen(false)}
@@ -670,7 +684,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                     >
                       <Icon size={18} />
                       {item.label}
-                    </Link>
+                    </NavLink>
                   );
                 })}
               </div>
@@ -688,7 +702,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
-                      <Link
+                      <NavLink
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -700,7 +714,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                       >
                         <Icon size={18} />
                         {item.label}
-                      </Link>
+                      </NavLink>
                     );
                   })}
                 </div>
@@ -719,7 +733,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
-                      <Link
+                      <NavLink
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -731,7 +745,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                       >
                         <Icon size={18} />
                         {item.label}
-                      </Link>
+                      </NavLink>
                     );
                   })}
                 </div>
@@ -750,7 +764,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
-                      <Link
+                      <NavLink
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -762,7 +776,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                       >
                         <Icon size={18} />
                         {item.label}
-                      </Link>
+                      </NavLink>
                     );
                   })}
                 </div>
@@ -780,7 +794,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
-                      <Link
+                      <NavLink
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -792,7 +806,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                       >
                         <Icon size={18} />
                         {item.label}
-                      </Link>
+                      </NavLink>
                     );
                   })}
                 </div>
@@ -800,7 +814,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
             )}
 
             {permissions.canAccessSupervisorManagementLog && (
-              <Link
+              <NavLink
                 href="/supervisor-management-log"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
@@ -811,7 +825,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
               >
                 <NotebookPen size={18} />
                 督導管理日誌
-              </Link>
+              </NavLink>
             )}
 
             {/* 其他導航項目 */}
@@ -820,7 +834,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                 const Icon = item.icon;
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -832,7 +846,7 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
                   >
                     <Icon size={18} />
                     {item.label}
-                  </Link>
+                  </NavLink>
                 );
               })}
             </div>
@@ -849,5 +863,6 @@ export default function Navbar({ user, workspacePreviewEnabled = false }: Navbar
         </div>
       )}
     </nav>
+    </WorkspaceLinksContext.Provider>
   );
 }

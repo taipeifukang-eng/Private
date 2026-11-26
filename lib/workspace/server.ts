@@ -5,7 +5,8 @@ import { NextResponse } from "next/server";
 import { resolveAccess } from "./permission-semantics";
 import { listScopeFor } from "./inspection-list";
 
-const DEV_REF = "mjpdfpxqttbhzeimmtqr";
+import { allowedOrigin, evaluateGate } from "./site-gate";
+
 export class WorkspaceError extends Error {
   constructor(
     public status: number,
@@ -15,37 +16,15 @@ export class WorkspaceError extends Error {
   }
 }
 export function assertWorkspace() {
-  const ref = new URL(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "http://invalid",
-  ).hostname.split(".")[0];
-  if (
-    process.env.WORKSPACE_DEV_ENABLED !== "true" ||
-    ref !== DEV_REF ||
-    process.env.EXPECTED_SUPABASE_PROJECT_REF !== DEV_REF
-  ) {
-    throw new WorkspaceError(503, "測試工作台未啟用或資料庫設定不符");
-  }
-  for (const [name, role] of [
-    ["NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon"],
-    ["SUPABASE_SERVICE_ROLE_KEY", "service_role"],
-  ]) {
-    try {
-      const claims = JSON.parse(
-        Buffer.from(
-          (process.env[name] || "").split(".")[1],
-          "base64url",
-        ).toString(),
-      );
-      if (claims.ref !== DEV_REF || claims.role !== role)
-        throw new Error("mismatch");
-    } catch {
-      throw new WorkspaceError(503, "測試資料庫金鑰設定不符");
-    }
-  }
+  const gate = evaluateGate(process.env);
+  if (gate.open) return;
+  // 訊息不帶任何環境變數的值
+  if (gate.reason === "disabled") throw new WorkspaceError(503, "新版暫時關閉");
+  throw new WorkspaceError(503, "新版工作台設定不符，暫時無法使用");
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (origin !== (process.env.WORKSPACE_ORIGIN || "http://localhost:5173")) {
+  if (!origin || !allowedOrigin(process.env, request.headers).includes(origin.replace(/\/$/, ""))) {
     throw new WorkspaceError(403, "請從測試工作台操作");
   }
 }
@@ -62,7 +41,7 @@ export function sessionClient() {
         path: integrated ? "/" : "/api/workspace",
         httpOnly: !integrated,
         sameSite: "lax",
-        secure: process.env.WORKSPACE_ORIGIN?.startsWith("https:") || false,
+        secure: Boolean(process.env.VERCEL_ENV) || process.env.WORKSPACE_ORIGIN?.startsWith("https:") || false,
       },
       cookies: {
         getAll: () => jar.getAll(),
@@ -120,6 +99,8 @@ export const CAMPAIGN_EDIT_CODES = [
 export type ContextOptions<T = undefined> = {
   // 預設 true；只有 session 路由需要 profile.full_name，其餘路由傳 false 不回傳 profile（role 仍會查，供 isAdmin 判斷）。
   profile?: boolean;
+  // 預設 true：audience=admin_only 時非管理員一律 403 NOT_OPEN_YET。只有 /api/workspace/session 傳 false（自己回「尚未開放」頁）。
+  audienceCheck?: boolean;
   // 在 getUser 之後與 user_roles／profiles 並行執行的額外查詢（例如名冊頁的門市清單），結果放在 ctx.prefetched。
   prefetch?: (env: { auth: ReturnType<typeof sessionClient>; admin: ReturnType<typeof adminClient>; userId: string }) => Promise<T>;
 };
@@ -153,6 +134,8 @@ export async function context<T = undefined>(options: ContextOptions<T> = {}) {
     assignments as any,
     profileRole,
   );
+  if (options.audienceCheck !== false && evaluateGate(process.env).audience === "admin_only" && !isAdmin)
+    throw new WorkspaceError(403, "NOT_OPEN_YET");
   const profile =
     options.profile === false || !profileResult ? null : checked(profileResult);
   return { auth, admin, user, profile, permissions, roleCodes, isAdmin, has, activeRoleCount, prefetched };

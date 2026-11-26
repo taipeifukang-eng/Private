@@ -22,6 +22,7 @@ import {
 import { getDraft, claimedSlots, listNewDrafts, offlineAvailable, purgeExpiredDrafts, putDraft, removeDraft, removeDraftByKey } from "../inspection-offline";
 import GpsGuideDialog from "../components/GpsGuideDialog.vue";
 import {
+  GPS_EXEMPT_LABEL,
   GPS_HIGH_ACCURACY_FALLBACK_MS,
   classifyGeolocationError,
   classifyGpsDbError,
@@ -31,6 +32,7 @@ import {
   getGpsFailureMessage,
   isGpsDbError,
   isGpsTimestampWithinWindow,
+  toExemptGpsFix,
   validateGpsFix,
   type GpsFailureKind,
 } from "../../../lib/inspection/gps-policy";
@@ -92,7 +94,13 @@ function claimSlot() {
   claimed.add(claimedAs);
 }
 // 定位狀態（僅新增模式使用）：新增巡店必須先定位成功，表單才會解鎖。
-const gpsStatus = ref<"idle" | "loading" | "success" | "error">("idle"),
+// exempt：有「巡店定位例外」權限（或管理員）的人在定位失敗後按了「使用定位例外送出」，表單解鎖、送出帶 gps_exempt。
+const gpsStatus = ref<"idle" | "loading" | "success" | "error" | "exempt">("idle"),
+  // 由伺服器（GET inspection-form）算出；只決定按鈕要不要出現，POST 仍會在伺服器端再檢查一次。
+  gpsExemptAllowed = ref(false),
+  // 有拿到但驗證沒過的定位結果，使用定位例外時一併記錄。
+  gpsRejectedFix = ref<any>(null),
+  gpsFailureAccuracy = ref<number | null>(null),
   gpsError = ref(""),
   gpsKind = ref<GpsFailureKind | null>(null),
   gpsWarning = ref(false),
@@ -150,8 +158,14 @@ watch(
   },
   { deep: true, flush: "sync" },
 );
+const gpsExemptActive = computed(
+  () => gpsStatus.value === "exempt" && gpsExemptAllowed.value,
+);
 const gpsLocked = computed(
-  () => isNew.value && (gpsStatus.value !== "success" || !form.value.gps),
+  () =>
+    isNew.value &&
+    !gpsExemptActive.value &&
+    (gpsStatus.value !== "success" || !form.value.gps),
 );
 const disabled = computed(
   () =>
@@ -189,6 +203,7 @@ async function load() {
     grades.value = r.grades;
     stores.value = r.stores;
     templateHash.value = r.templateHash;
+    gpsExemptAllowed.value = r.gpsExemptAllowed === true;
     if (r.record) {
       const row = r.record;
       version.value = row.workspace_version;
@@ -518,9 +533,15 @@ function locate() {
   const attempt = ++gpsAttempt;
   window.clearTimeout(gpsTimer);
   const current = () => gpsAttempt === attempt;
-  const fail = (kind: GpsFailureKind, accuracy?: number | null) => {
+  const fail = (
+    kind: GpsFailureKind,
+    accuracy?: number | null,
+    rejected?: any,
+  ) => {
     if (!current()) return;
     form.value.gps = null;
+    gpsRejectedFix.value = rejected ?? null;
+    gpsFailureAccuracy.value = accuracy ?? null;
     gpsWarning.value = false;
     gpsKind.value = kind;
     gpsError.value = getGpsFailureMessage(kind, accuracy);
@@ -536,7 +557,9 @@ function locate() {
       capturedAt: getInspectionGpsCapturedAt(p.timestamp),
     };
     const check = validateGpsFix(fix);
-    if (!check.ok) return fail(check.kind, fix.accuracy);
+    if (!check.ok) return fail(check.kind, fix.accuracy, fix);
+    gpsRejectedFix.value = null;
+    gpsFailureAccuracy.value = null;
     form.value.gps = fix;
     form.value.date = formatTaipeiDate(fix.capturedAt);
     gpsWarning.value = check.warning;
@@ -549,6 +572,8 @@ function locate() {
   if (!navigator.geolocation) return fail("unsupported");
   gpsStatus.value = "loading";
   form.value.gps = null;
+  gpsRejectedFix.value = null;
+  gpsFailureAccuracy.value = null;
   gpsWarning.value = false;
   gpsError.value = "";
   gpsKind.value = null;
@@ -574,6 +599,17 @@ function locate() {
     () => tryNormal(),
     { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 },
   );
+}
+// 定位例外：只在定位失敗（含誤差超標）且有權限時可按；中止進行中的定位，表單解鎖，送出帶 gps_exempt。
+function useGpsExempt() {
+  if (!gpsExemptAllowed.value || gpsStatus.value !== "error") return;
+  gpsAttempt++;
+  window.clearTimeout(gpsTimer);
+  gpsGuideOpen.value = false;
+  form.value.gps = null;
+  form.value.date = today();
+  gpsWarning.value = false;
+  gpsStatus.value = "exempt";
 }
 function retryFromGuide() {
   gpsGuideOpen.value = false;
@@ -624,7 +660,11 @@ async function save(status = "draft") {
     failed.value = true;
     return false;
   }
-  if (isNew.value && !isGpsTimestampWithinWindow(form.value.gps?.capturedAt)) {
+  if (
+    isNew.value &&
+    !gpsExemptActive.value &&
+    !isGpsTimestampWithinWindow(form.value.gps?.capturedAt)
+  ) {
     // 定位時間窗已過期（超過 2 小時）：不送出，重新定位。
     submitConfirm.value = false;
     message.value = "";
@@ -634,8 +674,17 @@ async function save(status = "draft") {
   }
   props.tab.busy = true;
   try {
+    const exemptSend = isNew.value && gpsExemptActive.value;
     const body = {
       ...form.value,
+      // 只有真的使用例外才帶 gps_exempt；一般送出的 payload 與原本完全相同。
+      ...(exemptSend
+        ? {
+            gps_exempt: true,
+            gps: toExemptGpsFix(gpsRejectedFix.value),
+            date: today(),
+          }
+        : {}),
       temperature: Number(form.value.temperature),
       id: props.tab.recordId || null,
       version: version.value,
@@ -699,6 +748,11 @@ async function save(status = "draft") {
       const msg = isGpsDbError(e) ? getGpsDbErrorMessage(e) : error.value;
       error.value = msg;
       submitConfirm.value = false;
+      // 例外送出被擋：回到失敗狀態，保留被拒定位；若是沒權限就收起按鈕。
+      if (gpsStatus.value === "exempt") {
+        gpsFailureAccuracy.value = null;
+        if (/沒有.*權限/.test(msg)) gpsExemptAllowed.value = false;
+      }
       form.value.gps = null;
       gpsWarning.value = false;
       gpsKind.value = classifyGpsDbError(msg);
@@ -814,7 +868,11 @@ onMounted(() => {
       data-testid="gps-panel"
       :data-gps-status="isNew ? gpsStatus : 'readonly'"
     >
-      <strong>GPS 定位<small v-if="isNew">(必填)</small></strong>
+      <strong
+        >GPS 定位<small v-if="isNew && gpsExemptActive"
+          >({{ GPS_EXEMPT_LABEL }})</small
+        ><small v-else-if="isNew">(必填)</small></strong
+      >
       <template v-if="isNew">
         <span
           v-if="gpsStatus === 'loading' || gpsStatus === 'idle'"
@@ -837,17 +895,46 @@ onMounted(() => {
             }}</span
           >
         </template>
-        <span v-else class="gps-fail" data-testid="gps-error" role="alert"
+        <span
+          v-else-if="gpsStatus === 'error'"
+          class="gps-fail"
+          data-testid="gps-error"
+          role="alert"
           >✗ {{ gpsError }}</span
         >
+        <div
+          v-else-if="gpsExemptActive"
+          class="gps-exempt-status"
+          data-testid="gps-exempt-status"
+        >
+          <span class="gps-exempt-note">⚠ 已使用{{ GPS_EXEMPT_LABEL }}</span>
+          <small data-testid="gps-exempt-fix">{{
+            toExemptGpsFix(gpsRejectedFix)
+              ? `將一併記錄這次定位結果${
+                  gpsRejectedFix.accuracy != null
+                    ? `（精度 ±${Math.round(gpsRejectedFix.accuracy)}m）`
+                    : ""
+                }`
+              : "未取得定位，將不記錄座標"
+          }}</small>
+        </div>
         <div class="module-actions">
           <button
-            v-if="gpsStatus === 'error'"
+            v-if="gpsStatus === 'error' || gpsExemptActive"
             type="button"
             data-testid="gps-retry"
             @click="locate"
           >
-            重新定位
+            {{ gpsExemptActive ? "改回重新定位" : "重新定位" }}
+          </button>
+          <button
+            v-if="gpsStatus === 'error' && gpsExemptAllowed"
+            type="button"
+            class="gps-exempt-btn"
+            data-testid="gps-exempt-button"
+            @click="useGpsExempt"
+          >
+            使用定位例外送出
           </button>
         </div>
         <p class="muted" data-testid="gps-hint">
@@ -855,6 +942,10 @@ onMounted(() => {
             gpsMobile
               ? "💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內），請開啟「精確位置」。"
               : "💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內）。桌機使用 WiFi 定位亦可，但實際巡店建議用手機開啟此頁面以獲得精確 GPS 座標。"
+          }}{{
+            gpsExemptAllowed
+              ? `你有「${GPS_EXEMPT_LABEL}」權限：定位失敗時可改用定位例外送出。`
+              : ""
           }}
         </p>
         <button
@@ -1068,8 +1159,11 @@ onMounted(() => {
     v-if="gpsGuideOpen"
     :failure-kind="gpsStatus === 'error' ? gpsKind : null"
     :failure-message="gpsStatus === 'error' ? gpsError : ''"
+    :failure-accuracy="gpsStatus === 'error' ? gpsFailureAccuracy : null"
+    :can-use-exempt="gpsExemptAllowed && gpsStatus === 'error'"
     @close="gpsGuideOpen = false"
     @retry="retryFromGuide"
+    @exempt="useGpsExempt"
   />
   <Modal
     v-if="restorePrompt && !restoreDeleteConfirm"

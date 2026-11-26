@@ -12,6 +12,10 @@ const props = defineProps<{ order: PoDetail; receiving: Receiving }>();
 const emit = defineEmits<{ close: []; done: [{ order: PoDetail; receiving: Receiving; replay: boolean }] }>();
 type Line = { po_item_id: string; on: boolean; delivered: string; accepted: string; reason: string; change: boolean; location_id: string; part_id: string; change_reason: string };
 const rowsInfo = computed(() => props.receiving.items.filter((i) => i.remaining_qty > 0));
+// ga-improve-b1 G3：還沒併入任何進貨單的調整列（運費、折扣等）會由第一張「品項金額加調整列大於 0」的進貨單承接；G1：已預付的採購單，驗入時自動核銷預付款。
+const pendingAdj = computed(() => (props.order.adjustments || []).filter((a) => !a.receipt_no));
+const adjText = computed(() => pendingAdj.value.map((a) => `${a.label} ${a.amount > 0 ? "+" : "−"}${Math.abs(a.amount).toLocaleString("en-US")}`).join("、"));
+const prepayBalance = computed(() => Number(props.order.prepay?.balance || 0));
 const lines = reactive<Line[]>(rowsInfo.value.map((i) => ({ po_item_id: i.po_item_id, on: true, delivered: String(i.remaining_qty), accepted: String(i.remaining_qty), reason: "", change: false, location_id: "", part_id: "", change_reason: "" })));
 const header = reactive({ received_date: taipeiToday(), delivery_note_no: "", notes: "" });
 const key = ref(newKey());
@@ -69,6 +73,8 @@ async function submit() {
   <Modal :title="`登錄到貨　${order.po_no}`" :busy="busy" wide @cancel="emit('close')">
     <form class="rc" data-testid="receipt-form" @submit.prevent="submit">
       <p class="muted">登錄到貨的同時就是驗入：入庫存的品項會立刻增加總部倉庫存。到貨量不能超過剩餘可收量；有破損或拒收要填原因，分批到貨不用填。</p>
+      <p v-if="pendingAdj.length" class="notice" role="status" data-testid="rc-adj-note">本次進貨單會併入調整列：{{ adjText }}（若本次品項金額加調整列合計不大於 0，會延後到下一張進貨單）。</p>
+      <p v-if="prepayBalance > 0" class="notice" role="status" data-testid="rc-prepay-note">這張採購單還有預付款餘額 NT$ {{ prepayBalance.toLocaleString("en-US") }}，驗入後系統會自動核銷在這張進貨單上，之後一般請款只請差額。</p>
       <div class="rc-head">
         <label>到貨日期<input v-model="header.received_date" type="date" :max="taipeiToday()" required data-testid="rc-date" /></label>
         <label>廠商送貨單號（選填）<input v-model="header.delivery_note_no" maxlength="60" data-testid="rc-note-no" /></label>

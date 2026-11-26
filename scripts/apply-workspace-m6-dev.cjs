@@ -12,7 +12,7 @@ if (!ref.startsWith("mjpd")) throw Error("連線目標不是 DEV（ref 不是 mj
 if (fs.readFileSync(path.join(root, "supabase/.temp/project-ref"), "utf8").trim() !== ref)
   throw Error("supabase CLI 連結的專案不是 DEV，停止");
 const rollback = process.argv.includes("--rollback");
-const base = ["20261121100000_m6_relationship_sales_import", "20261122100000_m6_products_master_logs", "20261122110000_m6_stockout_rpc", "20261122130000_m6_supervisor_log_rpc", "20261122133000_m6_voice_ai"];
+const base = ["20261121100000_m6_relationship_sales_import", "20261122100000_m6_products_master_logs", "20261122110000_m6_stockout_rpc", "20261122130000_m6_supervisor_log_rpc", "20261122133000_m6_voice_ai", "20261123140000_m6_clinic_selfpay_bucket"];
 const files = (rollback ? base.slice().reverse() : base)
   .map((n) => `supabase/workspace-dev/${n}${rollback ? ".rollback" : ""}.sql`)
   .filter((f) => {

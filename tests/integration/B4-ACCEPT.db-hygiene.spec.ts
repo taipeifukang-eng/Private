@@ -13,14 +13,14 @@ test('連的是 DEV（專案代碼 mjpd 開頭）', async () => {
   expect(fs.readFileSync('supabase/.temp/project-ref', 'utf8').trim().startsWith('mjpd')).toBe(true);
 });
 
-test('採購核准權限碼存在；持有它的角色只可能是 DEV 種子角色或測試用角色（不是任何門市或總務的正式角色）', async () => {
+test('採購核准權限碼存在；持有它的角色只可能是 DEV 種子角色、測試用角色或 admin 角色（老闆 2026-11-25 確認 admin 保留核准；不是任何門市或總務的正式角色）', async () => {
   const perm = (await db().from('permissions').select('id, code').eq('code', 'general_affairs.purchase_order.approve').single()).data as any;
   expect(perm?.code).toBe('general_affairs.purchase_order.approve');
   const rp = ((await db().from('role_permissions').select('role_id, is_allowed').eq('permission_id', perm.id)).data || []) as any[];
   const ids = rp.filter((r) => r.is_allowed).map((r) => r.role_id);
   if (ids.length) {
-    const roles = ((await db().from('roles').select('id, name').in('id', ids)).data || []) as any[];
-    for (const r of roles) expect(/^(vue_workspace_|m7m8_test_)|測試/.test(r.name), `角色 ${r.name} 不該持有採購核准`).toBe(true);
+    const roles = ((await db().from('roles').select('id, name, code').in('id', ids)).data || []) as any[];
+    for (const r of roles) expect(/^(vue_workspace_|m7m8_test_)|測試/.test(r.name) || r.code === 'admin', `角色 ${r.name} 不該持有採購核准`).toBe(true);
   }
 });
 

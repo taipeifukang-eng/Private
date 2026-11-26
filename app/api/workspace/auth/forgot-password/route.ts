@@ -1,3 +1,4 @@
+import { authMailMockFlag } from "@/lib/workspace/site-gate";
 import {
   assertWorkspace,
   checkOrigin,
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const email = typeof body?.email === "string" ? body.email.trim() : "";
     if (!isValidEmail(email)) throw new WorkspaceError(400, "請輸入有效的電子郵件");
-    if (!mailMockActive(process.env.WORKSPACE_AUTH_MAIL_MOCK, email)) {
+    if (!mailMockActive(authMailMockFlag(process.env), email)) {
       const result = await requestResetReal(sessionClient(), email, process.env.NEXT_PUBLIC_SITE_URL);
       if (result === "no-site-url")
         throw new WorkspaceError(503, "系統尚未設定網站網址，暫時無法寄送重設信，請聯絡管理員");

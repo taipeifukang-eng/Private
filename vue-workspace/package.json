@@ -12,8 +12,7 @@
     "lucide-vue-next": "^0.468.0",
     "pinia": "^3.0.0",
     "vue": "^3.5.0",
-    "vue-router": "^4.5.0",
-    "workflow-checklist-system": "file:.."
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

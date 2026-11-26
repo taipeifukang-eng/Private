@@ -5,18 +5,24 @@
  * webServer 依 D10：已在執行就沿用，否則 build + 同步 + integrated 啟動，測完由 Playwright 關閉。
  */
 const path = require('node:path');
-const { TEST_SITE_ORIGIN } = require('./env-refs.cjs');
+const { TEST_SITE_ORIGIN, resolveBaseUrl, isRemoteBase, bypassHeaders } = require('./env-refs.cjs');
 
 const SESSION_URL = `${TEST_SITE_ORIGIN}/api/workspace/session`;
 
-function buildPlaywrightOptions({ root, runId, nodeBin = process.execPath } = {}) {
+function buildPlaywrightOptions({ root, runId, nodeBin = process.execPath, env = process.env } = {}) {
   if (!root) throw new Error('root 為必填');
   if (!runId) throw new Error('runId 為必填');
+  const baseURL = resolveBaseUrl(env);
+  const remote = isRemoteBase(env);
+  const extraHTTPHeaders = bypassHeaders(env);
   const reportDir = path.join(root, 'tests', 'reports', runId);
   return {
     testDir: path.join(root, 'tests'),
     // 只收 *.spec.ts；Vitest 的 *.test.ts 不會被 Playwright 撿到。
     testMatch: ['**/*.spec.ts'],
+    // gps-exempt、prescription-gsheet 是各自有 playwright.config（獨立 3014 埠、自己的 setup/teardown）的獨立套件；
+    // 被主設定撿到會沒有 setup/teardown 而殘留測試資料（F01 全站回歸發現），所以排除。
+    testIgnore: ['**/gps-exempt/**', '**/prescription-gsheet/**'],
     outputDir: path.join(reportDir, 'test-results'),
     fullyParallel: false,
     workers: 1,
@@ -33,7 +39,8 @@ function buildPlaywrightOptions({ root, runId, nodeBin = process.execPath } = {}
     globalSetup: path.join(root, 'tests', 'support', 'global-setup.cjs'),
     globalTeardown: path.join(root, 'tests', 'support', 'global-teardown.cjs'),
     use: {
-      baseURL: TEST_SITE_ORIGIN,
+      baseURL,
+      ...(Object.keys(extraHTTPHeaders).length ? { extraHTTPHeaders } : {}),
       browserName: 'chromium',
       trace: 'retain-on-failure',
       screenshot: 'only-on-failure',
@@ -58,7 +65,8 @@ function buildPlaywrightOptions({ root, runId, nodeBin = process.execPath } = {}
         },
       },
     ],
-    webServer: {
+    // 指定 E2E_BASE_URL 打遠端 preview 時不啟動本機站。
+    ...(remote ? {} : { webServer: {
       command: `"${nodeBin}" tests/support/start-test-server.cjs`,
       cwd: root,
       url: SESSION_URL,
@@ -68,7 +76,7 @@ function buildPlaywrightOptions({ root, runId, nodeBin = process.execPath } = {}
       gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
       stdout: 'ignore',
       stderr: 'pipe',
-    },
+    } }),
   };
 }
 

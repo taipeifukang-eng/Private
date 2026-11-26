@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
-import type { WorkTab } from "../stores";
+import { useSession, useWorkspace, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
 import { MODULE_NAMES, FEATURE_NAMES } from "../../../types/rbac";
 import { isScopePermission, preferredScopePermission, permissionLabel } from "../role-scope";
 import { ADMIN_GRANT_WARNING, roleAssignmentNeedsAdminConfirm } from "../../../lib/workspace/user-management-rules";
 const props = defineProps<{ tab: WorkTab }>();
+const session = useSession(),
+  work = useWorkspace();
 const roles = ref<any[]>([]),
   caps = ref<Record<string, boolean>>({}),
   loading = ref(false),
@@ -398,7 +400,8 @@ onMounted(load);
         <p>依角色設定操作權限；門市資料範圍另依門市指派決定。</p>
       </div>
       <div class="actions">
-        <button :disabled="loading || tab.busy" @click="load">重新整理</button
+        <button v-if="session.data?.capabilities.pageFallbackAdmin" data-testid="open-page-fallbacks" @click="work.open('page-fallbacks')">頁面回舊版設定</button
+        ><button :disabled="loading || tab.busy" @click="load">重新整理</button
         ><button v-if="caps.create" class="primary" @click="open()">
           新增角色
         </button>

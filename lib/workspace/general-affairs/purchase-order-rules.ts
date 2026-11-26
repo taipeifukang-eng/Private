@@ -65,6 +65,104 @@ export function computeTotals(items: { quantity: number; unit_price: number }[],
   const tax = roundYuan(subtotal * taxRate);
   return { subtotal, tax_amount: tax, total_amount: subtotal + tax };
 }
+// ---------------------------------------------------------------- G2 含稅單價、G3 調整列（與資料庫 ga_po_refresh_totals、ga_ib1_receipt_calc、ga_ib1_adjustments_apply 逐條對齊）
+export const PRICE_MODES = ["EXCL", "INCL"] as const;
+export type PriceMode = (typeof PRICE_MODES)[number];
+export const PRICE_MODE_LABELS: Record<PriceMode, string> = { EXCL: "單價未稅", INCL: "單價含稅" };
+export const isPriceMode = (v: unknown): v is PriceMode => (PRICE_MODES as readonly string[]).includes(String(v));
+
+export const ADJ_KINDS = ["FREIGHT", "DISCOUNT", "COUPON", "POINTS", "OTHER"] as const;
+export type AdjKind = (typeof ADJ_KINDS)[number];
+export const ADJ_KIND_LABELS: Record<AdjKind, string> = { FREIGHT: "運費", DISCOUNT: "折扣", COUPON: "折價券", POINTS: "點數折抵", OTHER: "其他調整" };
+export const MAX_ADJUSTMENTS = 10;
+/** 運費必須為正；折扣、折價券、點數折抵必須為負；其他正負皆可；金額不得為 0。 */
+export function adjustmentSignOk(kind: string, amount: number): boolean {
+  if (!Number.isInteger(amount) || amount === 0) return false;
+  if (kind === "FREIGHT") return amount > 0;
+  if (kind === "DISCOUNT" || kind === "COUPON" || kind === "POINTS") return amount < 0;
+  return kind === "OTHER";
+}
+export type AdjustmentInput = { kind: AdjKind; label: string; amount: number; original_price: number | null; campaign_name: string | null; note: string | null };
+/**
+ * 調整列驗證（上限 10 列）。金額是已含正負號的整數元（畫面讓使用者輸入折扣的正數，送出前轉成負數）；
+ * 含稅模式下輸入的是含稅金額，未稅模式下是未稅金額。原價與活動名稱只是備註，不參與計算。
+ */
+export function validateAdjustments(raw: unknown): AdjustmentInput[] {
+  if (raw === null || raw === undefined) return [];
+  if (!Array.isArray(raw)) throw new Error("調整列必須是清單");
+  if (raw.length > MAX_ADJUSTMENTS) throw new Error(`一張採購單最多 ${MAX_ADJUSTMENTS} 列調整（運費、折扣等）`);
+  return raw.map((r, i) => {
+    const n = i + 1;
+    if (!r || typeof r !== "object" || Array.isArray(r)) throw new Error(`第 ${n} 列調整格式錯誤`);
+    const o = r as Record<string, unknown>;
+    for (const k of Object.keys(o)) if (!["kind", "label", "amount", "original_price", "campaign_name", "note"].includes(k)) throw new Error(`第 ${n} 列調整不支援的欄位：${k}`);
+    const kind = text(o.kind).toUpperCase();
+    if (!(ADJ_KINDS as readonly string[]).includes(kind)) throw new Error(`第 ${n} 列調整的種類錯誤`);
+    const amountText = text(o.amount).replace(/,/g, "");
+    if (!/^-?[0-9]{1,8}$/.test(amountText)) throw new Error(`第 ${n} 列調整金額必須是整數元`);
+    const amount = Number(amountText);
+    if (amount === 0) throw new Error(`第 ${n} 列調整金額不能是 0`);
+    if (kind === "FREIGHT" && amount < 0) throw new Error(`第 ${n} 列運費必須是正數`);
+    if ((kind === "DISCOUNT" || kind === "COUPON" || kind === "POINTS") && amount > 0) throw new Error(`第 ${n} 列折扣、折價券、點數折抵必須是負數`);
+    const label = text(o.label) || ADJ_KIND_LABELS[kind as AdjKind];
+    if (label.length > 60) throw new Error(`第 ${n} 列調整的名稱不可超過 60 字`);
+    const origText = text(o.original_price).replace(/,/g, "");
+    if (origText && !/^[0-9]{1,8}$/.test(origText)) throw new Error(`第 ${n} 列原價必須是 0 以上的整數元`);
+    const campaign = text(o.campaign_name) || null;
+    if (campaign && campaign.length > 100) throw new Error(`第 ${n} 列活動名稱不可超過 100 字`);
+    const note = text(o.note) || null;
+    if (note && note.length > 200) throw new Error(`第 ${n} 列備註不可超過 200 字`);
+    return { kind: kind as AdjKind, label, amount, original_price: origText ? Number(origText) : null, campaign_name: campaign, note };
+  });
+}
+export type TotalsV2 = Totals & { adjustment_total: number };
+/**
+ * 採購單總額（含計價方式與調整列）。
+ * 未稅：小計＝品項金額（各自四捨五入）加總＋調整列；稅額＝round(小計×稅率)；含稅＝小計＋稅額（沒有調整列時與 computeTotals 逐位相同）。
+ * 含稅：含稅總額＝品項含稅金額（各自四捨五入）加總＋調整列（永遠等於使用者輸入的合計）；未稅＝round(含稅÷(1＋稅率))；稅額＝含稅總額－未稅（用減的）。
+ * 總額為負（折扣超過品項金額）丟 PO_TOTAL_NEGATIVE。
+ */
+export function computeTotalsV2(input: { items: { quantity: number; unit_price: number }[]; adjustments?: { amount: number }[]; tax_rate?: number; price_mode?: PriceMode }): TotalsV2 {
+  const rate = input.tax_rate ?? DEFAULT_TAX_RATE;
+  const adj = (input.adjustments ?? []).reduce((s, a) => s + a.amount, 0);
+  const lines = input.items.reduce((s, i) => s + lineAmount(i.quantity, i.unit_price), 0);
+  if (lines + adj < 0) throw new Error("折扣與折抵超過品項金額，請調整");
+  if (input.price_mode === "INCL") {
+    const total = lines + adj;
+    const subtotal = roundYuan(total / (1 + rate));
+    return { subtotal, tax_amount: total - subtotal, total_amount: total, adjustment_total: adj };
+  }
+  const subtotal = lines + adj;
+  const tax = roundYuan(subtotal * rate);
+  return { subtotal, tax_amount: tax, total_amount: subtotal + tax, adjustment_total: adj };
+}
+/** 含稅單價的品項（資料庫 ga_ib1_item_incl）：含稅金額＝round(數量×含稅單價)；未稅單價＝round(含稅單價÷(1＋稅率),4)；未稅品項金額＝round(含稅金額÷(1＋稅率))。後兩者只供顯示與歷史價比較。 */
+export function inclItem(quantity: number, grossPrice: number, taxRate: number = DEFAULT_TAX_RATE) {
+  const lineGross = lineAmount(quantity, grossPrice);
+  return { unit_price_gross: grossPrice, line_gross: lineGross, unit_price: Math.round((grossPrice / (1 + taxRate)) * 1e4) / 1e4, line_amount: roundYuan(lineGross / (1 + taxRate)) };
+}
+/**
+ * 進貨單的未稅、稅額、含稅（含承接的調整列；資料庫 ga_ib1_receipt_calc）。
+ * items 的 amount：未稅模式是品項未稅金額（round(驗入量×未稅單價)），含稅模式是品項含稅金額（round(驗入量×含稅單價)）。
+ */
+export function receiptAmounts(input: { items: { amount: number }[]; adjustments?: { amount: number }[]; tax_rate?: number; price_mode?: PriceMode }) {
+  const rate = input.tax_rate ?? DEFAULT_TAX_RATE;
+  const base = input.items.reduce((s, i) => s + i.amount, 0) + (input.adjustments ?? []).reduce((s, a) => s + a.amount, 0);
+  if (input.price_mode === "INCL") {
+    const untaxed = roundYuan(base / (1 + rate));
+    return { untaxed, tax: base - untaxed, total: base };
+  }
+  const tax = roundYuan(base * rate);
+  return { untaxed: base, tax, total: base + tax };
+}
+/**
+ * 承接調整列的進貨單：依進貨先後，第一張「未作廢、品項額加全部調整列金額大於 0」的進貨單承接全部調整列；沒有符合者回 -1（延後到下一次進貨）。
+ * 作廢承接進貨單後重新判斷，就是轉給下一張符合條件者（資料庫 ga_ib1_receipt_adj_carry）。
+ */
+export function carrierReceiptIndex(receipts: { voided?: boolean; itemsAmount: number }[], adjustmentTotal: number): number {
+  return receipts.findIndex((r) => !r.voided && r.itemsAmount + adjustmentTotal > 0);
+}
+
 /** 含稅總額「大於」門檻才需核准（剛好等於門檻免核准）；未啟用核准一律免。 */
 export const needsApproval = (totalAmount: number, threshold: number = DEFAULT_APPROVAL_THRESHOLD, enabled = true): boolean => enabled && totalAmount > threshold;
 
@@ -279,8 +377,8 @@ export function validateItems(input: unknown): PoItemInput[] {
   });
 }
 
-export type PoHeaderInput = Partial<{ vendor_id: string | null; receiving_location_id: string | null; expected_delivery_date: string | null; notes: string | null }>;
-const HEADER_FIELDS = ["vendor_id", "receiving_location_id", "expected_delivery_date", "notes"] as const;
+export type PoHeaderInput = Partial<{ vendor_id: string | null; receiving_location_id: string | null; expected_delivery_date: string | null; notes: string | null; price_mode: PriceMode; buyer_company_id: string | null; adjustments: AdjustmentInput[] }>;
+const HEADER_FIELDS = ["vendor_id", "receiving_location_id", "expected_delivery_date", "notes", "price_mode", "buyer_company_id", "adjustments"] as const;
 /** 表頭只收出現的鍵（出現且空白代表清空）；預計到貨日必須是有效日期。 */
 export function validateHeader(input: unknown): PoHeaderInput {
   if (input == null) return {};
@@ -302,6 +400,13 @@ export function validateHeader(input: unknown): PoHeaderInput {
     if (s.length > 1000) throw new Error("備註不可超過 1000 字");
     out.notes = s || null;
   }
+  if (hasKey(raw, "price_mode")) {
+    const m = text(raw.price_mode).toUpperCase() || "EXCL";
+    if (!isPriceMode(m)) throw new Error("單價計價方式只能是未稅或含稅");
+    out.price_mode = m;
+  }
+  if (hasKey(raw, "buyer_company_id")) out.buyer_company_id = uuidOrNull(raw.buyer_company_id, "買受人抬頭");
+  if (hasKey(raw, "adjustments")) out.adjustments = validateAdjustments(raw.adjustments);
   return out;
 }
 

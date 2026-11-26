@@ -6,14 +6,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { assertDevEnvironment, applyDevEnv, preflightServer } = require('./env-guard.cjs');
-const { TEST_SITE_ORIGIN } = require('./env-refs.cjs');
+const { resolveBaseUrl } = require('./env-refs.cjs');
 
 module.exports = async function globalSetup() {
   const root = path.resolve(__dirname, '..', '..');
   const { env, summary } = assertDevEnvironment({ root });
   // 注入給 worker（測試內的 service role 回讀使用），只來自 .env.development.local。
   applyDevEnv(env);
-  const pre = await preflightServer(TEST_SITE_ORIGIN);
+  const pre = await preflightServer(resolveBaseUrl());
 
   const runId = process.env.TEST_RUN_ID;
   if (runId) {

@@ -17,10 +17,11 @@ BEGIN
    WHERE n.nspname = 'public' AND p.proname = 'ga_validate_equipment' AND pg_get_function_identity_arguments(p.oid) = '';
   SELECT md5(pg_get_functiondef(p.oid)) INTO v_fa FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
    WHERE n.nspname = 'public' AND p.proname = 'ga_validate_facility' AND pg_get_function_identity_arguments(p.oid) = '';
-  IF v_eq IS DISTINCT FROM '6e28a9343e7bf878f1359d5b61676113' THEN
+  -- 2026-11-25 正式區發現：函式本文的換行可能是 CRLF（內容相同、md5 不同），所以「原文」或「去掉 CR 後」任一符合即可。
+  IF v_eq IS DISTINCT FROM '6e28a9343e7bf878f1359d5b61676113' AND md5(replace((SELECT pg_get_functiondef('public.ga_validate_equipment()'::regprocedure)), chr(13), '')) IS DISTINCT FROM '6e28a9343e7bf878f1359d5b61676113' THEN
     RAISE EXCEPTION 'ga_validate_equipment 與 DEV 驗證時的原始內容不同（目前 md5=%），不要套用，請先回報', v_eq;
   END IF;
-  IF v_fa IS DISTINCT FROM '4531585395b254147c7f094235a0a559' THEN
+  IF v_fa IS DISTINCT FROM '4531585395b254147c7f094235a0a559' AND md5(replace((SELECT pg_get_functiondef('public.ga_validate_facility()'::regprocedure)), chr(13), '')) IS DISTINCT FROM '4531585395b254147c7f094235a0a559' THEN
     RAISE EXCEPTION 'ga_validate_facility 與 DEV 驗證時的原始內容不同（目前 md5=%），不要套用，請先回報', v_fa;
   END IF;
 END $$;

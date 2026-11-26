@@ -117,7 +117,7 @@ describe('W22 伺服端結構', () => {
   });
   it('信件 mock 只在測試站啟動器開旗標，程式預設不開', () => {
     expect(read('tests/support/start-test-server.cjs')).toContain("WORKSPACE_AUTH_MAIL_MOCK = 'true'");
-    expect(read('app/api/workspace/auth/register/route.ts')).toContain('mailMockActive(process.env.WORKSPACE_AUTH_MAIL_MOCK');
+    expect(read('app/api/workspace/auth/register/route.ts')).toContain('mailMockActive(authMailMockFlag(process.env)');
   });
   it('session 路由回傳 pendingActivation；舊版 route handler 沒被改動 RBAC', () => {
     expect(read('app/api/workspace/session/route.ts')).toContain('pendingActivation: isPendingAccount(ctx)');

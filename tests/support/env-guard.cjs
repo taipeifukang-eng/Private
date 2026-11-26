@@ -15,6 +15,8 @@ const {
   PRODUCTION_REF_PREFIX,
   ALLOWED_ENV_FILE,
   TEST_SITE_ORIGIN,
+  resolveBaseUrl,
+  bypassHeaders,
 } = require('./env-refs.cjs');
 
 class EnvGuardError extends Error {
@@ -229,13 +231,17 @@ function applyDevEnv(env, target = process.env) {
 /** 測試站 preflight：/api/workspace/session 不得為 503（200 或 401 皆可）。 */
 async function preflightServer(baseUrl = TEST_SITE_ORIGIN, { fetchImpl = fetch, timeoutMs = 15000 } = {}) {
   const origin = String(baseUrl).replace(/\/+$/, '');
-  if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
-    throw new EnvGuardError('測試站只允許 localhost / 127.0.0.1');
+  const isLocal = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  // 例外：明確以 E2E_BASE_URL 指定的 https://*.vercel.app preview（連 DEV 資料庫的預覽站）。
+  const isPreview = /^https:\/\/[a-z0-9.-]+\.vercel\.app$/.test(origin) && resolveBaseUrl() === origin;
+  if (!isLocal && !isPreview) {
+    throw new EnvGuardError('測試站只允許 localhost / 127.0.0.1（或以 E2E_BASE_URL 指定的 vercel.app preview）');
   }
   let res;
   try {
     res = await fetchImpl(`${origin}/api/workspace/session`, {
       signal: AbortSignal.timeout(timeoutMs),
+      headers: bypassHeaders(),
       redirect: 'manual',
     });
   } catch {

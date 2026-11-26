@@ -46,8 +46,11 @@ test.describe('角色矩陣：每個帳號都能登入且 session 與 role-matri
         expect(hrefs).toEqual(account.expected.navigationHrefs);
 
         // 與實作無關的不變式。
-        const caps = Object.values(body.capabilities as Record<string, boolean>);
-        if (account.key === 'admin') expect(caps.every(Boolean)).toBe(true);
+        // 請款權限碼（purchase_payment.*）依 G45 設計不自動授權給任何角色，管理員（資料庫語意，沒有後備）也看不到這三個入口。
+        const NOT_GRANTED_BY_DESIGN = ['gaPurchaseInvoices', 'gaPaymentManage', 'gaPaymentRequests'];
+        if (account.key === 'admin') {
+          expect(Object.entries(body.capabilities as Record<string, boolean>).filter(([k, v]) => !v && !NOT_GRANTED_BY_DESIGN.includes(k))).toEqual([]);
+        }
         // monthlyRelease（W04 版更說明頁）是「登入即可看」，所有登入帳號都為 true，不算角色權限。
         expect(body.capabilities.monthlyRelease).toBe(true);
         expect(body.capabilities.calendar).toBe(true); // M5 Q17：年度行事曆所有登入者都能看
