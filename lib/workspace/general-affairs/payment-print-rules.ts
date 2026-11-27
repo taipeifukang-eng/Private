@@ -207,6 +207,32 @@ export function buildPaperPrint(pr: PrintPr, extra: ExtraIn, buyerTitle?: string
 /** 金額欄文字：千分位；空白列回空字串。 */
 export const moneyCell = (n: number | null) => (n === null ? "" : n.toLocaleString("en-US"));
 
+/**
+ * 使用單位欄的容量（以「一個全形字寬」為單位）。列印時表格寬 190mm（A4 去左右白邊各 10mm）、欄寬 24.5% = 46.55mm，
+ * 扣左右 padding 8px×0.8×2 與框線約 3.6mm，剩 ≈ 43mm ≈ 163px；字級 16px×0.8 = 12.8px → 163 / 12.8 ≈ 12.7。取 12.5 留一點餘裕。
+ */
+export const UNIT_COL_CAPACITY = 12.5;
+/** 縮字下限；縮到這個比例還放不下就允許換行。 */
+export const UNIT_MIN_SCALE = 0.6;
+/** 估算顯示寬度：全形／中日韓字與全形標點算 1，ASCII 與半形字算 0.55。 */
+export function unitTextWidth(text: string): number {
+  let w = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0) as number;
+    const half = c <= 0x7f || (c >= 0xff61 && c <= 0xff9f);
+    w += half ? 0.55 : 1;
+  }
+  return w;
+}
+/** 使用單位的縮字比例（0.6–1）與是否需要換行（縮到下限仍放不下）。 */
+export function unitFit(text: string): { scale: number; wrap: boolean } {
+  const w = unitTextWidth(text);
+  if (w <= UNIT_COL_CAPACITY) return { scale: 1, wrap: false };
+  const raw = UNIT_COL_CAPACITY / w;
+  if (raw >= UNIT_MIN_SCALE) return { scale: Math.round(raw * 1000) / 1000, wrap: false };
+  return { scale: UNIT_MIN_SCALE, wrap: true };
+}
+
 /** 儲存列印欄位的內容驗證（前後端共用）：只收四個欄位，字串、去頭尾空白、空字串＝清除、超長丟錯。 */
 export type PrintFieldsPayload = Partial<Record<PrintFieldKey, string | null>> & { units?: Record<string, string | null> | null };
 export function validatePrintFieldsPayload(raw: Record<string, unknown>): PrintFieldsPayload {

@@ -6,7 +6,7 @@ import { openGaPage, useGaGuard } from "../../lib/ga";
 import { PAY_METHOD_LABELS, PR_STATUS_LABELS, UTILITY_PRINT_HEADERS, bankText, dateText, errorText, isUtilityRequest, money, payeeBankText, payeeName, timeText, utilityPrintRow, type PaymentRequest } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS } from "../../lib/ga-invoices";
 import { useWorkspace, type WorkTab } from "../../stores";
-import { SIGN_CELL_SUFFIX, TOTAL_LABEL, buildPaperPrint, moneyCell } from "../../../../lib/workspace/general-affairs/payment-print-rules";
+import { SIGN_CELL_SUFFIX, TOTAL_LABEL, buildPaperPrint, moneyCell, unitFit } from "../../../../lib/workspace/general-affairs/payment-print-rules";
 
 // 第 4.5 批 請款單 A4 列印頁（/general-affairs/payment-requests/:id/print）：抬頭用請款設定的買受人；
 // 廠商統編與銀行帳號沒有廠商查看權限時整區省略；簽章區顯示總務請款與會計付款的人與時間。列印只輸出紙張那一塊。
@@ -135,7 +135,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
         <thead><tr><th class="c-no">項次</th><th class="c-unit">使用單位</th><th class="c-reason">申請事由</th><th class="c-amt">金額</th><th class="c-order">內部訂單</th></tr></thead>
         <tbody>
           <tr v-for="(r, i) in paper.rows" :key="i" data-testid="pk-row">
-            <td class="c-no">{{ r.no ?? "" }}</td><td class="u">{{ r.unit }}</td><td>{{ r.reason }}</td>
+            <td class="c-no">{{ r.no ?? "" }}</td><td class="u" :class="{ 'u-wrap': unitFit(r.unit).wrap }" :style="{ fontSize: `calc(16px * var(--k) * ${unitFit(r.unit).scale})` }">{{ r.unit }}</td><td>{{ r.reason }}</td>
             <td class="amt">{{ r.amount !== null ? moneyCell(r.amount) : "" }}</td><td>{{ r.order }}</td>
           </tr>
           <tr class="pk-sum"><td colspan="3" class="mid" data-testid="pk-tax-label">{{ paper.taxLabel }}</td><td class="amt" data-testid="pk-tax">{{ moneyCell(paper.tax) }}</td><td></td></tr>
@@ -226,12 +226,14 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pk-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: calc(16px * var(--k)); margin: calc(10px * var(--k)) 0; }
 .pk-table th, .pk-table td { border: 1px solid #000; padding: calc(4px * var(--k)) calc(8px * var(--k)); line-height: 1.35; overflow-wrap: anywhere; vertical-align: middle; font-weight: 400; background: #fff; color: #000; }
 .pk-table th { text-align: center; }
-.pk-table .c-no { width: 7%; text-align: center; }
-.pk-table .c-unit { width: 30%; }
-.pk-table .c-reason { width: 34%; }
-.pk-table .c-amt { width: 14%; }
-.pk-table .c-order { width: 15%; }
-.pk-table td.u { white-space: nowrap; overflow: hidden; }
+/* 欄寬照老闆提供的實際紙本量測：項次窄（標題直排兩字）、申請事由最寬、金額與內部訂單等寬。 */
+.pk-table .c-no { width: 4.5%; text-align: center; padding-left: calc(2px * var(--k)); padding-right: calc(2px * var(--k)); }
+.pk-table .c-unit { width: 24.5%; }
+.pk-table .c-reason { width: 46%; }
+.pk-table .c-amt { width: 12.5%; }
+.pk-table .c-order { width: 12.5%; }
+.pk-table td.u { white-space: nowrap; }
+.pk-table td.u.u-wrap { white-space: normal; overflow-wrap: anywhere; }
 .pk-table td.amt { white-space: nowrap; text-align: right; }
 .pk-table td.mid { text-align: center; }
 .pk-table tbody tr { height: calc(30px * var(--k)); }
@@ -257,7 +259,8 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
   .no-print { display: none !important; }
   /* 實際表單的字級放大到整張 A4 太高；統一縮小，整張仍放進 A4 上半頁。 */
   .pp-paper { --k: 0.8; padding: 0; line-height: 1.4; }
-  .pk-sign { line-height: 2; }
+  /* 項次欄變窄後表頭「項次」會直排成兩行、表格多一行高；簽核區行高 2 → 1.7 補回，維持在上半頁內。 */
+  .pk-sign { line-height: 1.7; }
 }
 @media (max-width: 700px) { .head-actions button { min-height: 44px; } .pp-sheet { padding: 8mm 4mm; } }
 </style>

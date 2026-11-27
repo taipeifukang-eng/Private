@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_COMPANY_TITLE, MIN_ROWS, SIGN_CELL_SUFFIX, SIGN_NOTE, SIGN_ROWS, buildPaperPrint, dayOf, dueDateOf, moneyCell, payMethodBoxes, payeeLabel, rocDate, rocDateCn, rocMonthLabel, validatePrintFieldsPayload,
+  DEFAULT_COMPANY_TITLE, MIN_ROWS, SIGN_CELL_SUFFIX, SIGN_NOTE, SIGN_ROWS, buildPaperPrint, dayOf, dueDateOf, moneyCell, payMethodBoxes, payeeLabel, rocDate, rocDateCn, rocMonthLabel, unitFit, unitTextWidth, validatePrintFieldsPayload,
 } from '@/lib/workspace/general-affairs/payment-print-rules';
 
 // 請款單紙本格式列印：純函式對應（多門市合併列與電號數、民國日期、付款方式打勾、到期日回退、補空白列到 7 列、營業稅列、抬頭預設、可編輯欄位驗證）。
@@ -246,5 +246,25 @@ describe('列印欄位驗證', () => {
     expect(() => validatePrintFieldsPayload({ reason_override: 'x'.repeat(201) })).toThrow('申請事由不可超過 200 個字');
     expect(() => validatePrintFieldsPayload({ attach_docs: 5 })).toThrow('檢附單據格式錯誤');
     expect(() => validatePrintFieldsPayload({ other: 'x' })).toThrow('沒有要儲存的列印欄位');
+  });
+});
+
+describe('使用單位自動縮字', () => {
+  it('寬度估算：全形算 1、ASCII 算 0.55', () => {
+    expect(unitTextWidth('景鏵')).toBe(2);
+    expect(unitTextWidth('ab')).toBeCloseTo(1.1);
+    expect(unitTextWidth('（A）')).toBeCloseTo(2.55);
+  });
+  it('短名不縮字也不換行', () => {
+    expect(unitFit('景鏵')).toEqual({ scale: 1, wrap: false });
+  });
+  it('測試長名縮字但不低於 0.6、不換行', () => {
+    const f = unitFit('ZT 測試門市 02（新地址614號）');
+    expect(f.scale).toBeLessThan(1);
+    expect(f.scale).toBeGreaterThanOrEqual(0.6);
+    expect(f.wrap).toBe(false);
+  });
+  it('40 字長名縮到下限仍放不下，需換行', () => {
+    expect(unitFit('門'.repeat(40))).toEqual({ scale: 0.6, wrap: true });
   });
 });
