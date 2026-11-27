@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
 import { UTILITY_BILL_MANAGE_LABEL, parseReportParams, parseUtilityFilters, pickBillPayload, utilityBillAbilities } from "./utility-bill-rules";
+import { parseMatrixYear } from "./utility-report-matrix";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { parseUtilityBillExtraFilters, pickPayeeField, validateSetPayee } from "./utility-payment-rules";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
@@ -52,6 +53,10 @@ export async function utilityBillsApi(ctx: Context, request: NextRequest, rest: 
   if (a === "report") {
     if (m !== "GET") throw new GaError(405, "不支援的操作");
     return report(ctx, new URL(request.url));
+  }
+  if (a === "report-monthly") {
+    if (m !== "GET") throw new GaError(405, "不支援的操作");
+    return reportMonthly(ctx, new URL(request.url));
   }
   if (a === "anomaly-check") {
     if (m !== "POST") throw new GaError(405, "不支援的操作");
@@ -111,6 +116,13 @@ async function report(ctx: Context, url: URL) {
   needView(ctx);
   const q = validated(() => parseReportParams(url.searchParams));
   const r = await rpc(ctx, "ga_ws_ub_report", { p_mode: q.mode, p_year: q.year, p_period: q.period });
+  return respond({ data: r.data });
+}
+
+async function reportMonthly(ctx: Context, url: URL) {
+  needView(ctx);
+  const year = validated(() => parseMatrixYear(url.searchParams));
+  const r = await rpc(ctx, "ga_ws_ub_year_matrix", { p_year: year });
   return respond({ data: r.data });
 }
 

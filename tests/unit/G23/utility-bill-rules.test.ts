@@ -350,11 +350,13 @@ describe('SQL 與規則逐條對照（原始碼層級）', () => {
 });
 
 describe('原始碼層級的畫面規則', () => {
-  it('頁面不做匯出與圖表（V10）：沒有 CSV／Excel／chart 套件', () => {
+  it('頁面不做圖表（V10）：沒有 CSV／chart 套件；列表頁不匯出；報表頁的 Excel 匯出（GAUBMATRIX）只走共用的 lib/xlsx，不直接 import xlsx 套件', () => {
     for (const p of ['pages/ga/UtilityBills.vue', 'pages/ga/UtilityBillsReport.vue']) {
       const s = read(`vue-workspace/src/${p}`);
-      expect(s, p).not.toMatch(/xlsx|text\/csv|chart\.js|echarts/i);
+      expect(s, p).not.toMatch(/text\/csv|chart\.js|echarts/i);
     }
+    expect(read('vue-workspace/src/pages/ga/UtilityBills.vue')).not.toMatch(/xlsx/i);
+    expect(read('vue-workspace/src/pages/ga/UtilityBillsReport.vue')).not.toMatch(/from ["']xlsx["']|import\(["']xlsx["']\)/);
   });
   it('摘要卡：待繳與逾期是全部月份（global），「本月費用」改標「篩選結果合計」', () => {
     const s = read('vue-workspace/src/pages/ga/UtilityBills.vue');
