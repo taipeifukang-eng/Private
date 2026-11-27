@@ -10,6 +10,7 @@ import { UTILITY_BILL_MANAGE_LABEL, parseReportParams, parseUtilityFilters, pick
 import { parseMatrixYear } from "./utility-report-matrix";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { parseUtilityBillExtraFilters, pickPayeeField, validateSetPayee } from "./utility-payment-rules";
+import { scanTokenCreate } from "./utility-scan";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
 
 const abilitiesOf = (ctx: Context) => utilityBillAbilities(ctx.permissions);
@@ -72,6 +73,7 @@ export async function utilityBillsApi(ctx: Context, request: NextRequest, rest: 
   if (b === "pay") return pay(ctx, request, id);
   if (b === "unpay") return unpay(ctx, request, id);
   if (b === "delete") return remove(ctx, request, id);
+  if (b === "scan-token") return scanTokenCreate(ctx, request, id);
   throw new GaError(404, "找不到這個功能");
 }
 

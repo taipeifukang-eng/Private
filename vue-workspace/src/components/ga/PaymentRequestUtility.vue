@@ -4,6 +4,7 @@ import PrintFieldsBox from "./PrintFieldsBox.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
 import GaShell from "./GaShell.vue";
+import BillScanButton from "./BillScanButton.vue";
 import PayeeBuyerFields from "./PayeeBuyerFields.vue";
 import PaidFields from "./PaidFields.vue";
 import PayoutAccountDialog from "./PayoutAccountDialog.vue";
@@ -418,7 +419,7 @@ const lineState = (l: UtilityBillLine) => {
             <td data-label="帳單月份">{{ String(b.billing_month).slice(0, 7) }}</td>
             <td data-label="識別號碼">{{ b.identifier || "—" }}</td>
             <td data-label="金額" class="r" data-testid="pu-bill-amount">{{ money(b.amount) }}</td>
-            <td data-label="附件"><span v-if="Number(b.attachment_count) > 0" data-testid="pu-att-ok">{{ b.attachment_count }} 個</span><strong v-else class="bad" data-testid="pu-missing">缺附件</strong></td>
+            <td data-label="附件"><span v-if="Number(b.attachment_count) > 0" data-testid="pu-att-ok">{{ b.attachment_count }} 個</span><strong v-else class="bad" data-testid="pu-missing">缺附件</strong> <BillScanButton v-if="Number(b.attachment_count) > 0 && !billsMasked" :bill-id="b.id" :label="billLabel(b)" /></td>
             <td data-label="狀態"><span v-if="b.eligible" class="ok">可請款</span><span v-else class="muted" data-testid="pu-reason">{{ b.reason }}</span></td>
           </tr>
         </tbody>
@@ -437,7 +438,7 @@ const lineState = (l: UtilityBillLine) => {
           <tr v-for="l in viewLines" :key="l.id" data-testid="pu-line">
             <td data-label="#">{{ l.line_no }}</td><td data-label="門市">{{ l.location_name }}</td><td data-label="費用類型">{{ typeText(l.expense_type) }}</td><td data-label="帳單月份">{{ String(l.billing_month).slice(0, 7) }}</td>
             <td data-label="識別號碼">{{ l.identifier || "—" }}</td><td data-label="金額" class="r">{{ money(l.claim_total) }}</td>
-            <td data-label="附件">{{ l.attachment_count }} 個</td><td data-label="帳單狀態" data-testid="pu-line-state">{{ lineState(l) }}</td>
+            <td data-label="附件">{{ l.attachment_count }} 個 <BillScanButton v-if="Number(l.attachment_count) > 0 && !l.bill_deleted" :bill-id="l.bill_id" :label="billLabel(l)" /></td><td data-label="帳單狀態" data-testid="pu-line-state">{{ lineState(l) }}</td>
           </tr>
         </tbody>
       </table>

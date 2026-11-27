@@ -136,7 +136,7 @@ function del() {
           <div class="bd-row"><button type="button" :disabled="busy" @click="panel = ''">取消</button><button type="button" class="danger" :disabled="busy" data-testid="bd-delete-ok" @click="del">確定刪除</button></div>
         </section>
 
-        <ResourceAttachmentPanel v-if="live" resource-type="UTILITY_BILL" :resource-id="bill.id" purpose="BILL_DOCUMENT" title="帳單掃描檔與照片" :can-upload="canManage" :can-delete="canManage" />
+        <ResourceAttachmentPanel v-if="live" resource-type="UTILITY_BILL" :resource-id="bill.id" purpose="BILL_DOCUMENT" title="帳單掃描檔與照片" :can-upload="canManage" :can-delete="canManage" :phone-upload="canManage" />
         <p v-else class="muted">已刪除的帳單不顯示附件（檔案仍保留）。</p>
       </template>
       <div class="dialog-actions"><button type="button" data-testid="bd-close" @click="emit('close')">關閉</button></div>
