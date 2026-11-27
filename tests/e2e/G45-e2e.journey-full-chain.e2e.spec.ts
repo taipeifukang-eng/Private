@@ -310,7 +310,7 @@ test('5. 列印與 CSV：A4 列印頁簽章兩段；CSV 有 BOM、公式注入�
     await expect(page.locator('[data-testid="pr-card"]:visible')).toHaveCount(1);
     await page.locator('[data-testid="pr-card"]:visible').first().getByTestId('open-pr').click();
     await expect(vis(page, 'pe-status')).toBeVisible();
-    await vis(page, 'pe-print').click();
+    await vis(page, 'pe-print-detail').click();
     await expect(vis(page, 'pp-sign-ga')).toBeVisible();
     await expect(page.locator('body')).toContainText(prNo);
     expect(await noPageOverflow(page)).toBe(true);

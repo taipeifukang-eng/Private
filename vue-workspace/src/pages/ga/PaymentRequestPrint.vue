@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from "vue";
 import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
 import { PAY_METHOD_LABELS, PR_STATUS_LABELS, UTILITY_PRINT_HEADERS, bankText, dateText, errorText, isUtilityRequest, money, payeeBankText, payeeName, timeText, utilityPrintRow, type PaymentRequest } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS } from "../../lib/ga-invoices";
 import { useWorkspace, type WorkTab } from "../../stores";
+import { SIGN_CELL_SUFFIX, TOTAL_LABEL, buildPaperPrint, moneyCell, unitFit } from "../../../../lib/workspace/general-affairs/payment-print-rules";
 
 // 第 4.5 批 請款單 A4 列印頁（/general-affairs/payment-requests/:id/print）：抬頭用請款設定的買受人；
 // 廠商統編與銀行帳號沒有廠商查看權限時整區省略；簽章區顯示總務請款與會計付款的人與時間。列印只輸出紙張那一塊。
@@ -14,6 +15,13 @@ const allowed = useGaGuard(props.tab);
 const work = useWorkspace();
 const pr = ref<PaymentRequest | null>(null);
 const buyer = ref<{ title: string | null; tax_id: string | null }>({ title: null, tax_id: null });
+type PrintExtra = Parameters<typeof buildPaperPrint>[1];
+const extra = ref<PrintExtra>(null);
+// 預設是紙本格式（「列印請款單」）；「列印明細版」是原本的 A4 明細版面。請款單頁的兩顆按鈕用頁籤 payload.layout 指定。
+const layoutOf = (p: unknown): "paper" | "detail" => ((p as { layout?: string } | undefined)?.layout === "detail" ? "detail" : "paper");
+const layout = ref<"paper" | "detail">(layoutOf(props.tab.payload));
+watch(() => props.tab.payload, (p) => { layout.value = layoutOf(p); });
+const paper = computed(() => (pr.value ? buildPaperPrint(pr.value, extra.value, buyer.value.title) : null));
 const loading = ref(true);
 const error = ref("");
 const prId = computed(() => props.tab.recordId || "");
@@ -26,11 +34,14 @@ const employee = computed(() => pr.value?.payee_type === "EMPLOYEE");
 const payeeAccount = computed(() => (pr.value?.payee_account_snapshot || {}) as Record<string, string | null>);
 const billRows = computed(() => (pr.value?.bill_lines || []).map((l) => ({ id: l.id, no: l.line_no, cells: utilityPrintRow(l) })));
 
-onMounted(async () => {
+async function load() {
   if (!allowed.value) { loading.value = false; return; }
+  loading.value = true;
+  error.value = "";
   try {
-    const res = await api<{ data: PaymentRequest; buyer: { title: string | null; tax_id: string | null } }>(`general-affairs/payment-requests/${prId.value}`);
+    const res = await api<{ data: PaymentRequest; buyer: { title: string | null; tax_id: string | null }; print_extra?: PrintExtra }>(`general-affairs/payment-requests/${prId.value}`);
     pr.value = res.data;
+    extra.value = res.print_extra ?? null;
     buyer.value = res.buyer || buyer.value;
     props.tab.title = `列印 ${res.data.pr_no}`;
   } catch (e) {
@@ -38,12 +49,57 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+onMounted(load);
+// 既有列印頁籤會被重用（openGaPage 只更新 payload）：再次開啟或切回這一頁時重新取資料，避免印出舊的申請人、事由。
+watch(() => props.tab.payload, () => { void load(); });
+watch(() => work.active === props.tab.id, (on, was) => { if (on && !was && !loading.value) void load(); });
 // 只有這一頁在前景時才套用「只印紙張」的全域列印樣式（頁籤用 v-show 保留，不能影響其他頁的列印）。
 const active = computed(() => work.active === props.tab.id);
 watchEffect(() => document.body.classList.toggle("printing-payment", active.value));
 onBeforeUnmount(() => document.body.classList.remove("printing-payment"));
 const printNow = () => window.print();
+// 下載 PDF：把頁面上已渲染好的紙本表單複製到畫面外（寬度、縮放、行高與 @media print 相同：A4 內容寬 190mm、--k 0.8），
+// 外面包一層 210mm 寬、四周 10mm 白邊，轉成圖片後依比例放在 A4 頂端（等同列印的上半頁）。
+const pdfBusy = ref(false);
+const paperEl = ref<HTMLElement | null>(null);
+const safeName = (s: string) => s.replace(/[\/:*?"<>|\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim();
+function pdfFileName(): string {
+  const day = pr.value?.created_at ? new Date(pr.value.created_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }) : "";
+  return `${[buyer.value.title || "", day, "請款單", pr.value?.pr_no || ""].map(safeName).filter(Boolean).join("_")}.pdf`;
+}
+async function downloadPdf() {
+  const src = paperEl.value;
+  if (!src || !pr.value || pdfBusy.value) return;
+  pdfBusy.value = true;
+  let host: HTMLElement | null = null;
+  try {
+    const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+    host = document.createElement("div");
+    host.setAttribute("aria-hidden", "true");
+    host.setAttribute("data-pdf-host", "");
+    host.style.cssText = "pointer-events:none;" + "position:fixed;left:-10000px;top:0;width:210mm;box-sizing:border-box;padding:10mm;background:#fff;";
+    const clone = src.cloneNode(true) as HTMLElement;
+    clone.classList.add("pp-pdf");
+    clone.removeAttribute("data-testid");
+    clone.querySelectorAll("[data-testid]").forEach((el) => el.removeAttribute("data-testid"));
+    host.appendChild(clone);
+    document.body.appendChild(host);
+    try { await document.fonts?.ready; } catch { /* 字型 API 不可用時直接繼續 */ }
+    const canvas = await html2canvas(host, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
+    const pdf = new jsPDF("p", "mm", "a4");
+    const h0 = (canvas.height * 210) / canvas.width;
+    const sc = Math.min(1, 297 / h0);
+    const w = 210 * sc;
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", (210 - w) / 2, 0, w, h0 * sc);
+    pdf.save(pdfFileName());
+  } catch (e) {
+    alert(`產生 PDF 失敗：${e instanceof Error && e.message ? e.message : "請稍後再試"}`);
+  } finally {
+    host?.remove();
+    pdfBusy.value = false;
+  }
+}
 function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.id); work.remove([props.tab.id]); }
 </script>
 
@@ -52,17 +108,51 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
     <div>
       <p class="eyebrow">總務服務中心 / 作業管理</p>
       <h1>請款單列印</h1>
-      <p class="muted">A4 直式。按「列印」只會輸出下方紙張內容。</p>
+      <p class="muted">A4 直式。按「列印」只會輸出下方紙張內容。目前是{{ layout === "paper" ? "紙本格式請款單" : "明細版" }}。</p>
     </div>
     <div class="head-actions">
       <button type="button" data-testid="pp-back" @click="back">回請款單</button>
+      <button v-if="layout === 'paper'" type="button" data-testid="pp-layout-detail" @click="layout = 'detail'">切換到明細版</button>
+      <button v-else type="button" data-testid="pp-layout-paper" @click="layout = 'paper'">切換到紙本格式</button>
+      <button v-if="layout === 'paper'" type="button" :disabled="!pr || pdfBusy" data-testid="pk-download-pdf" @click="downloadPdf">{{ pdfBusy ? "產生中…" : "下載 PDF" }}</button>
       <button type="button" class="primary" :disabled="!pr" data-testid="pp-print" @click="printNow">列印</button>
     </div>
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', '作業管理', '請款單列印']">
     <p v-if="loading" role="status" class="no-print">載入中…</p>
     <p v-if="error" class="notice error no-print" role="alert" data-testid="pp-error">{{ error }}</p>
-    <article v-if="pr" class="pp-sheet" data-testid="pp-sheet">
+    <article v-if="pr && paper && layout === 'paper'" ref="paperEl" class="pp-sheet pp-paper" data-testid="pp-paper">
+      <h2 class="pk-title" data-testid="pk-title">{{ paper.title }}</h2>
+      <p class="pk-sub" data-testid="pk-subtitle">{{ paper.subtitle }}</p>
+      <div class="pk-meta" data-testid="pk-meta">
+        <span>申請部門：<b data-testid="pk-dept">{{ paper.dept }}</b></span>
+        <span>申請人：<b data-testid="pk-applicant">{{ paper.applicant }}</b></span>
+        <span>檢附單據：<b data-testid="pk-attach">{{ paper.attach }}</b></span>
+        <span>申請日期：<b data-testid="pk-date">{{ paper.applyDate }}</b></span>
+        <span>登錄：<b>{{ paper.register }}</b></span>
+      </div>
+      <table class="pk-table" data-testid="pk-table">
+        <thead><tr><th class="c-no">項次</th><th class="c-unit">使用單位</th><th class="c-reason">申請事由</th><th class="c-amt">金額</th><th class="c-order">內部訂單</th></tr></thead>
+        <tbody>
+          <tr v-for="(r, i) in paper.rows" :key="i" data-testid="pk-row">
+            <td class="c-no">{{ r.no ?? "" }}</td><td class="u" :class="{ 'u-wrap': unitFit(r.unit).wrap }" :style="{ fontSize: `calc(16px * var(--k) * ${unitFit(r.unit).scale})` }">{{ r.unit }}</td><td>{{ r.reason }}</td>
+            <td class="amt">{{ r.amount !== null ? moneyCell(r.amount) : "" }}</td><td>{{ r.order }}</td>
+          </tr>
+          <tr class="pk-sum"><td colspan="3" class="mid" data-testid="pk-tax-label">{{ paper.taxLabel }}</td><td class="amt" data-testid="pk-tax">{{ moneyCell(paper.tax) }}</td><td></td></tr>
+          <tr class="pk-sum"><td colspan="3" class="mid">{{ TOTAL_LABEL }}</td><td class="amt" data-testid="pk-total">{{ moneyCell(paper.total) }}</td><td></td></tr>
+        </tbody>
+      </table>
+      <div class="pk-pay" data-testid="pk-pay">
+        <div class="pk-pay1">付款方式：<span data-testid="pk-box-transfer">{{ paper.pay.transfer ? "■" : "□" }}</span>匯款　<span data-testid="pk-box-check">{{ paper.pay.check ? "■" : "□" }}</span>支票　<span data-testid="pk-box-cash">{{ paper.pay.cash ? "■" : "□" }}</span>零用金　<span data-testid="pk-box-other">{{ paper.pay.other ? "■" : "□" }}</span>其他<span class="pk-other" data-testid="pk-other-text">{{ paper.pay.otherText || "＿＿＿" }}</span>　到期日：<span data-testid="pk-due">{{ paper.dueDate || "____年____月____日" }}</span></div>
+        <div class="pk-pay2"><span>付款對象：<span data-testid="pk-payee">{{ paper.payee }}</span></span><span>授款人簽收：</span></div>
+      </div>
+      <div class="pk-sign" data-testid="pk-sign">
+        <div v-for="(row, ri) in paper.signRows" :key="ri" class="pk-sign-row">{{ row.map((cell) => `${cell}：__________`).join("　") }}<small v-for="cell in row.filter((c) => SIGN_CELL_SUFFIX[c])" :key="cell"> {{ SIGN_CELL_SUFFIX[cell] }}</small></div>
+      </div>
+      <p class="pk-note">{{ paper.signNote }}</p>
+      <p class="pk-no" data-testid="pk-no">系統單號 {{ paper.prNo }}</p>
+    </article>
+    <article v-if="pr && layout === 'detail'" class="pp-sheet" data-testid="pp-sheet">
       <h2 class="pp-title" data-testid="pp-buyer">{{ buyer.title || "請款單" }}<span v-if="buyer.title">　請款單</span><span v-if="prepay" data-testid="pp-prepay-title">（預付款）</span></h2>
       <p v-if="buyer.tax_id" class="pp-sub" data-testid="pp-buyer-tax">統一編號 {{ buyer.tax_id }}</p>
       <table class="pp-meta">
@@ -126,12 +216,51 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pp-sign { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
 .pp-sign div { border: 1px solid #888; padding: 10px; min-height: 70px; display: grid; gap: 4px; align-content: start; }
 .pp-sign small { color: #555; }
+/* 紙本格式請款單：A4 直式、內容在上半頁。字型與相對字級照老闆提供的實際表單（標楷體、純黑、1px 黑框）；--k 是整體縮放，列印時縮小讓整張放進上半頁。 */
+.pp-paper { --k: 1; font-family: DFKai-SB, BiauKai, "Microsoft JhengHei", serif; color: #000; background: #fff; min-height: 0; font-size: calc(16px * var(--k)); line-height: 1.6; padding: 7.5mm; overflow-x: visible; }
+.pk-title { text-align: center; font-size: calc(26px * var(--k)); font-weight: 400; line-height: 1.3; margin: 0 0 calc(5px * var(--k)); }
+.pk-sub { text-align: center; font-size: calc(21px * var(--k)); line-height: 1.3; margin: 0 0 calc(15px * var(--k)); }
+.pk-meta { font-size: calc(16px * var(--k)); line-height: 1.6; margin-bottom: calc(10px * var(--k)); }
+.pk-meta > span + span { margin-left: calc(30px * var(--k)); }
+.pk-meta b { font-weight: 400; }
+.pk-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: calc(16px * var(--k)); margin: calc(10px * var(--k)) 0; }
+.pk-table th, .pk-table td { border: 1px solid #000; padding: calc(4px * var(--k)) calc(8px * var(--k)); line-height: 1.35; overflow-wrap: anywhere; vertical-align: middle; font-weight: 400; background: #fff; color: #000; }
+.pk-table th { text-align: center; }
+/* 欄寬照老闆提供的實際紙本量測：項次窄（標題直排兩字）、申請事由最寬、金額與內部訂單等寬。 */
+.pk-table .c-no { width: 4.5%; text-align: center; padding-left: calc(2px * var(--k)); padding-right: calc(2px * var(--k)); }
+.pk-table .c-unit { width: 24.5%; }
+.pk-table .c-reason { width: 46%; }
+.pk-table .c-amt { width: 12.5%; }
+.pk-table .c-order { width: 12.5%; }
+.pk-table td.u { white-space: nowrap; }
+.pk-table td.u.u-wrap { white-space: normal; overflow-wrap: anywhere; }
+.pk-table td.amt { white-space: nowrap; text-align: right; }
+.pk-table td.mid { text-align: center; }
+.pk-table tbody tr { height: calc(30px * var(--k)); }
+.pk-pay { font-size: calc(18px * var(--k)); margin: calc(15px * var(--k)) 0; }
+.pk-pay1 { margin-bottom: calc(8px * var(--k)); }
+.pk-pay2 { display: flex; justify-content: space-between; gap: 16px; padding-right: 8%; }
+.pk-other { display: inline-block; min-width: 3em; border-bottom: 1px solid #000; text-align: center; line-height: 1.2; }
+.pk-sign { font-size: calc(16px * var(--k)); margin-top: calc(20px * var(--k)); line-height: 2.5; }
+.pk-sign-row { margin-bottom: calc(5px * var(--k)); white-space: nowrap; }
+.pk-sign-row small { font-size: calc(13px * var(--k)); }
+.pk-note { font-size: calc(13px * var(--k)); margin: calc(5px * var(--k)) 0 0; }
+.pk-no { text-align: right; font-size: 10px; color: #000; margin: calc(8px * var(--k)) 0 0; }
+/* 下載 PDF 用的複本：與列印版相同的縮放與行高，置於 210mm 寬、10mm 白邊的外框內（見 downloadPdf）。 */
+.pp-paper.pp-pdf { --k: 0.8; width: 190mm; max-width: none; padding: 0; border: 0; margin: 0; line-height: 1.4; }
+.pp-paper.pp-pdf .pk-sign { line-height: 2; }
 @media print {
+  :global([data-pdf-host]) { display: none !important; }
   @page { size: A4 portrait; margin: 10mm; }
   :global(body.printing-payment *) { visibility: hidden; }
   .pp-sheet, .pp-sheet * { visibility: visible; }
-  .pp-sheet { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
+  .pp-sheet { position: fixed; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
+  :global(body.printing-payment) { background: #fff !important; }
   .no-print { display: none !important; }
+  /* 實際表單的字級放大到整張 A4 太高；統一縮小，整張仍放進 A4 上半頁。 */
+  .pp-paper { --k: 0.8; padding: 0; line-height: 1.4; }
+  /* 項次欄變窄後表頭「項次」會直排成兩行、表格多一行高；簽核區行高 2 → 1.7 補回，維持在上半頁內。 */
+  .pk-sign { line-height: 1.7; }
 }
 @media (max-width: 700px) { .head-actions button { min-height: 44px; } .pp-sheet { padding: 8mm 4mm; } }
 </style>

@@ -12,6 +12,7 @@ import {
   buildExportCsv, exportFileName, isPrAction, maskRequest, parseExportStatuses, parseRequestFilters, validateActionPayload, validateCreatePayload, validatePrepayCreatePayload, validatePrepaySettlePayload, validateSettings, validateUpdatePayload,
   MONTH_RE,
 } from "./payment-request-rules";
+import { validatePrintFieldsPayload } from "./payment-print-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { UTILITY_BILL_MANAGE_LABEL } from "./utility-bill-rules";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
@@ -79,6 +80,7 @@ export async function paymentRequestsApi(ctx: Context, request: NextRequest, res
     throw new GaError(405, "不支援的操作（請款單不能刪除，請用「作廢」）");
   }
   if (b === "actions" && m === "POST") return action(ctx, request, id);
+  if (b === "print-fields" && (m === "PATCH" || m === "PUT")) return printFields(ctx, request, id);
   if (b === "prepay-refund" && m === "POST") return prepayRefund(ctx, request, id);
   throw new GaError(404, "找不到這個功能");
 }
@@ -99,7 +101,9 @@ async function list(ctx: Context, url: URL) {
 async function detail(ctx: Context, id: string) {
   const ab = needView(ctx);
   const r = await rpc(ctx, "ga_ws_pay_request_get", { p_id: id });
-  return respond({ data: shape(r.data || {}, ab, ctx.user.id), buyer: r.buyer ?? {}, permissions: { ...ab, canManage: ab.canManage && r.can_manage !== false } });
+  // 紙本列印補充資料（建立人部門、門市簡稱、帳單備註）：專用函式還沒套用的環境讀不到就當沒有，列印頁會退回只用請款單上的欄位。
+  const extra = await rpc(ctx, "ga_ws_pay_request_print_extra", { p_id: id }).then((x) => x.data ?? null).catch(() => null);
+  return respond({ data: shape(r.data || {}, ab, ctx.user.id), buyer: r.buyer ?? {}, print_extra: extra, permissions: { ...ab, canManage: ab.canManage && r.can_manage !== false } });
 }
 
 /** 可請款的進貨與尚可請款額（建立頁挑選用）。需請款檢視，並需採購評估檢視（資料庫 PO_VIEW_REQUIRED）。 */
@@ -159,6 +163,15 @@ async function update(ctx: Context, request: NextRequest, id: string) {
   const payload = validated(() => (utilityKeys.length ? validateUtilityUpdatePayload(raw) : validateUpdatePayload(raw)));
   const r = await rpc(ctx, "ga_ws_pay_request_update", { p_id: id, p_payload: payload, p_expected_updated_at: expected });
   return respond({ data: shape(r.data, ab, ctx.user.id) });
+}
+
+/** 儲存請款單的列印欄位（申請部門、申請人、檢附單據、申請事由）：需請款管理；除了已作廢，任何狀態都能改，不動金額與版本時間。 */
+async function printFields(ctx: Context, request: NextRequest, id: string) {
+  const ab = needManage(ctx, "修改請款單列印欄位");
+  const raw = await body(request);
+  const payload = validated(() => validatePrintFieldsPayload(raw));
+  const r = await rpc(ctx, "ga_ws_pay_request_print_fields_set", { p_id: id, p_payload: payload });
+  return respond({ data: shape(r.data, ab, ctx.user.id), changed: r.changed ?? [] });
 }
 
 async function action(ctx: Context, request: NextRequest, id: string) {

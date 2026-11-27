@@ -646,7 +646,7 @@ test('5. 多家抬頭與付款方式：請款設定新增兩家假公司並換�
     await vis(acc.page, 'act-confirm').click();
     await expect(vis(acc.page, 'pe-paid-info')).toContainText('卡號末四碼 4321');
     // 列印頁：抬頭是請款單選的 Y（不是採購單的 X、也不是預設）
-    await vis(acc.page, 'pe-print').click();
+    await vis(acc.page, 'pe-print-detail').click();
     await expect(vis(acc.page, 'pp-buyer')).toContainText(cy.name);
     await expect(vis(acc.page, 'pp-buyer-tax')).toContainText(cy.tax_id);
     await expect(vis(acc.page, 'pp-paid')).toContainText('4321');

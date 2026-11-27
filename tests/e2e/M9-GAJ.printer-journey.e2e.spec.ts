@@ -480,7 +480,7 @@ test('M9-GAJ 總務採購印表機到門市配發（劇本 1 採購到入庫、�
       expect(String(pr.paid_date).slice(0, 10)).toBe(taipeiDay());
       expect(Number(pr.amount_total)).toBe(SYS_TOTAL);
       // 請款單列印頁：買受人抬頭
-      await vis(w.page, 'pe-print').click();
+      await vis(w.page, 'pe-print-detail').click();
       await expect(vis(w.page, 'pp-sign-ga')).toBeVisible();
       await expect(vis(w.page, 'pp-buyer')).toContainText(SCRIPT.buyerTitle);
       await shot(w.page, '請款單列印含買受人抬頭');

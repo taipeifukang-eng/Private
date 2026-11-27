@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PrintFieldsBox from "./PrintFieldsBox.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
 import GaShell from "./GaShell.vue";
@@ -309,7 +310,14 @@ async function accountSaved() {
   if (pr.value && actions.value.includes("refresh_bank")) await quick("refresh_bank");
   else await loadRequest().catch(() => {});
 }
-const printPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id);
+// 預設列印紙本格式請款單；「列印明細版」是原本的 A4 明細版面。
+const printPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id, { layout: "paper" });
+const printDetailPage = () => pr.value && openGaPage("ga-payment-request-print", pr.value.id, { layout: "detail" });
+// 列印欄位另外儲存（不動請款單版本時間）：只更新這四欄與操作紀錄，不覆蓋表單上尚未儲存的修改。
+function printFieldsSaved(r: PaymentRequest) {
+  if (!pr.value) return;
+  Object.assign(pr.value, { applicant_name: r.applicant_name ?? null, applicant_dept: r.applicant_dept ?? null, attach_docs: r.attach_docs ?? null, reason_override: r.reason_override ?? null, print_units: r.print_units ?? null, events: r.events ?? pr.value.events });
+}
 function backToList() { openGaPage("ga-payment-requests"); work.remove([props.tab.id]); }
 function goBills(search?: string) { openGaPage("ga-utility-bills", undefined, { month: month.value, search: search || "" }); }
 const typeText = (t: string) => EXPENSE_TYPE_LABELS[t as keyof typeof EXPENSE_TYPE_LABELS] || t;
@@ -331,6 +339,7 @@ const lineState = (l: UtilityBillLine) => {
     </div>
     <div class="head-actions">
       <button v-if="pr" type="button" data-testid="pu-print" @click="printPage">列印請款單</button>
+      <button v-if="pr" type="button" data-testid="pu-print-detail" @click="printDetailPage">列印明細版</button>
       <button type="button" data-testid="pu-back" @click="backToList">回請款單清單</button>
     </div>
   </header>
@@ -389,6 +398,7 @@ const lineState = (l: UtilityBillLine) => {
       </label>
     </section>
 
+    <PrintFieldsBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pu" @saved="printFieldsSaved" />
     <section v-if="!loading && (creating ? !!vendorId : editing)" class="pe-box" data-testid="pu-candidates">
       <h2>帳單（{{ vendorName }} {{ month }}）</h2>
       <p v-if="noPayeeText" class="notice" role="status" data-testid="pu-no-payee-notice">{{ noPayeeText }}<button type="button" class="link" data-testid="pu-goto-bills" @click="goBills()">前往水電帳單補填</button></p>

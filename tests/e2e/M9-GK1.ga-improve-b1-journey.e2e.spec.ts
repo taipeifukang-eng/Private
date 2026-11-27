@@ -558,7 +558,7 @@ test('M9-GK1 ga-improve-b1 多角色劇本（多家抬頭、含稅採購單與�
       await expect(vis(w.page, 'pe-status')).toHaveText('已付款');
       await shot(w.page, '會計付款給同仁甲');
       expect(await dbPr(S.pr3.id)).toMatchObject({ status: 'PAID', pay_method: 'TRANSFER' });
-      await vis(w.page, 'pe-print').click();
+      await vis(w.page, 'pe-print-detail').click();
       await expect(vis(w.page, 'pp-payee')).toContainText(users.staffA.name);
       await shot(w.page, '同仁代墊請款單列印');
     } finally { await w.ctx.close(); }
@@ -680,7 +680,7 @@ test('M9-GK1 ga-improve-b1 多角色劇本（多家抬頭、含稅採購單與�
       await vis(acc.page, 'act-confirm').click();
       await expect(vis(acc.page, 'pe-paid-info')).toContainText('平台 蝦皮');
       expect(await dbPr(S.pr4.id)).toMatchObject({ status: 'PAID', pay_method: 'ONLINE_PLATFORM', pay_platform: '蝦皮', pay_card_last4: null });
-      await vis(acc.page, 'pe-print').click();
+      await vis(acc.page, 'pe-print-detail').click();
       await expect(vis(acc.page, 'pp-buyer')).toContainText(S.companyB.name);
       await expect(vis(acc.page, 'pp-buyer-tax')).toContainText(S.companyB.tax);
       await expect(vis(acc.page, 'pp-paid')).toContainText('蝦皮');

@@ -162,7 +162,7 @@ test('請款管理（總務）：清單、建立（超過累計上限被擋、�
     expect(await cards(page, 'pe-event').count()).toBe(5); // 建立、送出、退回、再送出、標已付款
     expect(await noPageOverflow(page)).toBe(true);
     // 列印頁
-    await vis(page, 'pe-print').click();
+    await vis(page, 'pe-print-detail').click();
     await expect(visibleHeading(page, '請款單列印')).toBeVisible();
     await expect(vis(page, 'pp-sheet')).toBeVisible();
     await expect(vis(page, 'pp-vendor')).toContainText(vendor.name);
@@ -268,7 +268,7 @@ test('請款檢視者與無廠商權限的管理者：檢視者唯讀（沒有�
         await expect(vis(page, 'pe-paid')).toBeVisible();
       }
       expect(await page.content()).not.toContain('123-456-789012');
-      await vis(page, 'pe-print').click();
+      await vis(page, 'pe-print-detail').click();
       await expect(vis(page, 'pp-sheet')).toBeVisible();
       await expect(page.getByTestId('pp-secret')).toHaveCount(0);
       await expect(page.getByTestId('pp-bank')).toHaveCount(0);

@@ -293,7 +293,7 @@ test('預付請款單頁：預付摘要、核銷帳、已付款資訊（信用�
     await expectNoOverflow(page, '登記退款');
     await page.getByRole('button', { name: '取消', exact: true }).locator('visible=true').last().click();
     // 列印頁
-    await vis(page, 'pe-print').click();
+    await vis(page, 'pe-print-detail').click();
     await expect(vis(page, 'pp-sheet')).toBeVisible();
     await expect(vis(page, 'pp-prepay-title')).toBeVisible();
     await expect(vis(page, 'pp-buyer')).toContainText(companyB.name);
@@ -334,7 +334,7 @@ test('同仁代墊請款單頁：會計看得到完整匯款帳戶；沒有廠�
         await expect(dlg(page).getByTestId('act-employee-hint')).toBeVisible();
         await expectNoOverflow(page, '標記已付款（同仁代墊）');
         await dlg(page).getByRole('button', { name: '取消', exact: true }).click();
-        await vis(page, 'pe-print').click();
+        await vis(page, 'pe-print-detail').click();
         await expect(vis(page, 'pp-payee')).toContainText('M7M8 GA45 nobody');
         await expect(vis(page, 'pp-payee-account')).toContainText('123-456-789012');
         await expect(vis(page, 'pp-buyer')).toContainText(companyA.name);
