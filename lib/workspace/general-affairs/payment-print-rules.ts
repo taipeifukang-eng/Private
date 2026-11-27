@@ -122,7 +122,7 @@ export const payeeLabel = (pr: Pick<PrintPr, "payee_type" | "payee_name" | "paye
 
 const identifierWord = (t: string) => (t === "ELECTRICITY" ? "電號" : t === "WATER" ? "水號" : "用戶號碼");
 const expenseLabel = (t: string) => EXPENSE_TYPE_LABELS[t as ExpenseType] ?? t;
-const uniq = <T,>(xs: T[]) => [...new Set(xs)];
+const uniq = <T,>(xs: T[]) => Array.from(new Set(xs));
 
 function utilityRows(pr: PrintPr, extra: ExtraIn, override: string): PaperRow[] {
   const lines = (pr.bill_lines || []).filter((l) => l.active !== false).slice().sort((a, b) => (a.line_no ?? 0) - (b.line_no ?? 0));
@@ -133,7 +133,7 @@ function utilityRows(pr: PrintPr, extra: ExtraIn, override: string): PaperRow[] 
     groups.set(key, [...(groups.get(key) || []), l]);
   }
   const rows: PaperRow[] = [];
-  for (const g of groups.values()) {
+  for (const g of Array.from(groups.values())) {
     const first = g[0];
     const rowKey = first.store_id ? String(first.store_id) : `n:${clean(first.location_name)}`;
     const meta = first.id ? info.get(first.id) : undefined;
@@ -164,7 +164,7 @@ function purchaseRows(pr: PrintPr, override: string): PaperRow[] {
   const groups = new Map<string, PurchaseLineIn[]>();
   for (const l of lines) groups.set(clean(l.po_no), [...(groups.get(clean(l.po_no)) || []), l]);
   const rows: PaperRow[] = [];
-  for (const [po, g] of groups) {
+  for (const [po, g] of Array.from(groups.entries())) {
     const names = uniq(g.flatMap((l) => (l.items || []).map((i) => clean(i.item_name))).filter(Boolean));
     const summary = names.length ? (names.length > 2 ? `${names.slice(0, 2).join("、")}等 ${names.length} 項` : names.join("、")) : "";
     rows.push({ no: null, key: po || "_", unit: "", defaultUnit: "", reason: override || [po, summary].filter(Boolean).join(" "), amount: g.reduce((s, l) => s + num(l.claim_untaxed), 0), order: po });
