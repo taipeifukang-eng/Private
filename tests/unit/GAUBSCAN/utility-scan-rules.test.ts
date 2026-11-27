@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  clientKey, createLimiter, isScanHash, isScanToken, mimeMatches, scanBaseUrl, scanMessage, scanUrl, sniffMime,
+  cleanFileName, clientKey, createLimiter, extensionOfMime, isScanHash, isScanToken, mimeMatches, scanBaseUrl, scanMessage, scanUrl, sniffMime,
   SCAN_PAGE_PATH, SCAN_PURPOSE, SCAN_RESOURCE_TYPE, SCAN_TOKEN_MAX_FILES, SCAN_TOKEN_TTL_MINUTES,
 } from '@/lib/workspace/general-affairs/utility-scan-rules';
 import { hashScanToken, newScanToken } from '@/lib/workspace/general-affairs/utility-scan';
@@ -81,6 +81,20 @@ describe('檔案內容檢查', () => {
     expect(sniffMime(new TextEncoder().encode('<html><script>alert(1)</script>'))).toBeNull();
     expect(sniffMime(bytes(0x4d, 0x5a))).toBeNull();
     expect(sniffMime(new Uint8Array(0))).toBeNull();
+  });
+  it('副檔名由偵測到的實際格式決定，不採用使用者檔名', () => {
+    expect(extensionOfMime('image/jpeg')).toBe('jpg');
+    expect(extensionOfMime('image/png')).toBe('png');
+    expect(extensionOfMime('image/webp')).toBe('webp');
+    expect(extensionOfMime('application/pdf')).toBe('pdf');
+    expect(extensionOfMime('image/heic')).toBe('heic');
+    expect(extensionOfMime('image/heif')).toBe('heif');
+    expect(extensionOfMime(null)).toBe('jpg');
+  });
+  it('顯示檔名去掉控制字元與雙向文字覆寫字元', () => {
+    expect(cleanFileName('  a\u202egpj.exe\u0000 ')).toBe('agpj.exe');
+    expect(cleanFileName(null)).toBe('');
+    expect(cleanFileName('IMG_001.jpg')).toBe('IMG_001.jpg');
   });
   it('宣稱類型與檔頭不一致就拒絕（HEIC／HEIF 互通）', () => {
     expect(mimeMatches('image/jpeg', 'image/jpeg')).toBe(true);

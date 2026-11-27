@@ -106,6 +106,11 @@ describe('畫面文字', () => {
     expect(autoPaidLabel({ paid_date: '2038-03-10T00:00:00Z' })).toBe('系統自動標記（付款日 2038/03/10）');
     expect(autoPaidLabel({})).toBe('系統自動標記');
   });
+  it('同仁代墊款不自動：排程不處理、提示說明要人工核付', () => {
+    expect(planAutoPay(util({ expected_pay_date: '2038-03-01', payee_type: 'EMPLOYEE' }), '2038-03-05').skip).toBe('NOT_VENDOR');
+    expect(planAutoPay(util({ expected_pay_date: '2038-03-01', payee_type: 'VENDOR' }), '2038-03-05').mark).toBe(true);
+    expect(autoPayHint(util({ expected_pay_date: '2038-03-25', payee_type: 'EMPLOYEE' }), '2038-03-01')).toContain('人工核付');
+  });
   it('已送出的單提示：還沒到期、已到期、沒有付款日、已取消', () => {
     expect(autoPayHint(util({ expected_pay_date: '2038-03-25' }), '2038-03-01')).toBe('付款日 2038/03/25 到期後，系統會自動標記已付款。');
     expect(autoPayHint(util({ expected_pay_date: '2038-03-01' }), '2038-03-05')).toContain('已到期');

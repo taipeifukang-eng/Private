@@ -392,7 +392,7 @@ const lineState = (l: UtilityBillLine) => {
       </template>
       <PayeeBuyerFields v-if="editing && !loading && abilities" v-model:payee-type="payeeType" v-model:payee-profile-id="payeeProfileId" v-model:payee-name="payeeNameText" v-model:buyer-company-id="buyerCompanyId" :companies="companies" :editing="editing" prefix="pu" @change="dirty" />
       <div class="pe-grid">
-        <label>預計付款日<input v-model="expectedPayDate" type="date" :disabled="!editing" data-testid="pu-pay-date" @input="dirty" /></label>
+        <label>預計付款日<input v-model="expectedPayDate" type="date" :disabled="!editing" data-testid="pu-pay-date" @input="dirty" /><small class="muted">沒填就用這張單帳單最早的繳費期限；到期後系統會自動標記已付款。</small></label>
         <label>備註<input v-model="notes" maxlength="500" :disabled="!editing" data-testid="pu-notes" @input="dirty" /></label>
       </div>
       <label v-if="editing" class="pu-auto" data-testid="pu-auto-box"><span class="pu-auto-row"><input v-model="autoMark" type="checkbox" data-testid="pu-auto" @change="dirty" />送出後帳單自動標記已繳</span>

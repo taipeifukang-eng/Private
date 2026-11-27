@@ -223,13 +223,38 @@ test('劇本 1 API 與安全：權限、只存雜湊、只能寫入這張帳單�
   expect((await pub(`${NET}.1.4`, tokenG, [okPng(700)])).status).toBe(409);
   expect((await issue('clerk', gone.id)).status).toBe(404);
 
-  // --- 猜權杖：同一個 IP 連續錯 8 次後被封鎖（429），之後連正確權杖也先擋 15 分鐘
+  // --- 作廢：同一人對同一張帳單發新 QR，舊 QR 立刻作廢；關閉視窗呼叫 scan-token-revoke 也作廢
+  const ipR = `${NET}.8.8`;
+  const billX = await mkBill(users.clerk.client, { payee_vendor_id: payee.id, store_id: st.VW001.id, service_identifier: ident() });
+  const r1: string = (await issue('clerk', billX.id)).body.data.token;
+  expect((await pub(ipR, r1)).status).toBe(200);
+  const r2: string = (await issue('clerk', billX.id)).body.data.token;
+  const oldQr = await pub(ipR, r1);
+  expect(oldQr.status).toBe(403);
+  expect(oldQr.json.code).toBe('INVALID');
+  expect((await tokenRow(r1)).revoked_at).not.toBeNull();
+  expect((await pub(ipR, r2)).status).toBe(200);
+  const rv = await apis.clerk.post(`${P}/utility-bills/${billX.id}/scan-token-revoke`, { data: {} });
+  expect(rv.status(), await rv.text()).toBe(200);
+  expect((await rv.json()).data.revoked).toBe(1);
+  expect((await pub(ipR, r2)).status).toBe(403);
+  expect((await apis.clerk.post(`${P}/utility-bills/not-a-uuid/scan-token-revoke`, { data: {} })).status()).toBe(400);
+  // 副檔名由檔頭偵測的實際格式決定（不採用使用者檔名），顯示檔名去掉雙向文字覆寫字元
+  const r3: string = (await issue('clerk', billX.id)).body.data.token;
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 1)]);
+  const ext = await pub(ipR, r3, [{ name: `${M7_FILE_PREFIX}ext\u202egpj.html`, type: 'image/jpeg', data: jpeg }]);
+  expect(ext.status, ext.text).toBe(201);
+  const extRow = (await attRows(billX.id))[0];
+  expect(extRow.storage_path).toMatch(/\.jpg$/);
+  expect(extRow.file_name).not.toContain('\u202e');
+
+  // --- 猜權杖：同一個 IP 連續錯 20 次後被封鎖（429），之後連正確權杖也先擋 15 分鐘
   const probeIp = `${NET}.9.9`;
   const good = await issue('clerk', billA.id);
   const codes: number[] = [];
-  for (let i = 0; i < 10; i += 1) codes.push((await pub(probeIp, crypto.randomBytes(32).toString('base64url'))).status);
-  expect(codes.slice(0, 8).every((c) => c === 403)).toBe(true);
-  expect(codes.slice(8)).toEqual([429, 429]);
+  for (let i = 0; i < 22; i += 1) codes.push((await pub(probeIp, crypto.randomBytes(32).toString('base64url'))).status);
+  expect(codes.slice(0, 20).every((c) => c === 403)).toBe(true);
+  expect(codes.slice(20)).toEqual([429, 429]);
   const blockedGood = await pub(probeIp, good.body.data.token);
   expect(blockedGood.status).toBe(429);
   expect((await pub(`${NET}.9.10`, good.body.data.token)).status, '別的 IP 不受影響').toBe(200);

@@ -63,9 +63,14 @@ describe('ga-ub-scan-upload SQL', () => {
     expect(sql).toContain('TO service_role;');
     expect(sql).not.toMatch(/GRANT EXECUTE ON FUNCTION public\.ga_ub_scan_token_(status|commit)[^;]*authenticated/);
   });
-  it('rollback 移除資料表與四支函式，不碰附件資料', () => {
+  it('發新 QR 會作廢同一人同一張帳單的舊 QR，並有登入者可呼叫的作廢函式', () => {
+    const sql = read(`${DEV}.sql`);
+    expect(sql).toContain('SET revoked_at = now() WHERE issued_by = v_uid AND bill_id = p_bill_id');
+    expect(code(sql)).toContain('GRANT EXECUTE ON FUNCTION public.ga_ws_ub_scan_token_revoke(uuid) TO authenticated, service_role;');
+  });
+  it('rollback 移除資料表與五支函式，不碰附件資料', () => {
     const sql = code(read(`${DEV}.rollback.sql`));
-    for (const f of ['ga_ub_scan_token_commit(text, jsonb)', 'ga_ub_scan_token_status(text)', 'ga_ws_ub_scan_token_create(uuid, text)', 'ga_ub_scan_bill_state(uuid)']) expect(sql).toContain(`DROP FUNCTION IF EXISTS public.${f};`);
+    for (const f of ['ga_ub_scan_token_commit(text, jsonb)', 'ga_ub_scan_token_status(text)', 'ga_ws_ub_scan_token_create(uuid, text)', 'ga_ws_ub_scan_token_revoke(uuid)', 'ga_ub_scan_bill_state(uuid)']) expect(sql).toContain(`DROP FUNCTION IF EXISTS public.${f};`);
     expect(sql).toContain('DROP TABLE IF EXISTS public.ga_ub_scan_tokens;');
     expect(sql).not.toMatch(/ga_resource_attachments/);
   });

@@ -61,6 +61,19 @@ export function sniffMime(bytes: Uint8Array): string | null {
   }
   return null;
 }
+/** 偵測到的實際格式 -> 固定副檔名（公開上傳路由不採用使用者檔名的副檔名）。 */
+export function extensionOfMime(mime: string | null): string {
+  if (mime === "application/pdf") return "pdf";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/heic") return "heic";
+  if (mime === "image/heif") return "heif";
+  return "jpg";
+}
+/** 顯示用檔名：去掉控制字元與雙向文字（RTL）覆寫字元，頭尾空白。 */
+export function cleanFileName(name: string | null | undefined): string {
+  return String(name ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, "").trim();
+}
 /** 宣稱的類型與檔頭一致（HEIC／HEIF 兩種標記互通）。 */
 export function mimeMatches(claimed: string, sniffed: string | null): boolean {
   if (!sniffed) return false;

@@ -91,7 +91,7 @@ async function downloadPdf() {
     const h0 = (canvas.height * 210) / canvas.width;
     const sc = Math.min(1, 297 / h0);
     const w = 210 * sc;
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", (210 - w) / 2, 0, w, h0 * sc);
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", (210 - w) / 2, 0, w, h0 * sc);
     pdf.save(pdfFileName());
   } catch (e) {
     alert(`產生 PDF 失敗：${e instanceof Error && e.message ? e.message : "請稍後再試"}`);

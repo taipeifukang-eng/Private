@@ -96,9 +96,12 @@ async function tick() {
   qrLeft.value = Math.max(0, Math.round((qrExpires.value - Date.now()) / 1000));
   await load(true);
   phoneAdded.value = Math.max(0, items.value.length - baseCount.value);
+  if (qrLeft.value <= 0) stopPoll(); // QR 過期後不必再輪詢
 }
 function closePhone() {
   stopPoll();
+  // 關閉視窗時把這張帳單還有效的 QR 作廢（失敗不影響關閉）
+  if (qrUrl.value) api(`general-affairs/utility-bills/${props.resourceId}/scan-token-revoke`, { method: "POST", body: "{}" }).catch(() => undefined);
   phone.value = false;
   qrImage.value = "";
   qrUrl.value = "";

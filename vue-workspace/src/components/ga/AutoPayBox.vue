@@ -17,7 +17,7 @@ const canCancel = computed(() => canCancelAutoPay(props.pr, props.canManage));
 const hint = computed(() => {
   const r = props.pr;
   return autoPayHint({
-    status: r.status, source: r.source, expected_pay_date: r.expected_pay_date, auto_pay_off: r.auto_pay_off,
+    status: r.status, source: r.source, payee_type: r.payee_type, expected_pay_date: r.expected_pay_date, auto_pay_off: r.auto_pay_off,
     bill_due_dates: (r.bill_lines || []).filter((l) => l.active).map((l) => l.due_date),
   });
 });

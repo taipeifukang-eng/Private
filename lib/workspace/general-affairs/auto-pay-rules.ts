@@ -19,6 +19,8 @@ export type AutoPayInput = {
   /** 水電請款單所含有效帳單的繳費期限（沒有期限的帳單給 null 或不給）。 */
   bill_due_dates?: Array<string | null | undefined> | null;
   auto_pay_off?: boolean | null;
+  /** 付款對象：同仁代墊（EMPLOYEE）要人工核付，不自動標記；沒給視為廠商。 */
+  payee_type?: string | null;
   pay_method?: string | null;
 };
 
@@ -42,12 +44,13 @@ export function autoPayDateSource(input: Pick<AutoPayInput, "source" | "expected
 /** 自動標記用的付款方式：單上已有就用，沒有記轉帳。 */
 export const autoPayMethod = (payMethod: string | null | undefined) => String(payMethod ?? "").trim().toUpperCase() || AUTO_PAY_DEFAULT_METHOD;
 
-export type AutoPayPlan = { mark: boolean; paid_date: string | null; pay_method: string | null; reason: string | null; skip: "NOT_SUBMITTED" | "AUTO_OFF" | "NO_DATE" | "NOT_DUE" | null };
+export type AutoPayPlan = { mark: boolean; paid_date: string | null; pay_method: string | null; reason: string | null; skip: "NOT_SUBMITTED" | "NOT_VENDOR" | "AUTO_OFF" | "NO_DATE" | "NOT_DUE" | null };
 
 /** 排程判斷：今天（台北）該不該把這張單自動標記為已付款。 */
 export function planAutoPay(input: AutoPayInput, today: string = taipeiToday()): AutoPayPlan {
   const no = (skip: AutoPayPlan["skip"]): AutoPayPlan => ({ mark: false, paid_date: null, pay_method: null, reason: null, skip });
   if (input.status !== "SUBMITTED") return no("NOT_SUBMITTED");
+  if (String(input.payee_type ?? "VENDOR").toUpperCase() !== "VENDOR") return no("NOT_VENDOR");
   if (input.auto_pay_off) return no("AUTO_OFF");
   const date = resolveAutoPayDate(input);
   if (!date) return no("NO_DATE");
@@ -71,10 +74,11 @@ export function autoPaidLabel(r: { paid_date?: string | null }): string {
 /** 已送出的單還沒到期時的提示；已取消自動付款的單說明不會再自動。沒有可顯示的回 null。 */
 export function autoPayHint(input: AutoPayInput, today: string = taipeiToday()): string | null {
   if (input.status !== "SUBMITTED") return null;
+  if (String(input.payee_type ?? "VENDOR").toUpperCase() !== "VENDOR") return "同仁代墊款需要人工核付，系統不會自動標記已付款。";
   if (input.auto_pay_off) return "已取消自動付款，系統不會再自動標記，請手動標記已付款。";
   const date = resolveAutoPayDate(input);
   if (!date) return "沒有預計付款日，系統不會自動標記已付款，請手動標記。";
-  return date > today ? `付款日 ${slash(date)} 到期後，系統會自動標記已付款。` : `付款日 ${slash(date)} 已到期，系統會在每天凌晨 00:05 自動標記已付款。`;
+  return date > today ? `付款日 ${slash(date)} 到期後，系統會自動標記已付款。` : `付款日 ${slash(date)} 已到期，系統會在每天凌晨 00:05 自動標記已付款（過期的付款日也會照該日期標記）。`;
 }
 
 /** 取消自動付款 payload：原因必填，最多 200 字。 */

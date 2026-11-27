@@ -1,13 +1,14 @@
 -- 水電帳單「手機掃 QR 拍照上傳」（ga-ub-scan-upload）。
 --   1. 新資料表 ga_ub_scan_tokens：一次性、短效（15 分鐘）、只綁一張帳單與發出者的上傳權杖；只存權杖的 SHA-256 雜湊（64 位十六進位），不存權杖本身；
 --      每個權杖最多 10 張（max_files、used_count）。資料表開 RLS、不給任何政策，也不授權給 anon／authenticated，只有下面的函式（SECURITY DEFINER）與 service_role 碰得到。
---   2. ga_ws_ub_scan_token_create(帳單, 雜湊)：登入者呼叫；檢查水電網費管理權限、帳單存在未刪除且沒有被請款單鎖定；同一人同時有效的權杖最多 20 個；順手清掉超過 1 天的過期權杖。
+--   2. ga_ws_ub_scan_token_create(帳單, 雜湊)：登入者呼叫；檢查水電網費管理權限、帳單存在未刪除且沒有被請款單鎖定；同一人對同一張帳單發新 QR 時舊的自動作廢；同一人同時有效的權杖最多 20 個；順手清掉超過 1 天的過期權杖。
+--   2b. ga_ws_ub_scan_token_revoke(帳單)：登入者關閉手機上傳視窗時，把自己對這張帳單發出的有效 QR 全部作廢。
 --   3. ga_ub_scan_token_status(雜湊)：只給 service_role（公開上傳 API 用）；回有效與否、剩餘張數、到期時間；找不到、過期、已作廢一律回同一個「無效」，不洩漏差別，也不回帳單資料。
 --   4. ga_ub_scan_token_commit(雜湊, 檔案清單)：只給 service_role；鎖權杖列、重新檢查到期、張數上限與帳單鎖定，
 --      以「發出者」身分（交易內暫時設定 auth.uid()，結束後還原）寫入附件，所以附件寫入觸發器照常檢查「發出者現在還有水電網費管理權限」、上傳者記為發出者；用途固定 BILL_DOCUMENT、路徑必須在這張帳單底下。
 -- 「帳單鎖定」＝帳單已刪除，或帳單在已送出／已付款的請款單內（與水電請款的 D7 鎖定同一個定義）；鎖定的帳單不能用手機補傳（桌機要先把請款單退回）。
 -- 不新增權限碼、不授權給任何角色、不改任何既有函式或觸發器。可重複執行。
--- 還原：20261127120000_ga_ub_scan_upload.rollback.sql（把資料表與函式丟掉；已上傳的附件紀錄與檔案不受影響）。
+-- 還原：03-ga-ub-scan-upload.rollback.sql（把資料表與函式丟掉；已上傳的附件紀錄與檔案不受影響）。
 DO $$
 BEGIN
   IF to_regclass('public.ga_utility_bills') IS NULL
@@ -65,6 +66,8 @@ BEGIN
   IF v_state = 'NOT_FOUND' THEN RETURN jsonb_build_object('ok', false, 'status', 404, 'error', '找不到費用紀錄'); END IF;
   IF v_state = 'LOCKED' THEN RETURN jsonb_build_object('ok', false, 'status', 409, 'error', '這筆帳單已在送出或已付款的請款單內，已鎖定；請先將請款單退回再用手機上傳', 'code', 'BILL_LOCKED'); END IF;
   DELETE FROM public.ga_ub_scan_tokens WHERE expires_at < now() - interval '1 day';
+  -- 同一人對同一張帳單產生新 QR 時，舊的 QR 立刻作廢（避免舊 QR 被拍到後還能用）
+  UPDATE public.ga_ub_scan_tokens SET revoked_at = now() WHERE issued_by = v_uid AND bill_id = p_bill_id AND revoked_at IS NULL AND expires_at > now();
   IF (SELECT count(*) FROM public.ga_ub_scan_tokens WHERE issued_by = v_uid AND revoked_at IS NULL AND expires_at > now()) >= 20 THEN
     RETURN jsonb_build_object('ok', false, 'status', 429, 'error', '短時間內產生太多 QR，請稍後再試', 'code', 'TOO_MANY_TOKENS');
   END IF;
@@ -72,6 +75,22 @@ BEGIN
   RETURN jsonb_build_object('ok', true, 'status', 201, 'data', jsonb_build_object('expires_at', v_exp, 'max_files', 10));
 EXCEPTION WHEN unique_violation THEN
   RETURN jsonb_build_object('ok', false, 'status', 409, 'error', '權杖重複，請重試');
+END;
+$$;
+
+-- 作廢：登入者關閉手機上傳視窗時，把自己對這張帳單發出的有效 QR 全部作廢。
+CREATE OR REPLACE FUNCTION public.ga_ws_ub_scan_token_revoke(p_bill_id uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_n integer;
+BEGIN
+  IF v_uid IS NULL THEN RETURN jsonb_build_object('ok', false, 'status', 401, 'error', '請先登入'); END IF;
+  IF NOT public.ga_ub_can_manage(v_uid) THEN RETURN jsonb_build_object('ok', false, 'status', 403, 'error', '沒有費用附件管理權限'); END IF;
+  UPDATE public.ga_ub_scan_tokens SET revoked_at = now() WHERE issued_by = v_uid AND bill_id = p_bill_id AND revoked_at IS NULL AND expires_at > now();
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN jsonb_build_object('ok', true, 'status', 200, 'data', jsonb_build_object('revoked', v_n));
 END;
 $$;
 
@@ -137,6 +156,8 @@ $$;
 
 REVOKE ALL ON FUNCTION public.ga_ub_scan_bill_state(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.ga_ws_ub_scan_token_create(uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.ga_ws_ub_scan_token_revoke(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.ga_ws_ub_scan_token_revoke(uuid) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.ga_ub_scan_token_status(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.ga_ub_scan_token_commit(text, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_ub_scan_token_create(uuid, text) TO authenticated, service_role;

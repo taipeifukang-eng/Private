@@ -261,3 +261,28 @@ test('劇本 2 畫面：送出前提示→排程後顯示「系統自動標記�
     await ctx.close();
   }
 });
+
+test('劇本 3 過期付款日與退回草稿：過期日照付款日標記並標示早於建立日；取消自動付款後退回草稿再送出，又會自動付款', async () => {
+  const st = await stores();
+  const payee = await seedPayee('AP3');
+  const r = await mkRequest(payee, st, { dues: ['2020-01-15'] });
+  // 付款日早於建立日：照該日期標記，事件帶 date_before_created
+  expect(await runCron([r.id], '2038-04-01')).toMatchObject({ marked: 1, failed: 0, ids: [r.id] });
+  expect(await dbPr(r.id)).toMatchObject({ status: 'PAID', paid_date: '2020-01-15', paid_auto: true });
+  const ev = (await events(r.id)).find((e) => e.event_type === 'mark_paid' && e.payload?.auto === true);
+  expect(ev?.payload).toMatchObject({ date_before_created: true, date_source: 'bill_due_date', paid_date: '2020-01-15' });
+  // 取消自動付款 → 不再自動
+  const c = await act('clerk', r.id, { action: 'cancel_auto_pay', reason: '測試取消', expected_updated_at: (await dbPr(r.id)).updated_at });
+  expect(c.status(), await c.text()).toBe(200);
+  expect(await dbPr(r.id)).toMatchObject({ status: 'SUBMITTED', auto_pay_off: true });
+  expect(await runCron([r.id], '2038-04-02')).toMatchObject({ marked: 0 });
+  // 退回草稿：取消旗標清除；重新送出後排程又會處理
+  const ret = await act('accountant', r.id, { action: 'return', reason: '測試退回', expected_updated_at: (await dbPr(r.id)).updated_at });
+  expect(ret.status(), await ret.text()).toBe(200);
+  expect(await dbPr(r.id)).toMatchObject({ status: 'DRAFT', auto_pay_off: false });
+  const sub = await act('clerk', r.id, { action: 'submit', expected_updated_at: (await dbPr(r.id)).updated_at });
+  expect(sub.status(), await sub.text()).toBe(200);
+  expect(await runCron([r.id], '2038-04-03')).toMatchObject({ marked: 1, ids: [r.id] });
+  // 同仁代墊款不自動：排程篩選條件只收廠商（沒有同仁單時至少確認不影響廠商單）
+  expect((await dbPr(r.id)).payee_type).toBe('VENDOR');
+});

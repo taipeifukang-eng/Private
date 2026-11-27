@@ -7,8 +7,8 @@
 --        ga.pay_auto_cancel ：取消函式把「自動標記的 PAID」改回 SUBMITTED 並清掉付款欄位
 --      其餘規則（作廢鎖定、金額廠商鎖定、已付款資訊鎖定、狀態轉換表）完全不變；paid_auto 不能被其他路徑改動。
 --   5. ga_pay_auto_pay_date(pr)：付款日＝預計付款日 expected_pay_date；沒填時水電用所含帳單（有效明細）最早的繳費期限，採購沒有就是空（不自動）。
---   6. ga_apply_due_payment_requests(p_as_of, p_pr_ids)：只處理 SUBMITTED、沒取消過自動付款、付款日 <= 今天（台北）的單；可重複執行；
---      每張單各自一個子交易，單張失敗只略過那張並記 WARNING。paid_date＝付款日（不是執行日）、pay_method 用單上已有的（沒有記 TRANSFER）、paid_by 空白。
+--   6. ga_apply_due_payment_requests(p_as_of, p_pr_ids)：只處理 SUBMITTED、付款對象是廠商（同仁代墊款維持人工核付）、沒取消過自動付款、付款日 <= 今天（台北）的單；可重複執行；
+--      每張單各自一個子交易，單張失敗只略過那張並記 WARNING，同時在該單留一筆 note 操作紀錄（每天每單最多一筆）。付款日早於建立日時事件 payload 帶 date_before_created=true。退回草稿時清除 auto_pay_off。paid_date＝付款日（不是執行日）、pay_method 用單上已有的（沒有記 TRANSFER）、paid_by 空白。
 --      p_as_of 與 p_pr_ids 是測試用參數（排程不帶）；函式只開放給 service_role。
 --   7. ga_ws_pay_request_cancel_auto_pay(id, 原因, 識別碼, 版本)：只限自動標記的 PAID，改回 SUBMITTED、清付款欄位、auto_pay_off = true、寫事件；需請款管理權限。
 --   8. pg_cron：每天台北 00:05（UTC 16:05）執行排程函式（排程名 ga-auto-pay-due-requests；可重複執行；沒有 pg_cron 只丟 NOTICE）。
@@ -60,6 +60,8 @@ BEGIN
     RAISE EXCEPTION '已付款的請款單，付款資訊不能修改' USING ERRCODE = 'GA045';
   END IF;
   -- 自動付款標記只能由排程函式設定、由取消函式清除
+  -- 退回草稿時清掉「已取消自動付款」：改好內容重新送出後，這張單又可以自動付款
+  IF OLD.status = 'SUBMITTED' AND NEW.status = 'DRAFT' THEN NEW.auto_pay_off := false; END IF;
   IF NEW.paid_auto AND NOT OLD.paid_auto AND NOT (v_auto_mark AND OLD.status = 'SUBMITTED' AND NEW.status = 'PAID') THEN
     RAISE EXCEPTION '只有付款日到期的自動排程可以標記自動付款' USING ERRCODE = 'GA045';
   END IF;
@@ -73,13 +75,13 @@ BEGIN
 END;
 $$;
 
--- 付款日：預計付款日；沒填時水電用有效明細的帳單最早繳費期限（帳單現值，沒有就用明細快照）；採購沒有預計付款日就是空。
+-- 付款日：預計付款日；沒填時水電用有效明細的帳單最早繳費期限（以明細快照為準，與請款單畫面顯示一致；快照沒有才用帳單現值）；採購沒有預計付款日就是空。
 CREATE OR REPLACE FUNCTION public.ga_pay_auto_pay_date(p_pr uuid) RETURNS date
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$
   SELECT COALESCE(q.expected_pay_date,
     CASE WHEN q.source = 'UTILITY' THEN
-      (SELECT min(COALESCE(b.due_date, l.due_date)) FROM public.ga_payment_request_bill_lines l JOIN public.ga_utility_bills b ON b.id = l.bill_id WHERE l.pr_id = q.id AND l.active)
+      (SELECT min(COALESCE(l.due_date, b.due_date)) FROM public.ga_payment_request_bill_lines l JOIN public.ga_utility_bills b ON b.id = l.bill_id WHERE l.pr_id = q.id AND l.active)
     END)
   FROM public.ga_payment_requests q WHERE q.id = p_pr;
 $$;
@@ -97,11 +99,12 @@ DECLARE
   v_marked integer := 0;
   v_failed integer := 0;
   v_ids uuid[] := '{}';
+  v_err text;
 BEGIN
-  FOR r IN SELECT id FROM public.ga_payment_requests WHERE status = 'SUBMITTED' AND NOT auto_pay_off AND (p_pr_ids IS NULL OR id = ANY (p_pr_ids)) ORDER BY created_at, id LOOP
+  FOR r IN SELECT id FROM public.ga_payment_requests WHERE status = 'SUBMITTED' AND NOT auto_pay_off AND payee_type = 'VENDOR' AND (p_pr_ids IS NULL OR id = ANY (p_pr_ids)) ORDER BY created_at, id LOOP
     BEGIN
       SELECT * INTO q FROM public.ga_payment_requests WHERE id = r.id FOR UPDATE SKIP LOCKED;
-      IF NOT FOUND OR q.status <> 'SUBMITTED' OR q.auto_pay_off THEN CONTINUE; END IF;
+      IF NOT FOUND OR q.status <> 'SUBMITTED' OR q.auto_pay_off OR q.payee_type <> 'VENDOR' THEN CONTINUE; END IF;
       v_date := public.ga_pay_auto_pay_date(q.id);
       IF v_date IS NULL OR v_date > v_today THEN CONTINUE; END IF;
       v_method := COALESCE(q.pay_method, 'TRANSFER');
@@ -110,12 +113,21 @@ BEGIN
       PERFORM set_config('ga.pay_auto_mark', '', true);
       PERFORM public.ga_pay_event(q.id, 'mark_paid', 'SUBMITTED', 'PAID', NULL, '付款日到期，系統自動標記已付款', q.amount_total,
         jsonb_build_object('auto', true, 'paid_date', v_date, 'pay_method', v_method, 'pay_method_defaulted', q.pay_method IS NULL, 'as_of', v_today,
-          'date_source', CASE WHEN q.expected_pay_date IS NOT NULL THEN 'expected_pay_date' ELSE 'bill_due_date' END), NULL);
+          'date_source', CASE WHEN q.expected_pay_date IS NOT NULL THEN 'expected_pay_date' ELSE 'bill_due_date' END,
+          'date_before_created', v_date < (q.created_at AT TIME ZONE 'Asia/Taipei')::date), NULL);
       v_marked := v_marked + 1;
       v_ids := array_append(v_ids, q.id);
     EXCEPTION WHEN OTHERS THEN
       v_failed := v_failed + 1;
-      RAISE WARNING 'ga_apply_due_payment_requests：請款單 % 自動標記失敗：%', r.id, SQLERRM;
+      v_err := SQLERRM;
+      RAISE WARNING 'ga_apply_due_payment_requests：請款單 % 自動標記失敗：%', r.id, v_err;
+      -- 留下可查的紀錄（同一天同一張單只記一筆，避免每天洗版）；寫紀錄失敗不影響其他單
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM public.ga_payment_request_events e WHERE e.pr_id = r.id AND e.event_type = 'note' AND e.payload ->> 'auto_pay_failed' = 'true' AND e.payload ->> 'as_of' = v_today::text) THEN
+          PERFORM public.ga_pay_event(r.id, 'note', 'SUBMITTED', 'SUBMITTED', NULL, '自動標記已付款失敗，請手動處理', NULL, jsonb_build_object('auto_pay_failed', true, 'as_of', v_today, 'error', left(v_err, 300)), NULL);
+        END IF;
+      EXCEPTION WHEN OTHERS THEN NULL;
+      END;
     END;
   END LOOP;
   RETURN jsonb_build_object('ok', true, 'as_of', v_today, 'marked', v_marked, 'failed', v_failed, 'ids', to_jsonb(v_ids));

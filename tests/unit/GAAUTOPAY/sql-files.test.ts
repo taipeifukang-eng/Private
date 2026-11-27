@@ -51,7 +51,7 @@ describe('ga-auto-pay-due SQL', () => {
     const sql = read(`${DEV}.sql`);
     expect(sql).toContain('COALESCE(q.expected_pay_date,');
     expect(sql).toContain("WHEN q.source = 'UTILITY'");
-    expect(sql).toContain('min(COALESCE(b.due_date, l.due_date))');
+    expect(sql).toContain('min(COALESCE(l.due_date, b.due_date))');
     expect(sql).toContain('l.active');
   });
   it('排程函式：只處理 SUBMITTED 且沒取消、付款日到期；paid_date 用付款日；預設 TRANSFER；每張單獨立子交易；單張失敗不影響其他張', () => {
@@ -66,6 +66,14 @@ describe('ga-auto-pay-due SQL', () => {
     expect(sql).toContain('EXCEPTION WHEN OTHERS THEN');
     expect(sql).toContain('付款日到期，系統自動標記已付款');
     expect(sql).toContain("jsonb_build_object('auto', true,");
+  });
+  it('同仁代墊不自動、失敗留紀錄、退回草稿清取消旗標、付款日用明細快照', () => {
+    const sql = read(`${DEV}.sql`);
+    expect(sql).toContain("payee_type = 'VENDOR'");
+    expect(sql).toContain("'auto_pay_failed', true");
+    expect(sql).toContain("OLD.status = 'SUBMITTED' AND NEW.status = 'DRAFT' THEN NEW.auto_pay_off := false");
+    expect(sql).toContain('min(COALESCE(l.due_date, b.due_date))');
+    expect(sql).toContain("'date_before_created'");
   });
   it('取消函式：需請款管理、原因必填、版本檢查、只限 PAID 且 paid_auto、之後不再自動、寫 cancel_auto_pay 事件', () => {
     const sql = read(`${DEV}.sql`);

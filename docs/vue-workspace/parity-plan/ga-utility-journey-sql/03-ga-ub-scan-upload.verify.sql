@@ -8,7 +8,8 @@ SELECT '資料表沒有任何政策、匿名與登入者都不能直接讀寫' A
   AND NOT has_table_privilege('authenticated', 'public.ga_ub_scan_tokens', 'SELECT')
   AND NOT has_table_privilege('authenticated', 'public.ga_ub_scan_tokens', 'INSERT') THEN 'pass' ELSE 'fail' END AS result
 UNION ALL
-SELECT '四支函式都存在' AS check_name, CASE WHEN to_regprocedure('public.ga_ws_ub_scan_token_create(uuid,text)') IS NOT NULL
+SELECT '五支函式都存在' AS check_name, CASE WHEN to_regprocedure('public.ga_ws_ub_scan_token_create(uuid,text)') IS NOT NULL
+  AND to_regprocedure('public.ga_ws_ub_scan_token_revoke(uuid)') IS NOT NULL
   AND to_regprocedure('public.ga_ub_scan_token_status(text)') IS NOT NULL
   AND to_regprocedure('public.ga_ub_scan_token_commit(text,jsonb)') IS NOT NULL
   AND to_regprocedure('public.ga_ub_scan_bill_state(uuid)') IS NOT NULL THEN 'pass' ELSE 'fail' END AS result
