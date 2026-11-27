@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../../api";
 import { downloadSheetsXlsx } from "../../lib/xlsx";
 import { MATRIX_KINDS, MATRIX_KIND_LABELS, matrixTable, matrixWorkbookSheets, periodSheet, reportFileName, type MatrixData, type MatrixKind } from "../../../../lib/workspace/general-affairs/utility-report-matrix";
+import { detailSheet, type DetailRow } from "../../../../lib/workspace/general-affairs/utility-period-rules";
 import GaShell from "../../components/ga/GaShell.vue";
 import { useGaGuard, useLatest, useRefreshOnActivate } from "../../lib/ga";
 import { EXPENSE_TYPES, EXPENSE_TYPE_LABELS, errorText, money, taipeiToday, type ReportRow, type ReportTotals } from "../../lib/ga-utility-bills";
@@ -63,16 +64,24 @@ async function load() {
 watch([mode, year, month, quarter], load);
 onMounted(load);
 useRefreshOnActivate(props.tab, load);
+/** 「帳單明細」頁的資料：每張帳單一列，範圍和目前這張表相同（月／季／年；年度逐月用整年）。 */
+async function fetchDetails(): Promise<DetailRow[]> {
+  const q = new URLSearchParams({ mode: mode.value === "matrix" ? "year" : mode.value, year: String(year.value) });
+  if (mode.value === "month" || mode.value === "quarter") q.set("period", period.value);
+  return (await api<{ data: { rows: DetailRow[] } }>("general-affairs/utility-bills/report-details?" + q)).data.rows;
+}
 async function exportXlsx() {
   exporting.value = true;
   error.value = "";
   try {
     if (mode.value === "matrix") {
       if (!matrix.value) return;
-      await downloadSheetsXlsx(matrixWorkbookSheets(matrix.value), reportFileName("matrix", year.value));
+      const detail = detailSheet(await fetchDetails());
+      await downloadSheetsXlsx(matrixWorkbookSheets(matrix.value).concat([detail]), reportFileName("matrix", year.value));
     } else {
       const label = mode.value === "month" ? `${month.value}月` : mode.value === "quarter" ? `第${quarter.value}季` : "年報表";
-      await downloadSheetsXlsx([periodSheet(rows.value, totals.value, label)], reportFileName(mode.value, year.value, mode.value === "month" ? period.value : quarter.value));
+      const detail = detailSheet(await fetchDetails());
+      await downloadSheetsXlsx([periodSheet(rows.value, totals.value, label), detail], reportFileName(mode.value, year.value, mode.value === "month" ? period.value : quarter.value));
     }
   } catch (e) {
     error.value = errorText(e, "匯出失敗，請稍後重試");
@@ -90,7 +99,7 @@ const lastDay = (end: string) => { const d = new Date(`${end}T00:00:00Z`); d.set
       <p class="eyebrow">總務服務中心 / 費用管理</p>
       <h1>費用報表</h1>
       <p class="muted">依帳單月份加總（不含已刪除）。啟用中的門市沒有帳單也會列出，金額為 0。</p>
-      <p class="muted" data-testid="rp-help">用法：「月報表」每家門市一列、橫向看水、電、電話、網路各費用類型；「年度逐月」每家門市一列、橫向看 1～12 月與全年合計，可上方切換費用類型。兩種都能用「匯出」下載 Excel（年度逐月會多個分頁：合計、水、電、電話、網路）。帳單計費期間跨月時，整張帳單歸在帳單月份，不拆分。</p>
+      <p class="muted" data-testid="rp-help">用法：「月報表」每家門市一列、橫向看水、電、電話、網路各費用類型；「年度逐月」每家門市一列、橫向看 1～12 月與全年合計，可上方切換費用類型。兩種都能用「匯出」下載 Excel（年度逐月會多個分頁：合計、水、電、電話、網路；每份 Excel 最後多一頁「帳單明細」，每張帳單一列，含計費起迄、天數、度數與每日平均金額）。帳單計費期間跨月時，整張帳單歸在帳單月份，不拆分。</p>
     </div>
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', '費用管理', '費用報表']">

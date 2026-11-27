@@ -40,7 +40,7 @@ test.beforeAll(async () => {
   // 帳單（寫入一定走函式）：逾期 2、到期當天 1、未來 1、沒填到期日 1、過去月份已繳逾期日 1
   const PAST = shiftMonth(`${today.slice(0, 7)}-01`, -3);
   const mkBill = async (over: Record<string, unknown>, i: number) => {
-    const r = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: '2038-06', provider_name: ga6Name('HB'), service_identifier: `QA-GA6-HB-${i}`, amount: 1000, ...over }, p_expected_updated_at: null, p_confirm_paid_change: false });
+    const r = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-06', provider_name: ga6Name('HB'), service_identifier: `QA-GA6-HB-${i}`, amount: 1000, ...over }, p_expected_updated_at: null, p_confirm_paid_change: false });
     expect(r.ok, JSON.stringify(r)).toBe(true);
     return r.data;
   };

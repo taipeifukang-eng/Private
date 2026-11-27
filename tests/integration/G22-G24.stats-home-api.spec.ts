@@ -40,7 +40,7 @@ test.beforeAll(async () => {
   const PAST = shiftMonth(`${today.slice(0, 7)}-01`, -3);
   void PAST;
   for (const [i, over] of [{ due_date: dayOffset(-3) }, { due_date: dayOffset(-1), expense_type: 'ELECTRICITY', electricity_kwh: 10 }, { due_date: today, expense_type: 'PHONE' }].entries()) {
-    const r = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: '2038-09', provider_name: ga6Name('AB'), service_identifier: `QA-GA6-AB-${i}`, amount: 800, ...over }, p_expected_updated_at: null, p_confirm_paid_change: false });
+    const r = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-09', provider_name: ga6Name('AB'), service_identifier: `QA-GA6-AB-${i}`, amount: 800, ...over }, p_expected_updated_at: null, p_confirm_paid_change: false });
     expect(r.ok, JSON.stringify(r)).toBe(true);
   }
 });

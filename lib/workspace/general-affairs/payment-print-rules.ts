@@ -4,10 +4,12 @@
 //   申請部門、申請人：請款單上存的值優先，沒有就帶建立人的部門與姓名；檢附單據：水電預設「繳費單」、採購預設「發票」。
 //   水電請款：同一門市的多張帳單合併一列、金額加總，申請事由＝「帳單月份（民國）＋費用類型」，合併後加「（共 N 個電號）」；使用單位＝門市簡稱，帳單有備註就用括號接在後面。
 //   採購請款：同一採購單一列，申請事由＝採購單號＋品名摘要，內部訂單＝採購單號，金額＝未稅。
-//   請款單上若有「申請事由覆寫」，每一列都用它（不加後綴）。
+//   計費期間（ga-bill-period）：水電每列事由後面加「計費 11/05～12/04」（同年用月/日；跨年用民國年/月/日）；同一列有多張帳單取最早起日～最晚迄日；沒有期間的舊帳單不加。事由過長時自動縮字（reasonFit），不截斷。
+//   請款單上若有「申請事由覆寫」，每一列都用它（不加後綴、不加期間）。
 //   至少 7 列，不足補空白列；「5% 營業稅」列水電印 0、採購印實際稅額；合計＝請款單實際應付總額。
 //   付款方式依系統付款方式打勾；到期日＝預計付款日，沒填取所含帳單最早繳費期限。付款對象＝廠商名稱，同仁代墊印同仁姓名。
 import { EXPENSE_TYPE_LABELS, type ExpenseType } from "./utility-bill-rules";
+import { mergePeriods, paperPeriodText } from "./utility-period-rules";
 
 export const MIN_ROWS = 5;
 export const UNIT_MAX_LEN = 40;
@@ -81,7 +83,7 @@ export function payMethodBoxes(method: string | null | undefined, platform?: str
 
 type BillLineIn = {
   id?: string; line_no?: number; store_id?: string | null; location_name?: string | null; expense_type?: string | null; billing_month?: string | null;
-  due_date?: string | null; claim_total?: number | string | null; active?: boolean | null;
+  due_date?: string | null; claim_total?: number | string | null; active?: boolean | null; service_period_start?: string | null; service_period_end?: string | null;
 };
 type PurchaseLineIn = { line_no?: number; po_no?: string | null; claim_untaxed?: number | string | null; items?: Array<{ item_name?: string | null }> | null };
 type ExtraIn = {
@@ -146,6 +148,9 @@ function utilityRows(pr: PrintPr, extra: ExtraIn, override: string): PaperRow[] 
     else {
       reason = `${month}${types.map(expenseLabel).join("、")}`;
       if (g.length > 1) reason += types.length === 1 ? `（共 ${g.length} 個${identifierWord(types[0])}）` : `（共 ${g.length} 張帳單）`;
+      const merged = mergePeriods(g);
+      const period = merged ? paperPeriodText(merged.start, merged.end) : "";
+      if (period) reason += ` ${period}`;
     }
     const def = notes.length ? `${unitName}（${notes.join("、")}）` : unitName;
     rows.push({ no: null, key: rowKey, unit: def, defaultUnit: def, reason, amount: g.reduce((s, l) => s + num(l.claim_total), 0), order: "" });
@@ -223,6 +228,19 @@ export function unitTextWidth(text: string): number {
     w += half ? 0.55 : 1;
   }
   return w;
+}
+/**
+ * 申請事由欄的容量（全形字寬單位）：欄寬 46% = 87.4mm，扣左右 padding 與框線約 83mm ≈ 314px；字級 12.8px → 314 / 12.8 ≈ 24.5，取 24 留餘裕。
+ * 事由加了計費期間後比較長：先縮字（下限 0.7，仍清楚可讀），再放不下才換行（不截斷）。
+ */
+export const REASON_COL_CAPACITY = 24;
+export const REASON_MIN_SCALE = 0.7;
+export function reasonFit(text: string): { scale: number; wrap: boolean } {
+  const w = unitTextWidth(text);
+  if (w <= REASON_COL_CAPACITY) return { scale: 1, wrap: false };
+  const raw = REASON_COL_CAPACITY / w;
+  if (raw >= REASON_MIN_SCALE) return { scale: Math.round(raw * 1000) / 1000, wrap: false };
+  return { scale: REASON_MIN_SCALE, wrap: true };
 }
 /** 使用單位的縮字比例（0.6–1）與是否需要換行（縮到下限仍放不下）。 */
 export function unitFit(text: string): { scale: number; wrap: boolean } {

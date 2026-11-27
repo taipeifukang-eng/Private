@@ -26,7 +26,7 @@ const provider = () => ga6Name('P');
 const day = (offset: number) => { const d = new Date(`${today}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
 
 /** 新增或編輯一筆帳單的 payload；預設是 VW001、水費、2038-05、帶標記供應商與唯一識別號碼。 */
-const payload = (over: Record<string, unknown> = {}) => ({ store_id: st.VW001.id, expense_type: 'WATER', billing_month: '2038-05', provider_name: provider(), service_identifier: ident(), amount: 1000, ...over });
+const payload = (over: Record<string, unknown> = {}) => ({ store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-05', provider_name: provider(), service_identifier: ident(), amount: 1000, ...over });
 const save = (who: Ga6Key, p: Record<string, unknown>, id: string | null = null, expected: string | null = null, confirm = false) =>
   fn(who, 'ga_ws_ub_save', { p_id: id, p_payload: p, p_expected_updated_at: expected, p_confirm_paid_change: confirm });
 async function mk(over: Record<string, unknown> = {}, who: Ga6Key = 'util_mgr') {

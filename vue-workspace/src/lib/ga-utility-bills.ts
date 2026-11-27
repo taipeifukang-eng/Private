@@ -5,15 +5,16 @@ import {
   type ExpenseType,
 } from "../../../lib/workspace/general-affairs/utility-bill-rules";
 import { UTILITY_BILL_CODE_MESSAGES } from "../../../lib/workspace/general-affairs/utility-bill-messages";
+import { checkPeriod, isPeriodRequired, periodDays, periodText } from "../../../lib/workspace/general-affairs/utility-period-rules";
 
-export { BILL_STATUS_LABELS, EXPENSE_TYPES, EXPENSE_TYPE_LABELS, PAID_FIELD_LABELS, identifierLabel, paidDateRange, taipeiToday };
+export { BILL_STATUS_LABELS, EXPENSE_TYPES, EXPENSE_TYPE_LABELS, PAID_FIELD_LABELS, identifierLabel, paidDateRange, taipeiToday, isPeriodRequired, periodDays, periodText };
 export type { ExpenseType };
 
 export type StoreOption = { id: string; store_code: string; store_name: string; short_name: string | null };
 export type Bill = {
   id: string; store_id: string | null; location_name: string; expense_type: ExpenseType; billing_month: string; provider_name: string | null; service_label: string | null;
   service_identifier: string | null; account_number: string | null; equipment_serial: string | null; amount: number; electricity_kwh: number | null; due_date: string | null; paid_at: string | null;
-  reference_no: string | null; notes: string | null; created_at: string; updated_at: string; created_by_name: string | null; updated_by_name: string | null;
+  reference_no: string | null; notes: string | null; service_period_start?: string | null; service_period_end?: string | null; period_days?: number | null; created_at: string; updated_at: string; created_by_name: string | null; updated_by_name: string | null;
   deleted_at: string | null; deleted_by_name: string | null; deletion_reason: string | null; status: "paid" | "unpaid" | "overdue" | "deleted"; overdue: boolean;
   store: { id: string; store_code: string; store_name: string; short_name: string | null; is_active: boolean } | null;
   // G46 水電話費請款：繳費單位、是否在請款單內、由哪張請款單自動標記、鎖定的欄位（沒有請款檢視權限者 payment_request 只有 in_request）
@@ -49,10 +50,12 @@ export const errorDataOf = (e: unknown) => (e instanceof ApiError ? e.data || {}
 export type BillForm = {
   store_id: string; location_name: string; expense_type: ExpenseType; billing_month: string; provider_name: string; service_label: string; service_identifier: string; account_number: string;
   equipment_serial: string; amount: string; electricity_kwh: string; due_date: string; paid_at: string; reference_no: string; notes: string; payee_vendor_id: string;
+  service_period_start: string; service_period_end: string;
 };
 export const emptyBillForm = (): BillForm => ({
   store_id: "", location_name: "", expense_type: "WATER", billing_month: taipeiToday().slice(0, 7), provider_name: "", service_label: "", service_identifier: "", account_number: "",
   equipment_serial: "", amount: "", electricity_kwh: "", due_date: "", paid_at: "", reference_no: "", notes: "", payee_vendor_id: "",
+  service_period_start: "", service_period_end: "",
 });
 export function formFromBill(b: Bill): BillForm {
   const t = (v: unknown) => (v == null ? "" : String(v));
@@ -60,6 +63,7 @@ export function formFromBill(b: Bill): BillForm {
     store_id: t(b.store_id), location_name: t(b.location_name), expense_type: b.expense_type, billing_month: monthText(b.billing_month), provider_name: t(b.provider_name), service_label: t(b.service_label),
     service_identifier: t(b.service_identifier), account_number: t(b.account_number), equipment_serial: t(b.equipment_serial), amount: t(b.amount), electricity_kwh: t(b.electricity_kwh),
     due_date: dateText(b.due_date), paid_at: dateText(b.paid_at), reference_no: t(b.reference_no), notes: t(b.notes), payee_vendor_id: t(b.payee_vendor_id),
+    service_period_start: dateText(b.service_period_start), service_period_end: dateText(b.service_period_end),
   };
 }
 /** 送出欄位：全部欄位都帶（編輯時是完整表單的值）；空字串送成 null 讓資料庫清除。 */
@@ -71,10 +75,11 @@ export function payloadFromForm(f: BillForm): Record<string, unknown> {
     service_identifier: n(f.service_identifier), account_number: n(f.account_number), equipment_serial: f.expense_type === "INTERNET" ? n(f.equipment_serial) : null,
     amount: n(f.amount), electricity_kwh: f.expense_type === "ELECTRICITY" ? n(f.electricity_kwh) : null, due_date: n(f.due_date), paid_at: n(f.paid_at),
     reference_no: n(f.reference_no), notes: n(f.notes), payee_vendor_id: f.payee_vendor_id || null,
+    service_period_start: n(f.service_period_start), service_period_end: n(f.service_period_end),
   };
 }
 /** 送出前的欄位檢查（回白話說明；空字串＝可送出）。資料庫仍是最後一道防線。 */
-export function formProblem(f: BillForm): string {
+export function formProblem(f: BillForm, legacyEdit = false): string {
   if (!f.store_id && !f.location_name.trim()) return "請選擇門市，或輸入其他據點名稱";
   if (!/^\d{4}-\d{2}$/.test(f.billing_month)) return "請選擇帳單月份";
   const amount = String(f.amount ?? "").trim();
@@ -82,6 +87,8 @@ export function formProblem(f: BillForm): string {
   if (!/^\d+(\.\d+)?$/.test(amount)) return "金額不可為負數或含文字";
   if (f.expense_type === "INTERNET" && !f.service_identifier.trim() && !f.equipment_serial.trim()) return "網路費請至少填寫電路編號或設備序號";
   if (f.expense_type !== "INTERNET" && !f.service_identifier.trim()) return `請填寫${identifierLabel(f.expense_type)}`;
+  const period = checkPeriod(f.expense_type, f.service_period_start, f.service_period_end, legacyEdit);
+  if (!period.ok) return period.message;
   if (f.paid_at) {
     const r = paidDateRange(f.billing_month + "-01");
     if (f.paid_at > r.max) return `繳費日期不能是未來的日期（今天是 ${r.max}）`;

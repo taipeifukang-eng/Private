@@ -46,7 +46,7 @@ test.beforeAll(async () => {
   }
   seeded = await seedAttention(users.ga_all.id, 'SB');
   vendor = await seedGa6Vendor('sb-secret', { tax_id: TAX, billing_title: '帳務抬頭機密', payment_terms: '月結 30 天', contract_required: true, contract_end_date: '2038-12-31' });
-  const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: '2038-06', provider_name: ga6Name('SB'), service_identifier: 'QA-GA6-SB-1', amount: 900, due_date: '2038-07-01' }, p_expected_updated_at: null, p_confirm_paid_change: false });
+  const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-06', provider_name: ga6Name('SB'), service_identifier: 'QA-GA6-SB-1', amount: 900, due_date: '2038-07-01' }, p_expected_updated_at: null, p_confirm_paid_change: false });
   expect(r.ok, JSON.stringify(r)).toBe(true);
 });
 test.afterAll(async () => {

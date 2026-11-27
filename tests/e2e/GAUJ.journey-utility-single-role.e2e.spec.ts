@@ -162,6 +162,8 @@ test('總務一人完整劇本', async ({ browser }, testInfo) => {
         await d.getByTestId('uf-payee').selectOption(vendorId);
         await d.getByTestId('uf-ident').fill(b.ident);
         await d.getByTestId('uf-amount').fill(String(b.amount));
+        await d.getByTestId('uf-period-start').fill('2038-01-01');
+        await d.getByTestId('uf-period-end').fill('2038-01-31');
         await d.getByTestId('uf-kwh').fill('1234');
         await d.getByTestId('uf-due').fill('2038-03-25');
         await d.getByTestId('uf-save').click();

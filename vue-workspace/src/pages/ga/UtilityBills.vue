@@ -8,7 +8,7 @@ import UtilityBillForm from "../../components/ga/UtilityBillForm.vue";
 import UtilityPayeeBackfill from "../../components/ga/UtilityPayeeBackfill.vue";
 import { openGaPage, useDebounced, useGaGuard, useLatest, useRefreshOnActivate } from "../../lib/ga";
 import {
-  BILL_STATUS_LABELS, EXPENSE_TYPES, EXPENSE_TYPE_LABELS, dateText, errorText, identifierLabel, money, monthText, siteOf, storeLabel,
+  BILL_STATUS_LABELS, EXPENSE_TYPES, EXPENSE_TYPE_LABELS, dateText, errorText, identifierLabel, isPeriodRequired, money, monthText, periodText, siteOf, storeLabel,
   type Abilities, type Anomaly, type Bill, type FilterSummary, type GlobalStats, type StoreOption,
 } from "../../lib/ga-utility-bills";
 import type { WorkTab } from "../../stores";
@@ -165,6 +165,7 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
         <div class="card-head"><strong data-testid="bill-site">{{ siteOf(b) }}</strong><span class="st" :data-status="b.status" data-testid="bill-status">{{ BILL_STATUS_LABELS[b.status] }}</span></div>
         <p class="card-line"><span class="chip">{{ EXPENSE_TYPE_LABELS[b.expense_type] }}</span>　{{ monthText(b.billing_month) }}　<strong data-testid="bill-amount">{{ money(b.amount) }}</strong></p>
         <p class="card-line muted">{{ b.provider_name || "（未填供應商）" }}｜{{ identifierLabel(b.expense_type) }}：{{ b.service_identifier || b.equipment_serial || "—" }}</p>
+        <p class="card-line muted" data-testid="bill-period">計費期間：<template v-if="b.service_period_start && b.service_period_end">{{ periodText(b.service_period_start, b.service_period_end) }}</template><span v-else-if="isPeriodRequired(b.expense_type)" class="warn" data-testid="bill-period-missing">未填（編輯時請補填）</span><template v-else>—</template></p>
         <p class="card-line muted">繳費期限 {{ dateText(b.due_date) || "未填" }}<template v-if="b.paid_at">　已繳 {{ dateText(b.paid_at) }}</template></p>
         <p class="card-line muted" data-testid="bill-payee">繳費單位：<template v-if="b.payee_vendor_name">{{ b.payee_vendor_name }}</template><span v-else class="warn" data-testid="bill-payee-none">未指定</span>　請款單：<template v-if="b.payment_request"><template v-if="b.payment_request.pr_no"><button type="button" class="link" data-testid="bill-request-link" @click="openGaPage('ga-payment-request-edit', b.payment_request.id)">{{ b.payment_request.pr_no }}</button></template><template v-else><span data-testid="bill-request-in">已在請款單內</span></template></template><template v-else>—</template></p>
         <p v-if="b.paid_by_pr_id" class="card-line muted" data-testid="bill-auto-paid">已繳（請款單 {{ b.paid_by_pr_no || "" }} 自動標記）</p>

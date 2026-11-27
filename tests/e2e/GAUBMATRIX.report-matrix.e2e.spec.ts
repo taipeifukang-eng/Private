@@ -57,7 +57,7 @@ test.beforeAll(async () => {
     seq += 1;
     const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', {
       p_id: null,
-      p_payload: { store_id: st[store].id, expense_type: type, billing_month: month, provider_name: ga6Name('MTX'), service_identifier: `QA-GA6-MTX-${String(seq).padStart(4, '0')}`, amount, due_date: '2039-06-20' },
+      p_payload: { store_id: st[store].id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: type, billing_month: month, provider_name: ga6Name('MTX'), service_identifier: `QA-GA6-MTX-${String(seq).padStart(4, '0')}`, amount, due_date: '2039-06-20' },
       p_expected_updated_at: null, p_confirm_paid_change: false,
     });
     expect(r.ok, JSON.stringify(r)).toBe(true);
@@ -132,7 +132,7 @@ test('劇本 2 畫面：月模式仍每據點一列橫向各費用類型 → 年
     const [dl0] = await Promise.all([page.waitForEvent('download'), vis(page, 'rp-export').click()]);
     expect(dl0.suggestedFilename()).toBe('水電話費報表_2038-03月報表.xlsx');
     const wb0 = XLSX.read(fs.readFileSync(await dl0.path()), { type: 'buffer' });
-    expect(wb0.SheetNames).toEqual(['03月']);
+    expect(wb0.SheetNames).toEqual(['03月', '帳單明細']); // 月報表匯出附「帳單明細」頁
     const a0 = XLSX.utils.sheet_to_json<any[]>(wb0.Sheets['03月'], { header: 1 });
     expect(a0[0]).toEqual(['據點', '水費', '電費', '電話費', '網路費', '合計', '筆數']);
     const v0 = a0.find((r) => String(r[0]).includes('VW001'))!;
@@ -185,7 +185,7 @@ test('劇本 2 畫面：月模式仍每據點一列橫向各費用類型 → 年
     const [dl] = await Promise.all([page.waitForEvent('download'), vis(page, 'rp-export').click()]);
     expect(dl.suggestedFilename()).toBe('水電話費總表_2038年度逐月.xlsx');
     const wb = XLSX.read(fs.readFileSync(await dl.path()), { type: 'buffer' });
-    expect(wb.SheetNames).toEqual(['合計', '水費', '電費', '電話費', '網路費']);
+    expect(wb.SheetNames).toEqual(['合計', '水費', '電費', '電話費', '網路費', '帳單明細']); // 年度逐月匯出多一頁「帳單明細」
     for (const kind of ['ALL', 'WATER', 'ELECTRICITY', 'PHONE', 'INTERNET'] as const) {
       const rows = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[SHEET_OF[kind]], { header: 1 });
       expect(rows[0]).toEqual(['據點', ...Array.from({ length: 12 }, (_, i) => `${i + 1}月`), '全年合計']);

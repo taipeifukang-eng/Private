@@ -49,6 +49,8 @@ async function fillForm(page: Page, f: { ident: string; month: string; amount: s
   await page.getByTestId('uf-provider').fill(provider);
   await page.getByTestId('uf-ident').fill(f.ident);
   await page.getByTestId('uf-amount').fill(f.amount);
+  await page.getByTestId('uf-period-start').fill('2038-01-01');
+  await page.getByTestId('uf-period-end').fill('2038-01-31');
   if (f.due) await page.getByTestId('uf-due').fill(f.due);
 }
 
@@ -65,7 +67,7 @@ test.beforeAll(async () => {
   stateView = await (await apiForUser(users.util_view as any)).storageState();
   // 前三個月的帳單（異常基準用）：同據點、水費、同一個水號
   for (const [m, a] of [['2038-02', 1200], ['2038-03', 1300], ['2038-04', 1100]] as const) {
-    const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: m, provider_name: provider, service_identifier: key('A'), amount: a }, p_expected_updated_at: null, p_confirm_paid_change: false });
+    const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: m, provider_name: provider, service_identifier: key('A'), amount: a }, p_expected_updated_at: null, p_confirm_paid_change: false });
     expect(r.ok, JSON.stringify(r)).toBe(true);
   }
 });
@@ -314,7 +316,7 @@ test('帳單附件：在詳情上傳掃描檔（照片）、清單看得到、�
 test('首頁「待我處理」與水電網費導覽徽章：登錄逾期帳單後出現、點徽章只看逾期且筆數相同、標記已繳後首頁與徽章即時減少', async ({ browser }, testInfo) => {
   test.setTimeout(300_000);
   const before = await countOverdueDb();
-  const made = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: PAST, provider_name: provider, service_identifier: key('H'), amount: 2100, due_date: dayOffset(-2) }, p_expected_updated_at: null, p_confirm_paid_change: false });
+  const made = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: PAST, provider_name: provider, service_identifier: key('H'), amount: 2100, due_date: dayOffset(-2) }, p_expected_updated_at: null, p_confirm_paid_change: false });
   expect(made.ok, JSON.stringify(made)).toBe(true);
   const { ctx, page, errors } = await pageForUser(browser, state, testInfo);
   const sideBadge = async () => {

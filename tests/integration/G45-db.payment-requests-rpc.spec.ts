@@ -564,7 +564,7 @@ test('G45-db 附件：PURCHASE_INVOICE 與 PURCHASE_RECEIPT 的寫入與讀取�
 test('G45-db 附件：既有資源類型回歸（水電帳單、設備、料件、不存在的類型不受影響）', async () => {
   const stRows = (await db().from('stores').select('id').eq('store_code', 'VW001').single()).data as any;
   // 水電帳單只能用資料庫函式新增（直接寫入會被觸發器擋）；用第 6 批水電管理角色建立，供回歸
-  const bill = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: stRows.id, expense_type: 'WATER', billing_month: '2038-02', provider_name: ga6Name('GA45REG'), service_identifier: `QA45-${Date.now()}`, amount: 1 }, p_expected_updated_at: null, p_confirm_paid_change: false });
+  const bill = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: stRows.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-02', provider_name: ga6Name('GA45REG'), service_identifier: `QA45-${Date.now()}`, amount: 1 }, p_expected_updated_at: null, p_confirm_paid_change: false });
   const billId = okData(bill).id as string;
   const can = async (who: Ga45Key, fnName: string, type: string, id: string) => callFn(users[who].client, fnName, { p_resource_type: type, p_resource_id: id });
   // 水電帳單寫入判斷（第 6 批）：水電話網費管理者 true；請款角色、採購角色 false

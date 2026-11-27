@@ -33,12 +33,12 @@ export type PrLine = {
 export type PrEvent = { id: string; event_type: string; from_status: string | null; to_status: string | null; actor_name: string | null; reason: string | null; amount_total: number | null; payload: Record<string, any>; created_at: string };
 export type UtilityBillLine = {
   id: string; line_no: number; bill_id: string; store_id: string | null; location_name: string; expense_type: string; billing_month: string; identifier: string | null; service_label: string | null;
-  due_date: string | null; claim_total: number; active: boolean; bill_amount: number; bill_paid_at: string | null; bill_deleted: boolean; bill_paid_by_this: boolean; attachment_count: number;
+  due_date: string | null; service_period_start?: string | null; service_period_end?: string | null; period_days?: number | null; claim_total: number; active: boolean; bill_amount: number; bill_paid_at: string | null; bill_deleted: boolean; bill_paid_by_this: boolean; attachment_count: number;
   auto_paid_date: string | null; auto_reverted_at: string | null; auto_revert_reason: "RETURN" | "VOID" | null;
 };
 export type UtilityPayeeRow = { vendor_id: string; vendor_name: string; vendor_status: string; bill_count: number; eligible_count: number; eligible_amount: number };
 export type UtilityCandidateBill = {
-  id: string; store_id: string | null; location_name: string; expense_type: string; billing_month: string; identifier: string | null; service_label: string | null; amount: number; due_date: string | null;
+  id: string; store_id: string | null; location_name: string; expense_type: string; billing_month: string; identifier: string | null; service_label: string | null; amount: number; due_date: string | null; service_period_start?: string | null; service_period_end?: string | null; period_days?: number | null;
   paid_at: string | null; attachment_count: number; eligible: boolean; code: string | null; reason: string | null; pr_no: string | null;
 };
 export type UtilityCandidates = {
