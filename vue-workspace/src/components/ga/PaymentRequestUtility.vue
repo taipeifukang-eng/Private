@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AutoPayBox from "./AutoPayBox.vue";
 import PrintFieldsBox from "./PrintFieldsBox.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
@@ -398,6 +399,7 @@ const lineState = (l: UtilityBillLine) => {
       </label>
     </section>
 
+    <AutoPayBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pu" @updated="fillFrom" @stale="loadRequest" />
     <PrintFieldsBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pu" @saved="printFieldsSaved" />
     <section v-if="!loading && (creating ? !!vendorId : editing)" class="pe-box" data-testid="pu-candidates">
       <h2>帳單（{{ vendorName }} {{ month }}）</h2>
@@ -445,7 +447,7 @@ const lineState = (l: UtilityBillLine) => {
     <section v-if="pr?.events?.length" class="pe-box" data-testid="pu-events">
       <h2>操作紀錄</h2>
       <ol class="pe-timeline">
-        <li v-for="e in pr.events" :key="e.id" data-testid="pu-event"><strong>{{ EVENT_LABELS[e.event_type] || e.event_type }}</strong>　{{ e.actor_name || "—" }}　{{ timeText(e.created_at) }}<template v-if="e.reason">：{{ e.reason }}</template></li>
+        <li v-for="e in pr.events" :key="e.id" data-testid="pu-event"><strong>{{ EVENT_LABELS[e.event_type] || e.event_type }}</strong>　{{ e.actor_name || (e.payload?.auto ? "系統" : "—") }}　{{ timeText(e.created_at) }}<template v-if="e.reason">：{{ e.reason }}</template></li>
       </ol>
       <p class="muted">操作紀錄不可修改或刪除。</p>
     </section>

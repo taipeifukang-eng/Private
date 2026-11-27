@@ -4,6 +4,7 @@ import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import Modal from "../../components/Modal.vue";
 import PaymentRequestUtility from "../../components/ga/PaymentRequestUtility.vue";
+import AutoPayBox from "../../components/ga/AutoPayBox.vue";
 import PrintFieldsBox from "../../components/ga/PrintFieldsBox.vue";
 import PayeeBuyerFields from "../../components/ga/PayeeBuyerFields.vue";
 import PaidFields from "../../components/ga/PaidFields.vue";
@@ -409,6 +410,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
       </div>
     </section>
 
+    <AutoPayBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pe" @updated="fillFrom" @stale="loadRequest" />
     <PrintFieldsBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pe" @saved="printFieldsSaved" />
     <section v-if="!loading && isPrepay && pr" class="pe-box" data-testid="pe-prepay">
       <h2>預付款</h2>
@@ -481,7 +483,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
     <section v-if="pr?.events?.length" class="pe-box" data-testid="pe-events">
       <h2>操作紀錄</h2>
       <ol class="pe-timeline">
-        <li v-for="e in pr.events" :key="e.id" data-testid="pe-event"><strong>{{ EVENT_LABELS[e.event_type] || e.event_type }}</strong>　{{ e.actor_name || "—" }}　{{ timeText(e.created_at) }}<template v-if="e.reason">：{{ e.reason }}</template></li>
+        <li v-for="e in pr.events" :key="e.id" data-testid="pe-event"><strong>{{ EVENT_LABELS[e.event_type] || e.event_type }}</strong>　{{ e.actor_name || (e.payload?.auto ? "系統" : "—") }}　{{ timeText(e.created_at) }}<template v-if="e.reason">：{{ e.reason }}</template></li>
       </ol>
       <p class="muted">操作紀錄不可修改或刪除。</p>
     </section>
