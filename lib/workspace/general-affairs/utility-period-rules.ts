@@ -107,7 +107,7 @@ export type DetailRow = {
   identifier?: string | null; service_label?: string | null;
 };
 export const DETAIL_SHEET_NAME = "帳單明細";
-export const DETAIL_HEADERS = ["門市／據點", "費用類型", "帳單月份", "計費起", "計費迄", "天數", "度數", "金額", "每日平均金額"] as const;
+export const DETAIL_HEADERS = ["門市／據點", "費用類型", "帳單月份", "計費起", "計費迄", "天數", "度數", "金額", "每日平均金額", "識別號碼"] as const;
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 const typeRank = (t: string) => {
   const i = (EXPENSE_TYPES as ReadonlyArray<string>).indexOf(t);
@@ -125,7 +125,10 @@ export function detailSheet(rows: DetailRow[]): { name: string; aoa: DetailSheet
     if (typeRank(a.expense_type) !== typeRank(b.expense_type)) return typeRank(a.expense_type) - typeRank(b.expense_type);
     const ma = String(a.billing_month).slice(0, 7);
     const mb = String(b.billing_month).slice(0, 7);
-    return ma < mb ? -1 : ma > mb ? 1 : 0;
+    if (ma !== mb) return ma < mb ? -1 : 1;
+    const ia = String(a.identifier || "");
+    const ib = String(b.identifier || "");
+    return ia < ib ? -1 : ia > ib ? 1 : 0;
   });
   const aoa: DetailSheetRow[] = [DETAIL_HEADERS.slice() as string[]];
   for (let i = 0; i < sorted.length; i += 1) {
@@ -142,6 +145,7 @@ export function detailSheet(rows: DetailRow[]): { name: string; aoa: DetailSheet
       r.expense_type === "ELECTRICITY" && r.electricity_kwh !== null && r.electricity_kwh !== undefined && String(r.electricity_kwh) !== "" ? round2(Number(r.electricity_kwh)) : "",
       round2(Number(r.amount)),
       avg === null ? "" : avg,
+      r.identifier ? String(r.identifier) : "",
     ]);
   }
   return { name: DETAIL_SHEET_NAME, aoa };

@@ -149,7 +149,7 @@ describe('Excel「帳單明細」頁（A5）', () => {
     { location_name: 'ZT01 乙店', store_code: 'ZT01', expense_type: 'WATER', billing_month: '2038-03-01', service_period_start: '2038-02-01', service_period_end: '2038-03-02', electricity_kwh: null, amount: 600 },
     { location_name: 'VW001 甲店', store_code: 'VW001', expense_type: 'ELECTRICITY', billing_month: '2038-04-01', service_period_start: '2038-03-05', service_period_end: '2038-05-04', electricity_kwh: 1234.5, amount: 3050 },
     { location_name: 'VW001 甲店', store_code: 'VW001', expense_type: 'WATER', billing_month: '2038-04-01', service_period_start: null, service_period_end: null, electricity_kwh: null, amount: 410 },
-    { location_name: 'VW001 甲店', store_code: 'VW001', expense_type: 'ELECTRICITY', billing_month: '2038-03-01', service_period_start: '2038-01-05', service_period_end: '2038-03-04', electricity_kwh: 900, amount: 2000 },
+    { location_name: 'VW001 甲店', store_code: 'VW001', expense_type: 'ELECTRICITY', billing_month: '2038-03-01', service_period_start: '2038-01-05', service_period_end: '2038-03-04', electricity_kwh: 900, amount: 2000, identifier: '01-23-4567-89-0' },
     { location_name: '倉庫', store_code: null, expense_type: 'PHONE', billing_month: '2038-03-01', service_period_start: '2038-03-01', service_period_end: '2038-03-31', electricity_kwh: 99, amount: 310 },
   ];
   it('欄位與排序：門市→費用類型→帳單月份；其他據點排最後', () => {
@@ -163,13 +163,13 @@ describe('Excel「帳單明細」頁（A5）', () => {
   it('天數、度數（只有電費）、每日平均金額（金額÷天數）；無期間的天數與平均留空', () => {
     const a = detailSheet(rows).aoa;
     const noPeriod = a[1];
-    expect(noPeriod.slice(3)).toEqual(['', '', '', '', 410, '']);
+    expect(noPeriod.slice(3)).toEqual(['', '', '', '', 410, '', '']);
     const e1 = a[2];
-    expect(e1.slice(3)).toEqual(['2038/01/05', '2038/03/04', 59, 900, 2000, 33.9]);
+    expect(e1.slice(3)).toEqual(['2038/01/05', '2038/03/04', 59, 900, 2000, 33.9, '01-23-4567-89-0']);
     const e2 = a[3];
-    expect(e2.slice(3)).toEqual(['2038/03/05', '2038/05/04', 61, 1234.5, 3050, 50]);
+    expect(e2.slice(3)).toEqual(['2038/03/05', '2038/05/04', 61, 1234.5, 3050, 50, '']);
     const w = a[4];
-    expect(w.slice(3)).toEqual(['2038/02/01', '2038/03/02', 30, '', 600, 20]);
+    expect(w.slice(3)).toEqual(['2038/02/01', '2038/03/02', 30, '', 600, 20, '']);
     const phone = a[5];
     expect(phone[6]).toBe(''); // 電話費不帶度數
     expect(dailyAverage(100, 0)).toBeNull();
@@ -182,7 +182,7 @@ describe('Excel「帳單明細」頁（A5）', () => {
     expect(back.SheetNames).toEqual([DETAIL_SHEET_NAME]);
     const aoa = XLSX.utils.sheet_to_json<unknown[]>(back.Sheets[DETAIL_SHEET_NAME], { header: 1 });
     expect(aoa[0]).toEqual(Array.from(DETAIL_HEADERS));
-    expect(aoa[2]).toEqual(['VW001 甲店', '電費', '2038-03', '2038/01/05', '2038/03/04', 59, 900, 2000, 33.9]);
+    expect(aoa[2]).toEqual(['VW001 甲店', '電費', '2038-03', '2038/01/05', '2038/03/04', 59, 900, 2000, 33.9, '01-23-4567-89-0']);
     expect(aoa).toHaveLength(6);
   });
 });

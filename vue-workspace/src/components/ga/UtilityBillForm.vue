@@ -23,8 +23,9 @@ const anomaly = ref<Anomaly | null>(null);
 const paidConfirm = ref<{ original: Record<string, any>; fields: string[] } | null>(null);
 const wasPaid = !!props.bill?.paid_at;
 // 計費期間：水費、電費必填；舊帳單（水電、沒有期間）編輯時要求補填；超過 70 天先確認；新增時依上一期自動帶入起日。
-const legacyEdit = !isNew && isPeriodRequired(props.bill?.expense_type) && !props.bill?.service_period_start;
 const periodRequired = computed(() => isPeriodRequired(form.expense_type));
+// 編輯時：原本沒有期間、而目前選的類型（含由電話費改成水費這種）必填，就要求補填並事先提示。
+const legacyEdit = computed(() => !isNew && periodRequired.value && !props.bill?.service_period_start);
 const days = computed(() => periodDays(form.service_period_start, form.service_period_end));
 const periodLong = ref(false);
 const periodAcked = ref(false);
@@ -47,7 +48,10 @@ async function loadPrev() {
     if (r.data.found && r.data.service_period_end) {
       prev.value = { end: String(r.data.service_period_end).slice(0, 10), month: String(r.data.billing_month || "").slice(0, 7) };
       // 起日還沒填、或還是上一次自動帶入的值才自動帶入（不覆蓋使用者自己填的）。
-      if (!form.service_period_start || startAuto.value) { form.service_period_start = addDays(prev.value.end, 1); startAuto.value = true; }
+      // 電話、網路的期間是選填：只顯示「上一期迄…」提示，不自動填起日（否則起日有、迄日空，會被「要一起填」擋下）。
+      if (isPeriodRequired(form.expense_type)) {
+        if (!form.service_period_start || startAuto.value) { form.service_period_start = addDays(prev.value.end, 1); startAuto.value = true; }
+      } else if (startAuto.value) { form.service_period_start = ""; startAuto.value = false; }
     } else {
       prev.value = null;
       if (startAuto.value) { form.service_period_start = ""; startAuto.value = false; }
@@ -115,7 +119,7 @@ async function save(ack = false, confirm = false) {
   if (busy.value) return;
   error.value = "";
   existing.value = null;
-  const p = formProblem(form, legacyEdit);
+  const p = formProblem(form, legacyEdit.value);
   if (p) { error.value = p; return; }
   if (!periodAcked.value && isLongPeriod(days.value)) { periodLong.value = true; return; }
   periodLong.value = false;
@@ -223,7 +227,7 @@ async function save(ack = false, confirm = false) {
 <style scoped>
 .uf { display: grid; gap: 12px; min-width: 0; }
 .uf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
-.uf-grid label { display: grid; gap: 4px; min-width: 0; }
+.uf-grid label { display: grid; gap: 4px; min-width: 0; align-content: start; }
 .uf-grid .wide { grid-column: 1 / -1; }
 .uf-panel { border: 1px solid #d9a3a0; border-radius: 8px; background: var(--soft); padding: 10px 14px; display: grid; gap: 6px; }
 .uf-panel p { margin: 0; }

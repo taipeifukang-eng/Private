@@ -254,6 +254,43 @@ test('劇本 2 畫面：必填提示、起迄順序、超過 70 天提醒、自�
     await expect(d.getByTestId('uf-period-start')).toHaveValue(/2038-0[47]-01/);
     await expect(d.getByTestId('uf-period-legacy')).toHaveCount(0);
     await d.getByTestId('uf-cancel').click();
+
+    // ---- 電話費（期間選填）：找得到上一期時只顯示提示，不自動帶入起日（否則起日有、迄日空會存不了）
+    const closeDetail = vis(page, 'bd-close');
+    if (await closeDetail.isVisible({ timeout: 1500 }).catch(() => false)) await closeDetail.click();
+    const idP = ident('PH');
+    await mk({ expense_type: 'PHONE', billing_month: '2038-08', service_identifier: idP, service_period_start: '2038-08-01', service_period_end: '2038-08-31' });
+    await vis(page, 'new-bill').click();
+    d = dialog(page);
+    await d.getByTestId('uf-store').selectOption(st.VW001.id);
+    await d.getByTestId('uf-type').selectOption('PHONE');
+    await d.getByTestId('uf-month').fill('2038-09');
+    await d.getByTestId('uf-ident').fill(idP);
+    await expect(d.getByTestId('uf-period-prev')).toContainText('上一期迄 2038/08/31', { timeout: 10_000 });
+    await expect(d.getByTestId('uf-period-start')).toHaveValue('');
+    await d.getByTestId('uf-provider').fill(gaupName('PBP'));
+    await d.getByTestId('uf-amount').fill('99');
+    await d.getByTestId('uf-save').click();
+    const anyway2 = vis(page, 'uf-save-anyway');
+    if (await anyway2.isVisible({ timeout: 1500 }).catch(() => false)) await anyway2.click();
+    await expect(vis(page, 'bill-detail')).toBeVisible({ timeout: 15_000 });
+    await vis(page, 'bd-close').click();
+
+    // ---- 把沒有期間的電話費改成水費：表單事先提示要補填（不必等按儲存）
+    const idL = ident('LG');
+    await mk({ expense_type: 'PHONE', billing_month: '2038-10', service_identifier: idL });
+    await vis(page, 'filter-month').fill('');
+    await vis(page, 'bill-search').fill(idL);
+    await page.locator('[data-testid="bill-card"]:visible', { hasText: idL }).first().getByTestId('open-bill').click();
+    await vis(page, 'bd-edit').click();
+    d = dialog(page);
+    await expect(d.getByTestId('uf-period-legacy')).toHaveCount(0);
+    await d.getByTestId('uf-type').selectOption('WATER');
+    await expect(d.getByTestId('uf-period-legacy')).toBeVisible();
+    await d.getByTestId('uf-type').selectOption('PHONE');
+    await expect(d.getByTestId('uf-period-legacy')).toHaveCount(0);
+    await d.getByTestId('uf-cancel').click();
+    if (await closeDetail.isVisible({ timeout: 1500 }).catch(() => false)) await closeDetail.click();
     expect(real(errors), errors.join('\n')).toEqual([]);
   } finally {
     await ctx.close();
@@ -374,7 +411,7 @@ test('劇本 4 Excel：年度逐月與月／季／年匯出多一頁「帳單明
     const wb = XLSX.read(fs.readFileSync(await dl.path()), { type: 'buffer' });
     expect(wb.SheetNames).toEqual(['合計', '水費', '電費', '電話費', '網路費', '帳單明細']);
     const aoa = XLSX.utils.sheet_to_json<any[]>(wb.Sheets['帳單明細'], { header: 1 });
-    expect(aoa[0]).toEqual(['門市／據點', '費用類型', '帳單月份', '計費起', '計費迄', '天數', '度數', '金額', '每日平均金額']);
+    expect(aoa[0]).toEqual(['門市／據點', '費用類型', '帳單月份', '計費起', '計費迄', '天數', '度數', '金額', '每日平均金額', '識別號碼']);
     // 讀回的列：只看本次測試建立的（金額、帳單月份與期間能對上），再逐列比對
     const TYPE = { WATER: '水費', ELECTRICITY: '電費', PHONE: '電話費', INTERNET: '網路費' } as Record<string, string>;
     const slash = (v: string | null) => (v ? v.replace(/-/g, '/') : '');
