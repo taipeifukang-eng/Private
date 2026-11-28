@@ -11,7 +11,7 @@ import { addBillAttachment, cleanupGaup, gaupName, pastMonth, seedPayee, setupGa
 // GAUBPERIOD 水電帳單「計費期間（起～迄）」e2e（DEV；資料只用 VW／ZT 門市與自訂據點、2038 年；結束清掉自己建立的資料）。桌機與手機（390）都跑畫面劇本；API、列印與 Excel 劇本只在桌機。
 //   劇本 1（API 與資料庫）：水費電費必填、電話網路選填、只填一邊／迄早於起被擋、超過 70 天只回提醒、上一期查詢（排除自己、已刪除不算、無權限 403）、請款明細快照（帳單事後被改，請款單上的期間不變）。
 //   劇本 2（畫面，桌機＋手機）：必填提示、起迄順序、超過 70 天提醒（返回修改不會存、確認後才存）、自動帶入上一期與空檔提醒、列表與詳情顯示期間與天數。
-//   劇本 3（紙本列印，桌機）：事由含計費期間，前面寫費用類型（同年 MM/DD、跨年民國年、同類型多張取最早～最晚、多類型各寫一段、沒有期間的類型不寫）；帳單多（10 列、4 張合併列）仍在 A4 上半張 138.5mm 內、事由不換行不截斷；PDF 下載；請款單明細顯示期間與天數。
+//   劇本 3（紙本列印，桌機）：事由含計費期間（只含一種費用類型時前面不寫費用名稱；多種類型各寫一段「電費 02/05～03/04、水費 …」、沒有期間的類型不寫；同年 MM/DD、跨年民國年、同類型多張取最早～最晚）；帳單多（10 列、4 張合併列）仍在 A4 上半張 138.5mm 內、事由不換行不截斷；PDF 下載；請款單明細顯示期間與天數。
 //   劇本 4（Excel，桌機）：年度逐月與月／季／年匯出多一頁「帳單明細」，與資料庫逐列比對（排序、天數、度數、每日平均）。
 test.use({ actionTimeout: 20_000, navigationTimeout: 30_000 });
 test.describe.configure({ mode: 'serial' });
@@ -341,8 +341,9 @@ test('劇本 3 紙本列印：事由含計費期間（前面寫費用類型）�
     const texts = await rows.evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())));
     const reasons = texts.map((r) => r[2]);
     expect(reasons.find((r) => r.includes('電費 02/05～03/04')), '同年用月/日；一列兩種類型各寫一段').toBe('127年3月電費、水費（共 2 張帳單） 電費 02/05～03/04、水費 01/01～03/31');
-    expect(reasons.find((r) => r.includes('126/12/20～127/01/19')), '跨年用民國年，前面寫費用類型').toBe('127年3月電費 電費 126/12/20～127/01/19');
-    expect(reasons.find((r) => r.includes('共 4 個電號')), '同類型多張取最早起日～最晚迄日（跨年用民國年）').toContain('電費 126/12/28～127/03/09');
+    expect(reasons.find((r) => r.includes('126/12/20～127/01/19')), '單一類型：期間前面不重複寫費用名稱；跨年用民國年').toBe('127年3月電費 126/12/20～127/01/19');
+    expect(reasons.find((r) => r.includes('共 4 個電號')), '單一類型同類型多張取最早起日～最晚迄日（跨年用民國年），不寫名稱').toContain('個電號） 126/12/28～127/03/09');
+    expect(reasons.find((r) => r.includes('共 4 個電號')), '單一類型不含費用名稱段').not.toContain('電費 126');
     expect(reasons.find((r) => r === '127年3月電話費'), '只有電話費且沒有期間的帳單不加').toBe('127年3月電話費');
     expect(reasons.find((r) => r.includes('電費、電話費')), '只有部分類型有期間：沒有期間的電話費不寫').toBe('127年3月電費、電話費（共 2 張帳單） 電費 02/01～03/31');
     expect(reasons.filter((r) => r.includes('計費')).length, '不再有「計費」字樣').toBe(0);
