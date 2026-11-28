@@ -74,17 +74,39 @@ export function periodText(start: unknown, end: unknown, withDays = true): strin
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const parts = (d: string) => ({ y: Number(d.slice(0, 4)), m: Number(d.slice(5, 7)), d: Number(d.slice(8, 10)) });
 /**
- * 紙本請款單事由後的計費期間：同年 → 「計費 11/05～12/04」；跨年 → 民國年完整寫「計費 114/12/05～115/01/04」（讓人看得懂）。
- * 沒有期間回空字串。
+ * 紙本請款單事由後的計費期間（單一段）：同年 → 「水費 11/05～12/04」；跨年 → 民國年完整寫「水費 114/12/05～115/01/04」（讓人看得懂）。
+ * label＝費用類型名稱（寫在期間前面）；沒有期間回空字串。跨年判斷以這一段自己的起迄為準。
  */
-export function paperPeriodText(start: unknown, end: unknown): string {
+export function paperPeriodText(start: unknown, end: unknown, label = ""): string {
   const s = dayOf(start);
   const e = dayOf(end);
   if (!isValidDate(s) || !isValidDate(e)) return "";
   const a = parts(s);
   const b = parts(e);
-  if (a.y === b.y) return `計費 ${pad2(a.m)}/${pad2(a.d)}～${pad2(b.m)}/${pad2(b.d)}`;
-  return `計費 ${a.y - 1911}/${pad2(a.m)}/${pad2(a.d)}～${b.y - 1911}/${pad2(b.m)}/${pad2(b.d)}`;
+  const head = label ? `${label} ` : "";
+  if (a.y === b.y) return `${head}${pad2(a.m)}/${pad2(a.d)}～${pad2(b.m)}/${pad2(b.d)}`;
+  return `${head}${a.y - 1911}/${pad2(a.m)}/${pad2(a.d)}～${b.y - 1911}/${pad2(b.m)}/${pad2(b.d)}`;
+}
+/**
+ * 一列（同一門市）多張帳單的事由期間：依費用類型分段，每種有期間的類型各寫一段「水費 01/01～03/31」，用「、」相連；
+ * 同類型多張取最早起日～最晚迄日；沒有期間的類型不寫；都沒有回空字串。類型順序依第一次出現的順序。
+ */
+export function paperPeriodsByType(list: Array<{ expense_type?: string | null; service_period_start?: string | null; service_period_end?: string | null }>): string {
+  const order: string[] = [];
+  const buckets: Record<string, Array<{ service_period_start?: string | null; service_period_end?: string | null }>> = {};
+  for (let i = 0; i < list.length; i += 1) {
+    const t = String(list[i].expense_type ?? "").trim();
+    if (order.indexOf(t) < 0) { order.push(t); buckets[t] = []; }
+    buckets[t].push(list[i]);
+  }
+  const segs: string[] = [];
+  for (let i = 0; i < order.length; i += 1) {
+    const m = mergePeriods(buckets[order[i]]);
+    if (!m) continue;
+    const seg = paperPeriodText(m.start, m.end, EXPENSE_TYPE_LABELS[order[i] as ExpenseType] ?? order[i]);
+    if (seg) segs.push(seg);
+  }
+  return segs.join("、");
 }
 /** 一組帳單（同一列）的合併計費期間：取最早起日～最晚迄日；都沒有期間回 null。 */
 export function mergePeriods(list: Array<{ service_period_start?: string | null; service_period_end?: string | null }>): { start: string; end: string } | null {

@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { describe, expect, it } from 'vitest';
 import {
-  DETAIL_HEADERS, DETAIL_SHEET_NAME, PERIOD_LONG_DAYS, addDays, checkPeriod, dailyAverage, detailSheet, gapNote, isLongPeriod, isPeriodRequired, mergePeriods, paperPeriodText, parsePrevPeriodParams, periodDays, periodText, slashDate,
+  DETAIL_HEADERS, DETAIL_SHEET_NAME, PERIOD_LONG_DAYS, addDays, checkPeriod, dailyAverage, detailSheet, gapNote, isLongPeriod, isPeriodRequired, mergePeriods, paperPeriodText, paperPeriodsByType, parsePrevPeriodParams, periodDays, periodText, slashDate,
 } from '@/lib/workspace/general-affairs/utility-period-rules';
 import { REASON_COL_CAPACITY, REASON_MIN_SCALE, buildPaperPrint, reasonFit } from '@/lib/workspace/general-affairs/payment-print-rules';
 import { BILL_PAYLOAD_FIELDS, pickBillPayload } from '@/lib/workspace/general-affairs/utility-bill-rules';
@@ -94,9 +94,17 @@ describe('顯示（A4）', () => {
     expect(slashDate('2026-11-05T00:00:00Z')).toBe('2026/11/05');
   });
   it('紙本：同年用月/日；跨年用民國年/月/日', () => {
-    expect(paperPeriodText('2026-11-05', '2026-12-04')).toBe('計費 11/05～12/04');
-    expect(paperPeriodText('2026-12-05', '2027-01-04')).toBe('計費 115/12/05～116/01/04');
+    expect(paperPeriodText('2026-11-05', '2026-12-04', '水費')).toBe('水費 11/05～12/04');
+    expect(paperPeriodText('2026-12-05', '2027-01-04', '電費')).toBe('電費 115/12/05～116/01/04');
     expect(paperPeriodText('2026-12-05', null)).toBe('');
+  });
+  it('依費用類型分段：各類型一段、同類型取最早～最晚、沒期間的類型不寫、跨年各段自己判斷', () => {
+    const p = (t: string, s?: string, e?: string) => ({ expense_type: t, service_period_start: s ?? null, service_period_end: e ?? null });
+    expect(paperPeriodsByType([p('WATER', '2038-01-01', '2038-03-31')])).toBe('水費 01/01～03/31');
+    expect(paperPeriodsByType([p('WATER', '2038-01-01', '2038-03-31'), p('ELECTRICITY', '2038-01-05', '2038-02-04')])).toBe('水費 01/01～03/31、電費 01/05～02/04');
+    expect(paperPeriodsByType([p('PHONE'), p('WATER', '2038-01-01', '2038-03-31')])).toBe('水費 01/01～03/31');
+    expect(paperPeriodsByType([p('PHONE'), p('INTERNET')])).toBe('');
+    expect(paperPeriodsByType([p('ELECTRICITY', '2038-02-01', '2038-03-01'), p('ELECTRICITY', '2037-12-20', '2038-01-19'), p('WATER', '2038-01-01', '2038-03-31')])).toBe('電費 126/12/20～127/03/01、水費 01/01～03/31');
   });
   it('同一列多張帳單：取最早起日～最晚迄日；沒有期間的舊帳單略過；全都沒有回 null', () => {
     expect(mergePeriods([{ service_period_start: '2026-11-05', service_period_end: '2026-12-04' }, { service_period_start: '2026-10-28', service_period_end: '2026-11-27' }, {}])).toEqual({ start: '2026-10-28', end: '2026-12-04' });
@@ -117,7 +125,7 @@ describe('紙本請款單事由含計費期間', () => {
       bill(1, 's1', '甲店', 1000, { service_period_start: '2026-11-05', service_period_end: '2026-12-04' }),
       bill(2, 's2', '乙店', 2000),
     ]), null);
-    expect(p.rows[0].reason).toBe('115年11月電費 計費 11/05～12/04');
+    expect(p.rows[0].reason).toBe('115年11月電費 電費 11/05～12/04');
     expect(p.rows[1].reason).toBe('115年11月電費');
   });
   it('跨年期間用民國年完整寫；多張合併列取最早～最晚', () => {
@@ -125,7 +133,17 @@ describe('紙本請款單事由含計費期間', () => {
       bill(1, 's1', '甲店', 1000, { service_period_start: '2026-12-05', service_period_end: '2027-01-04' }),
       bill(2, 's1', '甲店', 500, { service_period_start: '2026-12-01', service_period_end: '2027-01-03' }),
     ]), null);
-    expect(p.rows[0].reason).toBe('115年11月電費（共 2 個電號） 計費 115/12/01～116/01/04');
+    expect(p.rows[0].reason).toBe('115年11月電費（共 2 個電號） 電費 115/12/01～116/01/04');
+  });
+  it('同一列多種類型：沒有期間的電話費不寫、水電各寫一段', () => {
+    const p = buildPaperPrint(utilityPr([
+      bill(1, 's1', '甲店', 1000, { expense_type: 'PHONE' }),
+      bill(2, 's1', '甲店', 500, { expense_type: 'WATER', service_period_start: '2026-11-01', service_period_end: '2026-12-31' }),
+      bill(3, 's2', '乙店', 700, { service_period_start: '2026-11-05', service_period_end: '2026-12-04' }),
+      bill(4, 's2', '乙店', 300, { expense_type: 'WATER', service_period_start: '2026-10-01', service_period_end: '2026-11-30' }),
+    ]), null);
+    expect(p.rows[0].reason).toBe('115年11月電話費、水費（共 2 張帳單） 水費 11/01～12/31');
+    expect(p.rows[1].reason).toBe('115年11月電費、水費（共 2 張帳單） 電費 11/05～12/04、水費 10/01～11/30');
   });
   it('請款單有申請事由覆寫時照覆寫印，不加期間', () => {
     const p = buildPaperPrint({ ...utilityPr([bill(1, 's1', '甲店', 1000, { service_period_start: '2026-11-05', service_period_end: '2026-12-04' })]), reason_override: '十一月電費' }, null);
@@ -133,7 +151,7 @@ describe('紙本請款單事由含計費期間', () => {
   });
   it('事由變長時先縮字（不截斷、不小於下限）、再放不下才換行', () => {
     expect(reasonFit('115年11月電費')).toEqual({ scale: 1, wrap: false });
-    const long = '115年11月電費（共 2 個電號） 計費 115/12/01～116/01/04';
+    const long = '115年11月電費（共 2 個電號） 電費 115/12/01～116/01/04';
     const f = reasonFit(long);
     expect(f.scale).toBeLessThan(1);
     expect(f.scale).toBeGreaterThanOrEqual(REASON_MIN_SCALE);
