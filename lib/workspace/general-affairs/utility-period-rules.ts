@@ -88,7 +88,7 @@ export function paperPeriodText(start: unknown, end: unknown, label = ""): strin
   return `${head}${a.y - 1911}/${pad2(a.m)}/${pad2(a.d)}～${b.y - 1911}/${pad2(b.m)}/${pad2(b.d)}`;
 }
 /**
- * 一列（同一門市）多張帳單的事由期間：依費用類型分段，每種有期間的類型各寫一段「水費 01/01～03/31」，用「、」相連；
+ * 一列（同一門市）多張帳單的事由期間：只含一種費用類型時不寫費用名稱（例「10/05～11/04」）；含多種類型時依費用類型分段，每種有期間的類型各寫一段「水費 01/01～03/31」，用「、」相連；
  * 同類型多張取最早起日～最晚迄日；沒有期間的類型不寫；都沒有回空字串。類型順序依第一次出現的順序。
  */
 export function paperPeriodsByType(list: Array<{ expense_type?: string | null; service_period_start?: string | null; service_period_end?: string | null }>): string {
@@ -100,10 +100,11 @@ export function paperPeriodsByType(list: Array<{ expense_type?: string | null; s
     buckets[t].push(list[i]);
   }
   const segs: string[] = [];
+  const single = order.length === 1; // 只有一種費用類型：事由前半已寫名稱，期間前面不重複
   for (let i = 0; i < order.length; i += 1) {
     const m = mergePeriods(buckets[order[i]]);
     if (!m) continue;
-    const seg = paperPeriodText(m.start, m.end, EXPENSE_TYPE_LABELS[order[i] as ExpenseType] ?? order[i]);
+    const seg = paperPeriodText(m.start, m.end, single ? "" : (EXPENSE_TYPE_LABELS[order[i] as ExpenseType] ?? order[i]));
     if (seg) segs.push(seg);
   }
   return segs.join("、");

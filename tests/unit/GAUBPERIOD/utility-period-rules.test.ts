@@ -100,9 +100,11 @@ describe('顯示（A4）', () => {
   });
   it('依費用類型分段：各類型一段、同類型取最早～最晚、沒期間的類型不寫、跨年各段自己判斷', () => {
     const p = (t: string, s?: string, e?: string) => ({ expense_type: t, service_period_start: s ?? null, service_period_end: e ?? null });
-    expect(paperPeriodsByType([p('WATER', '2038-01-01', '2038-03-31')])).toBe('水費 01/01～03/31');
+    expect(paperPeriodsByType([p('WATER', '2038-01-01', '2038-03-31')])).toBe('01/01～03/31');
+    expect(paperPeriodsByType([p('ELECTRICITY', '2038-02-01', '2038-03-01'), p('ELECTRICITY', '2037-12-20', '2038-01-19')])).toBe('126/12/20～127/03/01');
+    expect(paperPeriodsByType([p('WATER')])).toBe('');
     expect(paperPeriodsByType([p('WATER', '2038-01-01', '2038-03-31'), p('ELECTRICITY', '2038-01-05', '2038-02-04')])).toBe('水費 01/01～03/31、電費 01/05～02/04');
-    expect(paperPeriodsByType([p('PHONE'), p('WATER', '2038-01-01', '2038-03-31')])).toBe('水費 01/01～03/31');
+    expect(paperPeriodsByType([p('PHONE'), p('WATER', '2038-01-01', '2038-03-31')])).toBe('水費 01/01～03/31'); // 含多種類型（電話費沒期間）仍寫名稱
     expect(paperPeriodsByType([p('PHONE'), p('INTERNET')])).toBe('');
     expect(paperPeriodsByType([p('ELECTRICITY', '2038-02-01', '2038-03-01'), p('ELECTRICITY', '2037-12-20', '2038-01-19'), p('WATER', '2038-01-01', '2038-03-31')])).toBe('電費 126/12/20～127/03/01、水費 01/01～03/31');
   });
@@ -125,7 +127,7 @@ describe('紙本請款單事由含計費期間', () => {
       bill(1, 's1', '甲店', 1000, { service_period_start: '2026-11-05', service_period_end: '2026-12-04' }),
       bill(2, 's2', '乙店', 2000),
     ]), null);
-    expect(p.rows[0].reason).toBe('115年11月電費 電費 11/05～12/04');
+    expect(p.rows[0].reason).toBe('115年11月電費 11/05～12/04');
     expect(p.rows[1].reason).toBe('115年11月電費');
   });
   it('跨年期間用民國年完整寫；多張合併列取最早～最晚', () => {
@@ -133,7 +135,7 @@ describe('紙本請款單事由含計費期間', () => {
       bill(1, 's1', '甲店', 1000, { service_period_start: '2026-12-05', service_period_end: '2027-01-04' }),
       bill(2, 's1', '甲店', 500, { service_period_start: '2026-12-01', service_period_end: '2027-01-03' }),
     ]), null);
-    expect(p.rows[0].reason).toBe('115年11月電費（共 2 個電號） 電費 115/12/01～116/01/04');
+    expect(p.rows[0].reason).toBe('115年11月電費（共 2 個電號） 115/12/01～116/01/04');
   });
   it('同一列多種類型：沒有期間的電話費不寫、水電各寫一段', () => {
     const p = buildPaperPrint(utilityPr([
