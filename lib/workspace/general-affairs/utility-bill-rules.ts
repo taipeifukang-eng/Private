@@ -182,7 +182,7 @@ export function parseReportParams(params: URLSearchParams): { mode: "month" | "q
 /** 新增與編輯送進資料庫函式的欄位（白名單；其他欄位一律丟掉，不信任前端送來的 id、建立者、刪除欄位）。 */
 export const BILL_PAYLOAD_FIELDS = [
   "store_id", "location_name", "expense_type", "billing_month", "provider_name", "service_label", "service_identifier", "account_number", "equipment_serial",
-  "amount", "electricity_kwh", "due_date", "paid_at", "reference_no", "notes",
+  "amount", "electricity_kwh", "due_date", "paid_at", "reference_no", "notes", "service_period_start", "service_period_end",
 ] as const;
 export function pickBillPayload(body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};

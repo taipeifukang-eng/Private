@@ -140,7 +140,7 @@ export async function seedGk1Master(): Promise<Gk1Seed> {
 
 /** 建立一張水電帳單並附一張真的帳單照片（實體檔上傳到儲存空間、紀錄與 API 相同）。帳單以使用者身分建立。 */
 export async function mkUtilityBill(client: any, uploaderId: string, over: Record<string, unknown>) {
-  const { data, error } = await client.rpc('ga_ws_ub_save', { p_id: null, p_payload: over, p_expected_updated_at: null, p_confirm_paid_change: false });
+  const { data, error } = await client.rpc('ga_ws_ub_save', { p_id: null, p_payload: { service_period_start: '2038-01-01', service_period_end: '2038-01-31', ...over }, p_expected_updated_at: null, p_confirm_paid_change: false });
   if (error) throw new Error(`建立帳單失敗：${error.message}`);
   if (!data?.ok) throw new Error(`建立帳單失敗：${JSON.stringify(data)}`);
   const bill = data.data as any;

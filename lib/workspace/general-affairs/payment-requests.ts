@@ -13,6 +13,7 @@ import {
   MONTH_RE,
 } from "./payment-request-rules";
 import { validatePrintFieldsPayload } from "./payment-print-rules";
+import { CANCEL_AUTO_PAY_ACTION, validateCancelAutoPayPayload } from "./auto-pay-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { UTILITY_BILL_MANAGE_LABEL } from "./utility-bill-rules";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
@@ -179,7 +180,14 @@ async function action(ctx: Context, request: NextRequest, id: string) {
   const b = await body(request);
   const { action: act, expected_updated_at, idempotency_key, ...raw } = b;
   const name = String(act ?? "").trim().toLowerCase();
-  if (!isPrAction(name)) throw new GaError(400, "不支援的操作（submit、return、mark_paid、void、note、refresh_bank）");
+  // 取消自動付款（只限系統自動標記的已付款單）：原因必填；是不是自動標記的單由資料庫判斷。
+  if (name === CANCEL_AUTO_PAY_ACTION) {
+    const { reason } = validated(() => validateCancelAutoPayPayload(raw));
+    const expectedAt = validated(() => parseExpectedUpdatedAt(expected_updated_at));
+    const c = await rpc(ctx, "ga_ws_pay_request_cancel_auto_pay", { p_id: id, p_reason: reason, p_key: keyOf(idempotency_key), p_expected_updated_at: expectedAt });
+    return respond({ data: shape(c.data, ab, ctx.user.id), replay: !!c.replay });
+  }
+  if (!isPrAction(name)) throw new GaError(400, "不支援的操作（submit、return、mark_paid、void、note、refresh_bank、cancel_auto_pay）");
   // 狀態相關的必填原因（作廢）由資料庫判斷；這裡只驗格式與長度。void 沒填原因時交給資料庫依當時狀態決定。
   const payload = validated(() => validateActionPayload(name, null, raw));
   const expected = validated(() => parseExpectedUpdatedAt(expected_updated_at));

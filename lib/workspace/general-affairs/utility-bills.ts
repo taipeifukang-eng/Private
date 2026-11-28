@@ -7,8 +7,11 @@
 import { NextRequest } from "next/server";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
 import { UTILITY_BILL_MANAGE_LABEL, parseReportParams, parseUtilityFilters, pickBillPayload, utilityBillAbilities } from "./utility-bill-rules";
+import { parseMatrixYear } from "./utility-report-matrix";
+import { parsePrevPeriodParams } from "./utility-period-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { parseUtilityBillExtraFilters, pickPayeeField, validateSetPayee } from "./utility-payment-rules";
+import { scanTokenCreate, scanTokenRevoke } from "./utility-scan";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
 
 const abilitiesOf = (ctx: Context) => utilityBillAbilities(ctx.permissions);
@@ -53,6 +56,18 @@ export async function utilityBillsApi(ctx: Context, request: NextRequest, rest: 
     if (m !== "GET") throw new GaError(405, "不支援的操作");
     return report(ctx, new URL(request.url));
   }
+  if (a === "report-monthly") {
+    if (m !== "GET") throw new GaError(405, "不支援的操作");
+    return reportMonthly(ctx, new URL(request.url));
+  }
+  if (a === "prev-period") {
+    if (m !== "GET") throw new GaError(405, "不支援的操作");
+    return prevPeriod(ctx, new URL(request.url));
+  }
+  if (a === "report-details") {
+    if (m !== "GET") throw new GaError(405, "不支援的操作");
+    return reportDetails(ctx, new URL(request.url));
+  }
   if (a === "anomaly-check") {
     if (m !== "POST") throw new GaError(405, "不支援的操作");
     return anomalyCheck(ctx, request);
@@ -67,6 +82,8 @@ export async function utilityBillsApi(ctx: Context, request: NextRequest, rest: 
   if (b === "pay") return pay(ctx, request, id);
   if (b === "unpay") return unpay(ctx, request, id);
   if (b === "delete") return remove(ctx, request, id);
+  if (b === "scan-token") return scanTokenCreate(ctx, request, id);
+  if (b === "scan-token-revoke") return scanTokenRevoke(ctx, id);
   throw new GaError(404, "找不到這個功能");
 }
 
@@ -111,6 +128,31 @@ async function report(ctx: Context, url: URL) {
   needView(ctx);
   const q = validated(() => parseReportParams(url.searchParams));
   const r = await rpc(ctx, "ga_ws_ub_report", { p_mode: q.mode, p_year: q.year, p_period: q.period });
+  return respond({ data: r.data });
+}
+
+async function reportMonthly(ctx: Context, url: URL) {
+  needView(ctx);
+  const year = validated(() => parseMatrixYear(url.searchParams));
+  const r = await rpc(ctx, "ga_ws_ub_year_matrix", { p_year: year });
+  return respond({ data: r.data });
+}
+
+/** 新增帳單自動帶入上一期：同據點、同類型、同識別號碼最近一張帳單的計費迄日。需水電話網費管理（只有新增或編輯表單會用）。 */
+async function prevPeriod(ctx: Context, url: URL) {
+  needManage(ctx, "新增或編輯帳單");
+  const q = validated(() => parsePrevPeriodParams(url.searchParams));
+  const exclude = q.exclude_id ? idOf(String(q.exclude_id)) : null;
+  delete q.exclude_id;
+  const r = await rpc(ctx, "ga_ws_ub_prev_period", { p_payload: q, p_exclude_id: exclude });
+  return respond({ data: r.data });
+}
+
+/** 報表 Excel「帳單明細」頁：每張帳單一列（同月／季／年報表範圍）。year 模式供年度逐月與年報表使用。 */
+async function reportDetails(ctx: Context, url: URL) {
+  needView(ctx);
+  const q = validated(() => parseReportParams(url.searchParams));
+  const r = await rpc(ctx, "ga_ws_ub_report_details", { p_mode: q.mode, p_year: q.year, p_period: q.period });
   return respond({ data: r.data });
 }
 

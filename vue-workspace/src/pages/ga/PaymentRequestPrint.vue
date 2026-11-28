@@ -6,7 +6,7 @@ import { openGaPage, useGaGuard } from "../../lib/ga";
 import { PAY_METHOD_LABELS, PR_STATUS_LABELS, UTILITY_PRINT_HEADERS, bankText, dateText, errorText, isUtilityRequest, money, payeeBankText, payeeName, timeText, utilityPrintRow, type PaymentRequest } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS } from "../../lib/ga-invoices";
 import { useWorkspace, type WorkTab } from "../../stores";
-import { SIGN_CELL_SUFFIX, TOTAL_LABEL, buildPaperPrint, moneyCell, unitFit } from "../../../../lib/workspace/general-affairs/payment-print-rules";
+import { SIGN_CELL_SUFFIX, TOTAL_LABEL, buildPaperPrint, moneyCell, reasonFit, unitFit } from "../../../../lib/workspace/general-affairs/payment-print-rules";
 
 // 第 4.5 批 請款單 A4 列印頁（/general-affairs/payment-requests/:id/print）：抬頭用請款設定的買受人；
 // 廠商統編與銀行帳號沒有廠商查看權限時整區省略；簽章區顯示總務請款與會計付款的人與時間。列印只輸出紙張那一塊。
@@ -91,7 +91,7 @@ async function downloadPdf() {
     const h0 = (canvas.height * 210) / canvas.width;
     const sc = Math.min(1, 297 / h0);
     const w = 210 * sc;
-    pdf.addImage(canvas.toDataURL("image/png"), "PNG", (210 - w) / 2, 0, w, h0 * sc);
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", (210 - w) / 2, 0, w, h0 * sc);
     pdf.save(pdfFileName());
   } catch (e) {
     alert(`產生 PDF 失敗：${e instanceof Error && e.message ? e.message : "請稍後再試"}`);
@@ -135,7 +135,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
         <thead><tr><th class="c-no">項次</th><th class="c-unit">使用單位</th><th class="c-reason">申請事由</th><th class="c-amt">金額</th><th class="c-order">內部訂單</th></tr></thead>
         <tbody>
           <tr v-for="(r, i) in paper.rows" :key="i" data-testid="pk-row">
-            <td class="c-no">{{ r.no ?? "" }}</td><td class="u" :class="{ 'u-wrap': unitFit(r.unit).wrap }" :style="{ fontSize: `calc(16px * var(--k) * ${unitFit(r.unit).scale})` }">{{ r.unit }}</td><td>{{ r.reason }}</td>
+            <td class="c-no">{{ r.no ?? "" }}</td><td class="u" :class="{ 'u-wrap': unitFit(r.unit).wrap }" :style="{ fontSize: `calc(16px * var(--k) * ${unitFit(r.unit).scale})` }">{{ r.unit }}</td><td class="rs" :class="{ 'rs-wrap': reasonFit(r.reason).wrap }" :style="{ fontSize: `calc(16px * var(--k) * ${reasonFit(r.reason).scale})` }" data-testid="pk-reason">{{ r.reason }}</td>
             <td class="amt">{{ r.amount !== null ? moneyCell(r.amount) : "" }}</td><td>{{ r.order }}</td>
           </tr>
           <tr class="pk-sum"><td colspan="3" class="mid" data-testid="pk-tax-label">{{ paper.taxLabel }}</td><td class="amt" data-testid="pk-tax">{{ moneyCell(paper.tax) }}</td><td></td></tr>
@@ -234,6 +234,9 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pk-table .c-order { width: 12.5%; }
 .pk-table td.u { white-space: nowrap; }
 .pk-table td.u.u-wrap { white-space: normal; overflow-wrap: anywhere; }
+/* 申請事由：螢幕預覽自然換行；列印與 PDF（--k 0.8、190mm 內容寬）才依 reasonFit 縮字成單行（放不下的 rs-wrap 才換行）。 */
+.pk-table td.rs { white-space: normal; overflow-wrap: anywhere; }
+.pp-paper.pp-pdf .pk-table td.rs:not(.rs-wrap) { white-space: nowrap; }
 .pk-table td.amt { white-space: nowrap; text-align: right; }
 .pk-table td.mid { text-align: center; }
 .pk-table tbody tr { height: calc(30px * var(--k)); }
@@ -261,6 +264,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
   .pp-paper { --k: 0.8; padding: 0; line-height: 1.4; }
   /* 項次欄變窄後表頭「項次」會直排成兩行、表格多一行高；簽核區行高 2 → 1.7 補回，維持在上半頁內。 */
   .pk-sign { line-height: 1.7; }
+  .pk-table td.rs:not(.rs-wrap) { white-space: nowrap; }
 }
 @media (max-width: 700px) { .head-actions button { min-height: 44px; } .pp-sheet { padding: 8mm 4mm; } }
 </style>

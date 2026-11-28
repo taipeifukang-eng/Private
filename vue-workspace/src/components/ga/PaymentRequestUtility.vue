@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import AutoPayBox from "./AutoPayBox.vue";
 import PrintFieldsBox from "./PrintFieldsBox.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
 import GaShell from "./GaShell.vue";
+import BillScanButton from "./BillScanButton.vue";
 import PayeeBuyerFields from "./PayeeBuyerFields.vue";
 import PaidFields from "./PaidFields.vue";
 import PayoutAccountDialog from "./PayoutAccountDialog.vue";
@@ -13,7 +15,7 @@ import {
   isEditable, money, newKey, noPayeeNotice, paidDateProblem, paidDateRange, timeText, utilityErrorMessage, voidPaidWarning, voidReasonRequired, payeeBankText, payeeName,
   type PaymentRequest, type PrAction, type UtilityAbilities, type UtilityCandidateBill, type UtilityCandidates, type UtilityBillLine,
 } from "../../lib/ga-payments";
-import { EXPENSE_TYPE_LABELS } from "../../lib/ga-utility-bills";
+import { EXPENSE_TYPE_LABELS, periodText } from "../../lib/ga-utility-bills";
 import { taipeiToday } from "../../lib/ga-invoices";
 import type { BuyerCompany } from "../../../../lib/workspace/general-affairs/buyer-company-rules";
 import { useWorkspace, type WorkTab } from "../../stores";
@@ -390,7 +392,7 @@ const lineState = (l: UtilityBillLine) => {
       </template>
       <PayeeBuyerFields v-if="editing && !loading && abilities" v-model:payee-type="payeeType" v-model:payee-profile-id="payeeProfileId" v-model:payee-name="payeeNameText" v-model:buyer-company-id="buyerCompanyId" :companies="companies" :editing="editing" prefix="pu" @change="dirty" />
       <div class="pe-grid">
-        <label>預計付款日<input v-model="expectedPayDate" type="date" :disabled="!editing" data-testid="pu-pay-date" @input="dirty" /></label>
+        <label>預計付款日<input v-model="expectedPayDate" type="date" :disabled="!editing" data-testid="pu-pay-date" @input="dirty" /><small class="muted">沒填就用這張單帳單最早的繳費期限；到期後系統會自動標記已付款。</small></label>
         <label>備註<input v-model="notes" maxlength="500" :disabled="!editing" data-testid="pu-notes" @input="dirty" /></label>
       </div>
       <label v-if="editing" class="pu-auto" data-testid="pu-auto-box"><span class="pu-auto-row"><input v-model="autoMark" type="checkbox" data-testid="pu-auto" @change="dirty" />送出後帳單自動標記已繳</span>
@@ -398,6 +400,7 @@ const lineState = (l: UtilityBillLine) => {
       </label>
     </section>
 
+    <AutoPayBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pu" @updated="fillFrom" @stale="loadRequest" />
     <PrintFieldsBox v-if="!loading && pr" :pr="pr" :can-manage="canManage" test-prefix="pu" @saved="printFieldsSaved" />
     <section v-if="!loading && (creating ? !!vendorId : editing)" class="pe-box" data-testid="pu-candidates">
       <h2>帳單（{{ vendorName }} {{ month }}）</h2>
@@ -407,16 +410,17 @@ const lineState = (l: UtilityBillLine) => {
       <p v-if="cand?.bills_masked" class="notice" role="status" data-testid="pu-cand-masked">帳單明細需要「水電帳單檢視」權限（目前只看得到張數 {{ cand.bill_count }} 張、可請款 {{ cand.eligible_count }} 張、合計 {{ money(cand.eligible_amount) }}）。</p>
       <div v-if="bills.length" class="pu-tools"><button type="button" data-testid="pu-select-all" @click="selectAll(true)">全選可請款的帳單</button><button type="button" data-testid="pu-select-none" @click="selectAll(false)">全部取消</button></div>
       <table v-if="bills.length" class="pu-table" data-testid="pu-bills">
-        <thead><tr><th>選</th><th>門市</th><th>費用類型</th><th>帳單月份</th><th>電號／水號／用戶號碼</th><th class="r">金額</th><th>附件</th><th>狀態</th></tr></thead>
+        <thead><tr><th>選</th><th>門市</th><th>費用類型</th><th>帳單月份</th><th>計費期間</th><th>電號／水號／用戶號碼</th><th class="r">金額</th><th>附件</th><th>狀態</th></tr></thead>
         <tbody>
           <tr v-for="b in bills" :key="b.id" :class="{ off: !b.eligible }" data-testid="pu-bill">
             <td data-label="選"><input type="checkbox" :checked="selected.has(b.id)" :disabled="(!b.eligible && !selected.has(b.id)) || !editing" :aria-label="'選擇 ' + billLabel(b)" data-testid="pu-bill-check" @change="toggle(b)" /></td>
             <td data-label="門市">{{ b.location_name }}</td>
             <td data-label="費用類型">{{ typeText(b.expense_type) }}</td>
             <td data-label="帳單月份">{{ String(b.billing_month).slice(0, 7) }}</td>
+            <td data-label="計費期間" data-testid="pu-bill-period">{{ periodText(b.service_period_start, b.service_period_end) || "—" }}</td>
             <td data-label="識別號碼">{{ b.identifier || "—" }}</td>
             <td data-label="金額" class="r" data-testid="pu-bill-amount">{{ money(b.amount) }}</td>
-            <td data-label="附件"><span v-if="Number(b.attachment_count) > 0" data-testid="pu-att-ok">{{ b.attachment_count }} 個</span><strong v-else class="bad" data-testid="pu-missing">缺附件</strong></td>
+            <td data-label="附件"><span v-if="Number(b.attachment_count) > 0" data-testid="pu-att-ok">{{ b.attachment_count }} 個</span><strong v-else class="bad" data-testid="pu-missing">缺附件</strong> <BillScanButton v-if="Number(b.attachment_count) > 0 && !billsMasked" :bill-id="b.id" :label="billLabel(b)" /></td>
             <td data-label="狀態"><span v-if="b.eligible" class="ok">可請款</span><span v-else class="muted" data-testid="pu-reason">{{ b.reason }}</span></td>
           </tr>
         </tbody>
@@ -430,12 +434,13 @@ const lineState = (l: UtilityBillLine) => {
       <h2>請款明細（帳單）</h2>
       <p v-if="billsMasked || pr.bills_masked" class="muted" data-testid="pu-lines-masked">明細已遮蔽（需要水電帳單檢視權限）。這張請款單共 {{ pr.bill_count ?? 0 }} 張帳單，合計 {{ money(pr.amount_total) }}。</p>
       <table v-else class="pu-table" data-testid="pu-view-bills">
-        <thead><tr><th>#</th><th>門市</th><th>費用類型</th><th>帳單月份</th><th>電號／水號／用戶號碼</th><th class="r">金額</th><th>附件</th><th>帳單狀態</th></tr></thead>
+        <thead><tr><th>#</th><th>門市</th><th>費用類型</th><th>帳單月份</th><th>計費期間</th><th>電號／水號／用戶號碼</th><th class="r">金額</th><th>附件</th><th>帳單狀態</th></tr></thead>
         <tbody>
           <tr v-for="l in viewLines" :key="l.id" data-testid="pu-line">
             <td data-label="#">{{ l.line_no }}</td><td data-label="門市">{{ l.location_name }}</td><td data-label="費用類型">{{ typeText(l.expense_type) }}</td><td data-label="帳單月份">{{ String(l.billing_month).slice(0, 7) }}</td>
+            <td data-label="計費期間" data-testid="pu-line-period">{{ periodText(l.service_period_start, l.service_period_end) || "—" }}</td>
             <td data-label="識別號碼">{{ l.identifier || "—" }}</td><td data-label="金額" class="r">{{ money(l.claim_total) }}</td>
-            <td data-label="附件">{{ l.attachment_count }} 個</td><td data-label="帳單狀態" data-testid="pu-line-state">{{ lineState(l) }}</td>
+            <td data-label="附件">{{ l.attachment_count }} 個 <BillScanButton v-if="Number(l.attachment_count) > 0 && !l.bill_deleted" :bill-id="l.bill_id" :label="billLabel(l)" /></td><td data-label="帳單狀態" data-testid="pu-line-state">{{ lineState(l) }}</td>
           </tr>
         </tbody>
       </table>
@@ -445,7 +450,7 @@ const lineState = (l: UtilityBillLine) => {
     <section v-if="pr?.events?.length" class="pe-box" data-testid="pu-events">
       <h2>操作紀錄</h2>
       <ol class="pe-timeline">
-        <li v-for="e in pr.events" :key="e.id" data-testid="pu-event"><strong>{{ EVENT_LABELS[e.event_type] || e.event_type }}</strong>　{{ e.actor_name || "—" }}　{{ timeText(e.created_at) }}<template v-if="e.reason">：{{ e.reason }}</template></li>
+        <li v-for="e in pr.events" :key="e.id" data-testid="pu-event"><strong>{{ EVENT_LABELS[e.event_type] || e.event_type }}</strong>　{{ e.actor_name || (e.payload?.auto ? "系統" : "—") }}　{{ timeText(e.created_at) }}<template v-if="e.reason">：{{ e.reason }}</template></li>
       </ol>
       <p class="muted">操作紀錄不可修改或刪除。</p>
     </section>

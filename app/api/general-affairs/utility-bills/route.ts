@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { canManageUtilityBills, canViewUtilityBills } from '@/lib/general-affairs/utility-bills/access';
+import { checkPeriod } from '@/lib/workspace/general-affairs/utility-period-rules';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +36,11 @@ function payloadOf(body: Record<string, unknown>) {
   const equipmentSerial = expenseType === 'INTERNET' ? text(body.equipment_serial) : null;
   if (expenseType === 'INTERNET' && !serviceIdentifier && !equipmentSerial) throw new Error('網路費請至少填寫電路編號或設備序號');
   if (expenseType !== 'INTERNET' && !serviceIdentifier) throw new Error('請填寫服務識別號碼');
+  // 計費期間（水費、電費必填；起迄要一起填；迄不得早於起；>70 天不擋）。舊版畫面與新版共用同一組規則。
+  const periodStart = text(body.service_period_start, 10);
+  const periodEnd = text(body.service_period_end, 10);
+  const period = checkPeriod(expenseType, periodStart, periodEnd);
+  if (!period.ok) throw new Error(period.message);
   return {
     store_id: storeId,
     location_name: locationName,
@@ -51,6 +57,8 @@ function payloadOf(body: Record<string, unknown>) {
     paid_at: text(body.paid_at, 10),
     reference_no: text(body.reference_no),
     notes: text(body.notes, 1000),
+    service_period_start: periodStart,
+    service_period_end: periodEnd,
   };
 }
 

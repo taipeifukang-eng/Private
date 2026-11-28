@@ -54,7 +54,7 @@ test.beforeAll(async () => {
   teardown = made.teardown;
   state = await (await apiForUser(users.util_mgr as any)).storageState();
   for (const [m, a] of [['2038-02', 1200], ['2038-03', 1300], ['2038-04', 1100], ['2038-05', 1250]] as const) {
-    const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: m, provider_name: ga6Name('LAY'), service_identifier: IDENT, amount: a, due_date: '2038-06-20', notes: '版面測試的長備註：'.repeat(8) }, p_expected_updated_at: null, p_confirm_paid_change: false });
+    const r = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: m, provider_name: ga6Name('LAY'), service_identifier: IDENT, amount: a, due_date: '2038-06-20', notes: '版面測試的長備註：'.repeat(8) }, p_expected_updated_at: null, p_confirm_paid_change: false });
     expect(r.ok, JSON.stringify(r)).toBe(true);
     billId = r.data.id;
   }
@@ -95,6 +95,8 @@ test('帳單列表與各個彈出視窗：沒有水平溢出、視窗在畫面�
     await page.getByTestId('uf-provider').fill(ga6Name('LAY'));
     await page.getByTestId('uf-ident').fill(IDENT);
     await page.getByTestId('uf-amount').fill('12000');
+    await page.getByTestId('uf-period-start').fill('2038-01-01');
+    await page.getByTestId('uf-period-end').fill('2038-01-31');
     await vis(page, 'uf-save').click();
     await expect(vis(page, 'uf-anomaly')).toBeVisible();
     await dialogFits(page);

@@ -10,6 +10,10 @@ import { errorCodeOf as _code, errorText as _text } from "./ga-invoices";
 /** 請款單頁的錯誤文字：沿用伺服端白話訊息，再補上新規則的下一步提示。 */
 export const payErrorText = (e: unknown, fallback?: string) => payErrorMessage(_code(e), _text(e, fallback));
 export type { PrAction, PrStatus };
+// 付款日到期自動標記已付款與取消（規則在 lib/workspace/general-affairs/auto-pay-rules.ts，伺服端與頁面共用）。
+export {
+  AUTO_PAY_REASON, CANCEL_AUTO_PAY_LABEL, CANCEL_AUTO_PAY_NOTE, autoPayHint, autoPaidLabel, canCancelAutoPay, isAutoPaid, resolveAutoPayDate,
+} from "../../../lib/workspace/general-affairs/auto-pay-rules";
 export { downloadCsv } from "./ga-inventory-stock";
 export { dateText, errorCodeOf, errorText, money, newKey, timeText } from "./ga-invoices";
 export type { PayAbilities } from "./ga-invoices";
@@ -29,12 +33,12 @@ export type PrLine = {
 export type PrEvent = { id: string; event_type: string; from_status: string | null; to_status: string | null; actor_name: string | null; reason: string | null; amount_total: number | null; payload: Record<string, any>; created_at: string };
 export type UtilityBillLine = {
   id: string; line_no: number; bill_id: string; store_id: string | null; location_name: string; expense_type: string; billing_month: string; identifier: string | null; service_label: string | null;
-  due_date: string | null; claim_total: number; active: boolean; bill_amount: number; bill_paid_at: string | null; bill_deleted: boolean; bill_paid_by_this: boolean; attachment_count: number;
+  due_date: string | null; service_period_start?: string | null; service_period_end?: string | null; period_days?: number | null; claim_total: number; active: boolean; bill_amount: number; bill_paid_at: string | null; bill_deleted: boolean; bill_paid_by_this: boolean; attachment_count: number;
   auto_paid_date: string | null; auto_reverted_at: string | null; auto_revert_reason: "RETURN" | "VOID" | null;
 };
 export type UtilityPayeeRow = { vendor_id: string; vendor_name: string; vendor_status: string; bill_count: number; eligible_count: number; eligible_amount: number };
 export type UtilityCandidateBill = {
-  id: string; store_id: string | null; location_name: string; expense_type: string; billing_month: string; identifier: string | null; service_label: string | null; amount: number; due_date: string | null;
+  id: string; store_id: string | null; location_name: string; expense_type: string; billing_month: string; identifier: string | null; service_label: string | null; amount: number; due_date: string | null; service_period_start?: string | null; service_period_end?: string | null; period_days?: number | null;
   paid_at: string | null; attachment_count: number; eligible: boolean; code: string | null; reason: string | null; pr_no: string | null;
 };
 export type UtilityCandidates = {
@@ -65,6 +69,8 @@ export type PaymentRequest = {
   // 紙本列印欄位（空白＝列印時用系統預設）
   applicant_name?: string | null; applicant_dept?: string | null; attach_docs?: string | null; reason_override?: string | null;
   print_units?: Record<string, string> | null;
+  // 付款日到期自動付款：paid_auto＝這張已付款是系統自動標記的（沒有付款人）；auto_pay_off＝已取消自動付款，系統不會再自動標記。
+  paid_auto?: boolean; auto_pay_off?: boolean;
 };
 export type PayeeAccount = { bank_name?: string | null; bank_branch?: string | null; bank_account?: string | null; bank_account_name?: string | null };
 export type PrepayLedgerRow = { id: string; kind: "OFFSET" | "REFUND"; amount: number; receipt_no: string | null; reason: string | null; created_at: string; reversed_at: string | null; reversed_reason: string | null };
@@ -76,7 +82,7 @@ export type Candidate = {
 };
 export const PR_STATUS_CLASS: Record<string, string> = { DRAFT: "draft", SUBMITTED: "submitted", PAID: "paid", VOID: "void" };
 export const EVENT_LABELS: Record<string, string> = {
-  create: "建立草稿", update: "修改草稿", submit: "送出請款", return: "退回草稿", mark_paid: "標記已付款", void: "作廢", note: "備註", refresh_bank: "重抓廠商帳號", prepay_refund: "登記預付款退款或轉抵",
+  create: "建立草稿", update: "修改草稿", submit: "送出請款", return: "退回草稿", mark_paid: "標記已付款", void: "作廢", note: "備註", refresh_bank: "重抓廠商帳號", prepay_refund: "登記預付款退款或轉抵", cancel_auto_pay: "取消自動付款",
 };
 export const payeeBankText = (b: PayeeAccount | Record<string, never> | undefined | null) => bankText(b as PaymentRequest["bank_snapshot"]);
 /** 付款對象名稱：同仁代墊顯示同仁姓名（含員編快照），其餘顯示廠商名稱。 */

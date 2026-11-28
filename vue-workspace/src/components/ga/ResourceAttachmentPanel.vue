@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
-import { Download, FileText, Trash2 } from "lucide-vue-next";
+import { ref, watch, onMounted, onBeforeUnmount } from "vue";
+import QRCode from "qrcode";
+import { Download, FileText, Smartphone, Trash2 } from "lucide-vue-next";
 import { api } from "../../api";
 import Modal from "../Modal.vue";
 import UploadPicker from "../UploadPicker.vue";
@@ -17,8 +18,10 @@ const props = withDefaults(
     title?: string;
     canUpload?: boolean;
     canDelete?: boolean;
+    /** 只用於水電帳單：顯示「用手機拍照上傳」（QR code，手機掃描後直接傳到這張帳單）。 */
+    phoneUpload?: boolean;
   }>(),
-  { purpose: "GENERAL", title: "附件", canUpload: true, canDelete: true },
+  { purpose: "GENERAL", title: "附件", canUpload: true, canDelete: true, phoneUpload: false },
 );
 const emit = defineEmits<{ changed: [count: number] }>();
 type Attachment = { id: string; file_name: string; content_type: string; size_bytes: number; uploaded_at: string; signed_url: string | null };
@@ -34,21 +37,78 @@ const reason = ref("");
 const deleteBusy = ref(false);
 const deleteError = ref("");
 
-async function load() {
+async function load(silent = false) {
   if (!props.resourceId) return;
-  loading.value = true;
-  error.value = "";
+  if (!silent) loading.value = true;
+  if (!silent) error.value = "";
   try {
     const q = new URLSearchParams({ resourceType: props.resourceType, resourceId: props.resourceId, purpose: props.purpose });
     const res = await api<{ data: Attachment[] }>("general-affairs/attachments?" + q);
     items.value = res.data;
     emit("changed", res.data.length);
   } catch (e) {
-    error.value = (e as Error).message;
+    if (!silent) error.value = (e as Error).message;
   } finally {
     loading.value = false;
   }
 }
+// ---- 用手機拍照上傳：桌機產生 15 分鐘有效的 QR；對話框開著時每 3 秒重新讀附件，手機傳上來的檔案自動出現 ----
+const POLL_MS = 3000;
+const phone = ref(false);
+const phoneBusy = ref(false);
+const phoneError = ref("");
+const qrImage = ref("");
+const qrUrl = ref("");
+const qrExpires = ref(0);
+const qrLeft = ref(0);
+const baseCount = ref(0);
+const phoneAdded = ref(0);
+let pollTimer: ReturnType<typeof setInterval> | undefined;
+function stopPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = undefined;
+}
+async function openPhone() {
+  phone.value = true;
+  await newQr();
+}
+async function newQr() {
+  phoneBusy.value = true;
+  phoneError.value = "";
+  qrImage.value = "";
+  stopPoll();
+  try {
+    const res = await api<{ data: { url: string; expires_at: string } }>(`general-affairs/utility-bills/${props.resourceId}/scan-token`, { method: "POST", body: "{}" });
+    qrUrl.value = res.data.url;
+    qrExpires.value = new Date(res.data.expires_at).getTime();
+    qrImage.value = await QRCode.toDataURL(res.data.url, { width: 280, margin: 2, errorCorrectionLevel: "M" });
+    baseCount.value = items.value.length;
+    phoneAdded.value = 0;
+    tick();
+    pollTimer = setInterval(tick, POLL_MS);
+  } catch (e) {
+    phoneError.value = (e as Error).message;
+  } finally {
+    phoneBusy.value = false;
+  }
+}
+async function tick() {
+  qrLeft.value = Math.max(0, Math.round((qrExpires.value - Date.now()) / 1000));
+  await load(true);
+  phoneAdded.value = Math.max(0, items.value.length - baseCount.value);
+  if (qrLeft.value <= 0) stopPoll(); // QR 過期後不必再輪詢
+}
+function closePhone() {
+  stopPoll();
+  // 關閉視窗時把這張帳單還有效的 QR 作廢（失敗不影響關閉）
+  if (qrUrl.value) api(`general-affairs/utility-bills/${props.resourceId}/scan-token-revoke`, { method: "POST", body: "{}" }).catch(() => undefined);
+  phone.value = false;
+  qrImage.value = "";
+  qrUrl.value = "";
+}
+onBeforeUnmount(stopPoll);
+const leftText = () => `${Math.floor(qrLeft.value / 60)}:${String(qrLeft.value % 60).padStart(2, "0")}`;
+
 async function upload() {
   if (!picked.value.length || uploading.value) return;
   uploading.value = true;
@@ -106,8 +166,8 @@ async function confirmDelete() {
     deleteBusy.value = false;
   }
 }
-onMounted(load);
-watch(() => [props.resourceType, props.resourceId, props.purpose], load);
+onMounted(() => load());
+watch(() => [props.resourceType, props.resourceId, props.purpose], () => load());
 </script>
 
 <template>
@@ -132,6 +192,25 @@ watch(() => [props.resourceType, props.resourceId, props.purpose], load);
         </span>
       </li>
     </ul>
+    <div v-if="canUpload && phoneUpload" class="phone-row">
+      <button type="button" data-testid="phone-upload-open" @click="openPhone"><Smartphone :size="16" /> 用手機拍照上傳</button>
+    </div>
+    <Modal v-if="phone" title="用手機拍照上傳" @cancel="closePhone">
+      <p class="muted">用手機相機或掃 QR 的 App 掃描下面的 QR code，在手機上拍照或選照片上傳；上傳後這個畫面會自動出現新檔，不用重新整理。</p>
+      <p v-if="phoneBusy" role="status">產生 QR 中…</p>
+      <p v-if="phoneError" class="notice error" role="alert" data-testid="phone-error">{{ phoneError }}</p>
+      <div v-if="qrImage" class="qr-box">
+        <img :src="qrImage" alt="手機上傳 QR code" width="280" height="280" data-testid="phone-qr" />
+        <p v-if="qrLeft > 0" data-testid="phone-left">有效時間剩 {{ leftText() }}（一次最多 10 張，只能傳到這張帳單）</p>
+        <p v-else class="notice error" role="alert" data-testid="phone-expired">QR 已過期，請重新產生。</p>
+        <p v-if="phoneAdded" class="notice success" role="status" data-testid="phone-added">手機已上傳 {{ phoneAdded }} 張，下方附件清單已更新。</p>
+        <input :value="qrUrl" readonly class="qr-url" aria-label="上傳網址" data-testid="phone-url" @focus="($event.target as HTMLInputElement).select()" />
+      </div>
+      <div class="dialog-actions">
+        <button type="button" :disabled="phoneBusy" data-testid="phone-renew" @click="newQr">重新產生 QR</button>
+        <button type="button" class="primary" data-testid="phone-close" @click="closePhone">完成</button>
+      </div>
+    </Modal>
     <div v-if="canUpload" class="upload-area">
       <UploadPicker v-model="picked" :disabled="uploading" @busy="preparing = $event" />
       <button v-if="picked.length" type="button" class="primary" :disabled="uploading || preparing" @click="upload">
@@ -163,5 +242,8 @@ watch(() => [props.resourceType, props.resourceId, props.purpose], load);
 .meta small { color: var(--muted); }
 .row-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
 .row-actions button { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 4px 10px; font-size: 12px; }
+.phone-row { margin: 0 0 12px; }
+.qr-box { display: grid; justify-items: center; gap: 8px; margin: 12px 0; }
+.qr-url { width: 100%; font-size: 12px; }
 .upload-area { display: grid; gap: 10px; justify-items: start; }
 </style>

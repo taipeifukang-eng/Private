@@ -113,6 +113,7 @@ import CrossDeptMaintenance from "./pages/CrossDeptMaintenance.vue";
 import UserManagement from "./pages/Users.vue";
 import PageFallbacks from "./pages/PageFallbacks.vue";
 import PublicDemo from "./pages/PublicDemo.vue";
+import BillScanUpload from "./pages/BillScanUpload.vue";
 import Login from "./pages/Login.vue";
 import Register from "./pages/Register.vue";
 import ForgotPassword from "./pages/ForgotPassword.vue";
@@ -276,6 +277,8 @@ export type PublicPage = {
 export const WORKSPACE_PUBLIC_PAGES: readonly PublicPage[] = [
   { path: "/public-demo/:token", name: "public-demo", title: "公開頁示範", component: PublicDemo },
   // M5 W22（D14）：登入、註冊、忘記密碼、重設密碼；Next 原路徑見 lib/workspace/public-routes.ts。
+  // 水電帳單手機掃 QR 拍照上傳（不需登入，只認網址帶的一次性權杖）。
+  { path: "/bill-scan/:token", name: "bill-scan", title: "手機上傳帳單照片", component: BillScanUpload },
   { path: "/login", name: "login", title: "登入", component: Login },
   { path: "/register", name: "register", title: "註冊", component: Register },
   { path: "/forgot-password", name: "forgot-password", title: "忘記密碼", component: ForgotPassword },

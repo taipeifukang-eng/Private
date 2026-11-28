@@ -62,3 +62,20 @@ export async function downloadXlsx(rows: SheetRow[], name: string, sheetName = "
   const X = await loadXlsx();
   X.writeFile(buildWorkbook(X, rows, sheetName), name.toLowerCase().endsWith(".xlsx") ? name : `${name}.xlsx`);
 }
+
+export type AoaSheet = { name: string; aoa: Array<Array<string | number>> };
+/** 多工作表活頁簿：每個工作表一份二維陣列（第一列為標題）；第一欄加寬方便看據點名稱。 */
+export function buildSheetsWorkbook(X: any, sheets: AoaSheet[]) {
+  const book = X.utils.book_new();
+  for (const s of sheets) {
+    const ws = X.utils.aoa_to_sheet(s.aoa);
+    ws["!cols"] = s.aoa[0].map((_, i) => ({ wch: i === 0 ? 28 : 12 }));
+    X.utils.book_append_sheet(book, ws, s.name);
+  }
+  return book;
+}
+/** 下載多工作表 .xlsx。 */
+export async function downloadSheetsXlsx(sheets: AoaSheet[], name: string) {
+  const X = await loadXlsx();
+  X.writeFile(buildSheetsWorkbook(X, sheets), name.toLowerCase().endsWith(".xlsx") ? name : `${name}.xlsx`);
+}

@@ -421,7 +421,7 @@ test('已被請款單引用的發票：最後一張圖不可刪（409 白話）�
 
 test('G45-att 回歸：水電帳單附件規則不受影響（水電管理者可傳、請款管理者 403）；新資源類型之外的類型仍可用；不存在的類型 400', async () => {
   const st = (await db().from('stores').select('id').eq('store_code', 'VW001').single()).data as any;
-  const bill = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.id, expense_type: 'WATER', billing_month: '2038-02', provider_name: ga6Name('GA45ATT'), service_identifier: `QA45A-${Date.now()}`, amount: 1 }, p_expected_updated_at: null, p_confirm_paid_change: false } as any);
+  const bill = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-02', provider_name: ga6Name('GA45ATT'), service_identifier: `QA45A-${Date.now()}`, amount: 1 }, p_expected_updated_at: null, p_confirm_paid_change: false } as any);
   expect((bill as any).ok, JSON.stringify(bill)).toBe(true);
   const billId = (bill as any).data.id as string;
   const mk2 = () => multipartBody([{ name: 'bill.png', mimeType: 'image/png', buffer: makePng({ width: 40, height: 40, colorful: true }) }], { resource_type: 'UTILITY_BILL', resource_id: billId, purpose: 'BILL_DOCUMENT' });

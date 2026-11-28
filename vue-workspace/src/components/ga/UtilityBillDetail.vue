@@ -5,7 +5,7 @@ import Modal from "../Modal.vue";
 import ResourceAttachmentPanel from "./ResourceAttachmentPanel.vue";
 import { openGaPage } from "../../lib/ga";
 import {
-  BILL_STATUS_LABELS, EXPENSE_TYPE_LABELS, errorCodeOf, errorDataOf, errorText, identifierLabel, money, monthText, dateText, paidDateRange, siteOf, taipeiToday, timeText,
+  BILL_STATUS_LABELS, EXPENSE_TYPE_LABELS, errorCodeOf, errorDataOf, errorText, identifierLabel, money, monthText, dateText, isPeriodRequired, paidDateRange, periodText, siteOf, taipeiToday, timeText,
   type Bill,
 } from "../../lib/ga-utility-bills";
 
@@ -104,6 +104,7 @@ function del() {
           <div v-if="bill.account_number"><dt>客戶帳號</dt><dd>{{ bill.account_number }}</dd></div>
           <div v-if="bill.equipment_serial"><dt>設備序號</dt><dd>{{ bill.equipment_serial }}</dd></div>
           <div v-if="bill.electricity_kwh !== null"><dt>用電度數</dt><dd>{{ Number(bill.electricity_kwh).toLocaleString("zh-TW") }} 度</dd></div>
+          <div><dt>計費期間</dt><dd data-testid="bd-period"><template v-if="bill.service_period_start && bill.service_period_end">{{ periodText(bill.service_period_start, bill.service_period_end) }}</template><span v-else-if="isPeriodRequired(bill.expense_type)" class="warn">未填（編輯時請補填）</span><template v-else>—</template></dd></div>
           <div><dt>繳費期限</dt><dd>{{ dateText(bill.due_date) || "未填" }}</dd></div>
           <div><dt>繳費日期</dt><dd data-testid="bd-paid-at">{{ dateText(bill.paid_at) || "—" }}</dd></div>
           <div><dt>銷帳編號</dt><dd>{{ bill.reference_no || "—" }}</dd></div>
@@ -136,7 +137,7 @@ function del() {
           <div class="bd-row"><button type="button" :disabled="busy" @click="panel = ''">取消</button><button type="button" class="danger" :disabled="busy" data-testid="bd-delete-ok" @click="del">確定刪除</button></div>
         </section>
 
-        <ResourceAttachmentPanel v-if="live" resource-type="UTILITY_BILL" :resource-id="bill.id" purpose="BILL_DOCUMENT" title="帳單掃描檔與照片" :can-upload="canManage" :can-delete="canManage" />
+        <ResourceAttachmentPanel v-if="live" resource-type="UTILITY_BILL" :resource-id="bill.id" purpose="BILL_DOCUMENT" title="帳單掃描檔與照片" :can-upload="canManage" :can-delete="canManage" :phone-upload="canManage" />
         <p v-else class="muted">已刪除的帳單不顯示附件（檔案仍保留）。</p>
       </template>
       <div class="dialog-actions"><button type="button" data-testid="bd-close" @click="emit('close')">關閉</button></div>

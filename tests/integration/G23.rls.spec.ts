@@ -33,7 +33,7 @@ test.beforeAll(async () => {
   users = made.users;
   teardownUsers = made.teardown;
   const mk = async (ident: string, store: string) => {
-    const r = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: store, expense_type: 'WATER', billing_month: '2038-08', provider_name: ga6Name('P'), service_identifier: ident, amount: 4321 }, p_expected_updated_at: null, p_confirm_paid_change: false });
+    const r = await fn('util_mgr', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: store, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-08', provider_name: ga6Name('P'), service_identifier: ident, amount: 4321 }, p_expected_updated_at: null, p_confirm_paid_change: false });
     expect(r.ok, JSON.stringify(r)).toBe(true);
     return r.data;
   };
@@ -97,7 +97,7 @@ test('直連寫入：水電檢視、店長、其他角色寫不進去（回傳�
 
 test('舊式管理員（profiles.role = admin、沒有角色）不繞過：直連、函式與寫入都被擋', async () => {
   expect(await mine('admin')).toEqual([]);
-  expect(await fn('admin', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: '2038-08', provider_name: ga6Name('P'), service_identifier: 'QA-GA6-RLS-ADM', amount: 1 }, p_expected_updated_at: null, p_confirm_paid_change: false }))
+  expect(await fn('admin', 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-08', provider_name: ga6Name('P'), service_identifier: 'QA-GA6-RLS-ADM', amount: 1 }, p_expected_updated_at: null, p_confirm_paid_change: false }))
     .toMatchObject({ ok: false, status: 403 });
   expect((await db().from('ga_utility_bills').select('id', { count: 'exact', head: true }).eq('service_identifier', 'QA-GA6-RLS-ADM')).count).toBe(0);
 });

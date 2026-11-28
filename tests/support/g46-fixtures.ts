@@ -155,6 +155,7 @@ export type BillOver = Record<string, unknown>;
 export function billPayload(over: BillOver = {}) {
   return {
     store_id: undefined as string | undefined, expense_type: 'ELECTRICITY', billing_month: '2038-03', provider_name: gaupName('PRV'),
+    service_period_start: '2038-03-01', service_period_end: '2038-03-31',
     service_identifier: `QA-GAUP-${String(Date.now()).slice(-6)}-${String((seq += 1)).padStart(4, '0')}`, amount: 1000, ...over,
   };
 }

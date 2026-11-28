@@ -186,6 +186,8 @@ async function createBillUi(page: Page, s: BillSpec) {
   await form.getByTestId('uf-payee').selectOption(V[s.vendor].id);
   await form.getByTestId('uf-ident').fill(s.ident);
   await form.getByTestId('uf-amount').fill(String(s.amount));
+  await form.getByTestId('uf-period-start').fill('2038-01-01');
+  await form.getByTestId('uf-period-end').fill('2038-01-31');
   if (s.kwh) await form.getByTestId('uf-kwh').fill(String(s.kwh));
   await form.getByTestId('uf-due').fill(s.due);
   await form.getByTestId('uf-notes').fill(`${GUP_PREFIX}劇本 ${s.tag}`);

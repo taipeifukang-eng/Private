@@ -5,7 +5,7 @@ import GaShell from "../../components/ga/GaShell.vue";
 import PoPicker from "../../components/ga/PoPicker.vue";
 import PaymentSettingsDialog from "../../components/ga/PaymentSettingsDialog.vue";
 import { openGaPage, useDebounced, useGaGuard, useLatest, useRefreshOnActivate } from "../../lib/ga";
-import { PAYEE_TYPE_LABELS, PR_KIND_LABELS, PR_SOURCE_NAMES, PR_STATUS_CLASS, PR_STATUS_LABELS, dateText, downloadCsv, errorText, isUtilityRequest, money, payeeName, type PaymentRequest, type UtilityAbilities } from "../../lib/ga-payments";
+import { isAutoPaid, PAYEE_TYPE_LABELS, PR_KIND_LABELS, PR_SOURCE_NAMES, PR_STATUS_CLASS, PR_STATUS_LABELS, dateText, downloadCsv, errorText, isUtilityRequest, money, payeeName, type PaymentRequest, type UtilityAbilities } from "../../lib/ga-payments";
 import { UTILITY_BILL_MANAGE_LABEL } from "../../../../lib/workspace/general-affairs/utility-bill-rules";
 import type { WorkTab } from "../../stores";
 
@@ -163,6 +163,7 @@ async function exportCsv() {
           <span v-if="r.pay_kind === 'PREPAY'" class="src prepay" data-testid="pr-kind">預付款</span>
           <span v-if="r.payee_type === 'EMPLOYEE'" class="src emp" data-testid="pr-payee-kind">同仁代墊</span>
           <span class="st" :class="PR_STATUS_CLASS[r.status]" data-testid="pr-status">{{ PR_STATUS_LABELS[r.status] }}</span>
+          <span v-if="isAutoPaid(r)" class="src auto" data-testid="pr-auto-paid">系統自動標記</span>
         </div>
         <p class="card-line">{{ r.vendor_name_snapshot || "（廠商）" }}　建立 {{ dateText(r.created_at) }}</p>
         <p v-if="r.payee_type === 'EMPLOYEE'" class="card-line" data-testid="pr-payee">付款對象：同仁 {{ payeeName(r) }}</p>
@@ -170,7 +171,7 @@ async function exportCsv() {
         <p v-if="isUtilityRequest(r)" class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted" data-testid="pr-bill-info">　帳單月份 {{ String(r.bill_month || "").slice(0, 7) }}，{{ r.bill_count ?? 0 }} 張帳單</span></p>
         <p v-else class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted">　<template v-if="r.pay_kind === 'PREPAY'">預付款，採購單 {{ (r.po_nos || []).join("、") }}</template><template v-else>{{ r.line_count }} 筆進貨<template v-if="r.po_nos?.length">，採購單 {{ r.po_nos.join("、") }}</template></template></span></p>
         <p v-if="r.expected_pay_date" class="card-line muted">預計付款日 {{ dateText(r.expected_pay_date) }}</p>
-        <p v-if="r.status === 'PAID'" class="card-line muted">{{ dateText(r.paid_date) }} 付款<template v-if="r.paid_ref">（{{ r.paid_ref }}）</template></p>
+        <p v-if="r.status === 'PAID'" class="card-line muted">{{ dateText(r.paid_date) }} 付款<template v-if="r.paid_ref">（{{ r.paid_ref }}）</template><template v-if="isAutoPaid(r)">（系統自動標記）</template></p>
         <button type="button" data-testid="open-pr" @click="open(r.id)">查看</button>
       </li>
       <li v-if="!rows.length && !loading" class="card-empty">{{ error ? "資料載入失敗" : hasFilter ? "找不到符合的請款單" : loaded ? "目前還沒有請款單" : "" }}<button v-if="hasFilter" type="button" @click="clearFilters">清除篩選</button></li>
@@ -204,6 +205,7 @@ async function exportCsv() {
 .src.util { color: #0b5cab; border-color: #9cc3ea; background: #eaf3fc; }
 .src.prepay { color: #8a5a00; border-color: #e0c27a; background: #fff6df; }
 .src.emp { color: #7a3d00; border-color: #e0b48a; background: #fdf0e3; }
+.src.auto { color: #20614a; border-color: #8cc7ae; background: #e8f6ef; }
 .card-line.overdue { color: #b3261e; font-weight: 600; }
 .prepay-toggle { margin: 0 0 8px; }
 .prepay-toggle label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; min-height: 32px; }

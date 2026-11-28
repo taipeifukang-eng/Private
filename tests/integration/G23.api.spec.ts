@@ -26,7 +26,7 @@ const j = async (r: any) => ({ status: r.status(), body: await r.json().catch(()
 const get = async (k: string, p: string) => j(await apis[k].get(p));
 const send = async (k: string, method: 'post' | 'patch' | 'delete', p: string, data?: unknown) => j(await (apis[k] as any)[method](p, { data: data ?? {} }));
 const ident = (s = 'I') => `QA-GA6-API-${String((seq += 1)).padStart(4, '0')}-${s}`;
-const body = (over: Record<string, unknown> = {}) => ({ store_id: st.VW001.id, expense_type: 'WATER', billing_month: '2038-07', provider_name: ga6Name('P'), service_identifier: ident(), amount: 1500, ...over });
+const body = (over: Record<string, unknown> = {}) => ({ store_id: st.VW001.id, service_period_start: '2038-01-01', service_period_end: '2038-01-31', expense_type: 'WATER', billing_month: '2038-07', provider_name: ga6Name('P'), service_identifier: ident(), amount: 1500, ...over });
 const dbRow = async (id: string) => (await db().from('ga_utility_bills').select('*').eq('id', id).maybeSingle()).data as any;
 async function mk(over: Record<string, unknown> = {}) {
   const r = await send('util_mgr', 'post', U, body(over));
